@@ -1,0 +1,69 @@
+import React from 'react';
+import { SentimentData } from '../../types';
+
+interface SentimentMonitorProps {
+  data: SentimentData;
+}
+
+export const SentimentMonitor: React.FC<SentimentMonitorProps> = ({ data }) => {
+  return (
+    <div className="bg-gray-900 p-4 rounded-xl border border-gray-800 h-full">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-gray-400 font-bold text-xs uppercase tracking-wider">News Sentiment (NLP)</h3>
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+          data.label === 'GREED' ? 'bg-green-500/20 text-green-400' : 
+          data.label === 'FEAR' ? 'bg-red-500/20 text-red-400' : 'bg-gray-500/20 text-gray-400'
+        }`}>
+          {data.label}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-4 mb-6">
+        <div className="relative w-16 h-16">
+          <svg className="w-full h-full" viewBox="0 0 36 36">
+            <path
+              className="text-gray-800"
+              strokeDasharray="100, 100"
+              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+            />
+            <path
+              className={data.score > 0 ? 'text-green-500' : 'text-red-500'}
+              strokeDasharray={`${(Math.abs(data.score) * 100).toFixed(0)}, 100`}
+              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center text-sm font-bold">
+            {data.score > 0 ? '+' : ''}{data.score.toFixed(2)}
+          </div>
+        </div>
+        <div className="text-xs text-gray-400 leading-tight">
+          ParsBERT analysis shows a <span className="text-white">{data.label.toLowerCase()}</span> bias in recent IME-related press releases.
+        </div>
+      </div>
+
+      <div className="space-y-3 overflow-y-auto max-h-[200px] pr-1 scrollbar-thin scrollbar-thumb-gray-800">
+        {data.news.map((n) => (
+          <div key={n.id} className="border-l-2 border-gray-800 pl-3 py-1">
+            <div className="flex justify-between items-start mb-1">
+              <span className={`text-[9px] font-bold px-1 rounded ${
+                n.impact === 'HIGH' ? 'bg-orange-500/20 text-orange-400' : 'bg-blue-500/20 text-blue-400'
+              }`}>
+                {n.impact}
+              </span>
+              <span className="text-[9px] text-gray-600">{new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            <div className="text-[11px] text-gray-300 font-medium line-clamp-2">{n.title}</div>
+            <div className="text-[9px] text-gray-500 mt-1">{n.source}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};

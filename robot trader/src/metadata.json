@@ -1,0 +1,22 @@
+{
+  "name": "TSE Algorithmic Trading Terminal",
+  "short_name": "TSE Terminal",
+  "description": "Professional algorithmic trading terminal for TSETMC market.",
+  "version": "2.4.0",
+  "author": "Jules",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "/logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
