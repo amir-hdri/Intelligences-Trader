@@ -1,0 +1,16 @@
+{
+  "name": "tse-proxy-server",
+  "version": "1.0.0",
+  "description": "Proxy server for fetching real TSETMC/IME market data",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "axios": "^1.6.2",
+    "cheerio": "^1.0.0-rc.12"
+  }
+}
