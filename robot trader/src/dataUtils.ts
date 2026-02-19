@@ -76,6 +76,16 @@ export class TseApiClient {
   }
 
   async fetchSentiment(): Promise<SentimentData> {
+    try {
+      const response = await fetch('/api/news');
+      if (response.ok) {
+        const data = await response.json();
+        return data.sentiment;
+      }
+    } catch (error) {
+      console.warn('Failed to fetch NLP news from server, falling back to simulation.');
+    }
+
     const news = [
       { id: '1', title: 'Central Bank announces new Nima rate policy', impact: 'HIGH' as const, source: 'Sena', timestamp: Date.now() - 3600000 },
       { id: '2', title: 'Global gold prices stabilize amid inflation data', impact: 'MEDIUM' as const, source: 'Reuters', timestamp: Date.now() - 7200000 },
@@ -484,7 +494,25 @@ export const optimizeStrategyWeights = (candles: MarketCandle[]): { weights: Str
   return { weights: bestWeights, accuracy: maxWinRate };
 };
 
-export const trainModelEpoch = (candles: MarketCandle[]): number => {
+export const trainModelEpoch = async (candles: MarketCandle[], symbolId: string): Promise<number> => {
+  try {
+    const response = await fetch('/api/train', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: symbolId })
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log('Deep Learning Result:', result);
+      // Update local weights with server-optimized ones if necessary
+      // optimizedWeights = result.optimizedWeights;
+      return result.performance.winRate;
+    }
+  } catch (error) {
+    console.error('Deep training failed, falling back to local optimization', error);
+  }
+
   const { accuracy } = optimizeStrategyWeights(candles);
   return accuracy;
 };
