@@ -89,7 +89,7 @@ const App: React.FC = () => {
     }
     try {
       const data = mtfData['1h'].length > 0 ? mtfData['1h'] : await apiClient.fetchMarketData(selectedSymbol.id);
-      const accuracy = trainModelEpoch(data);
+      const accuracy = await trainModelEpoch(data, selectedSymbol.id);
       setMetrics(prev => ({ ...prev, accuracy, winRate: accuracy }));
       riskEngine.updatePerformanceMetrics(accuracy, metrics.profitFactor);
     } finally {
