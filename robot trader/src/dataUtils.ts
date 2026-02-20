@@ -4,6 +4,9 @@ import {
 } from './types';
 import { INDICATOR_PARAMS } from './constants';
 
+// Module-level storage for simulation state to ensure continuity
+const SIMULATION_STATE: Record<string, Record<string, MarketCandle[]>> = {};
+
 export class TseApiClient {
   private config: ApiConfig;
 
@@ -12,41 +15,41 @@ export class TseApiClient {
   }
 
   async fetchMarketData(symbolId: string): Promise<MarketCandle[]> {
-    if (this.config.proxyUrl && this.config.isConnected) {
-      try {
-        const response = await fetch(`${this.config.proxyUrl}/api/tse/${symbolId}`);
-        if (!response.ok) throw new Error('Network response was not ok');
-        return await response.json();
-      } catch (error) {
-        console.error('Failed to fetch from proxy, falling back to Digital Twin', error);
-        return this.generateDigitalTwinData(symbolId);
-      }
-    } else {
-      return this.generateDigitalTwinData(symbolId);
-    }
+    // Always use Digital Twin for standalone mode
+    return this.generateDigitalTwinData(symbolId);
   }
 
   async fetchOrderBook(symbolId: string): Promise<OrderBook> {
-    // Simulated Order Book with Spoofing detection logic
-    const lastPrice = 150000; // Mock base price
+    // Simulated Order Book with realistic dynamics
+    const lastPrice = await this.getLastPrice(symbolId);
     const bids: OrderBookItem[] = [];
     const asks: OrderBookItem[] = [];
 
     let buyVolume = 0;
     let sellVolume = 0;
 
+    // Add some noise to the price for the order book center
+    const spread = lastPrice * 0.0005;
+    const centerPrice = lastPrice;
+
     for (let i = 0; i < 5; i++) {
-      const bidPrice = lastPrice - (i + 1) * 10;
-      const askPrice = lastPrice + (i + 1) * 10;
+      const bidPrice = Math.floor(centerPrice - spread/2 - (i * spread/2));
+      const askPrice = Math.floor(centerPrice + spread/2 + (i * spread/2));
       
-      const bidQty = (i === 4 && Math.random() > 0.7) ? 500000 : Math.floor(Math.random() * 50000);
-      const askQty = Math.floor(Math.random() * 50000);
+      const bidQty = Math.floor(Math.random() * 50000) + 1000;
+      const askQty = Math.floor(Math.random() * 50000) + 1000;
       
-      bids.push({ price: bidPrice, quantity: bidQty, count: Math.floor(bidQty / 1000) });
-      asks.push({ price: askPrice, quantity: askQty, count: Math.floor(askQty / 1000) });
+      bids.push({ price: bidPrice, quantity: bidQty, count: Math.floor(bidQty / 1000) + 1 });
+      asks.push({ price: askPrice, quantity: askQty, count: Math.floor(askQty / 1000) + 1 });
       
       buyVolume += bidQty;
       sellVolume += askQty;
+    }
+
+    // Simulate occasional large orders ("Whales")
+    if (Math.random() > 0.8) {
+        if (Math.random() > 0.5) bids[0].quantity += 100000;
+        else asks[0].quantity += 100000;
     }
 
     const isSpoofingDetected = bids[4].quantity > 200000 || asks[4].quantity > 200000;
@@ -63,14 +66,14 @@ export class TseApiClient {
 
   async fetchMarketCorrelation(): Promise<CorrelationMetrics> {
     return {
-      usdFree: 650000 + Math.random() * 10000,
-      usdNima: 420000 + Math.random() * 5000,
-      globalGold: 2350 + Math.random() * 50,
-      globalBrent: 85 + Math.random() * 5,
+      usdFree: 650000 + Math.random() * 2000 - 1000,
+      usdNima: 420000 + Math.random() * 500 - 250,
+      globalGold: 2350 + Math.random() * 10 - 5,
+      globalBrent: 85 + Math.random() * 2 - 1,
       correlations: {
-        'USD_IME': 0.88,
-        'GOLD_IME': 0.92,
-        'BRENT_PETRO': 0.75
+        'USD_IME': 0.88 + Math.random() * 0.02,
+        'GOLD_IME': 0.92 + Math.random() * 0.01,
+        'BRENT_PETRO': 0.75 + Math.random() * 0.03
       }
     };
   }
@@ -82,7 +85,10 @@ export class TseApiClient {
       { id: '3', title: 'IME Saffron futures see record open interest', impact: 'LOW' as const, source: 'BourseNews', timestamp: Date.now() - 10800000 },
     ];
     
-    const score = 0.45; // Simulated NLP score
+    // Slowly varying sentiment
+    const timeFactor = Math.sin(Date.now() / (1000 * 60 * 60)); // Oscillates every few hours
+    const score = 0.2 + (timeFactor * 0.3); // ranges from -0.1 to 0.5
+
     return {
       score,
       label: score > 0.2 ? 'GREED' : score < -0.2 ? 'FEAR' : 'NEUTRAL',
@@ -101,12 +107,16 @@ export class TseApiClient {
     return result as Record<TimeFrame, MarketCandle[]>;
   }
 
+  private async getLastPrice(symbolId: string): Promise<number> {
+      const data = this.generateDigitalTwinData(symbolId, '1m');
+      return data[data.length - 1].close;
+  }
+
   private generateDigitalTwinData(symbolId: string, timeframe: TimeFrame = '1d'): MarketCandle[] {
-    const candles: MarketCandle[] = [];
-    let lastClose = symbolId.includes('SAF') ? 850000 : 150000;
-    const mu = 0.00005; 
-    const sigma = timeframe === '1m' ? 0.005 : timeframe === '15m' ? 0.01 : timeframe === '1h' ? 0.015 : 0.025;
-    const dt = 1;
+    // Initialize storage for this symbol if needed
+    if (!SIMULATION_STATE[symbolId]) {
+        SIMULATION_STATE[symbolId] = {};
+    }
 
     const tfMs: Record<TimeFrame, number> = {
       '1m': 60 * 1000,
@@ -117,22 +127,78 @@ export class TseApiClient {
 
     const count = timeframe === '1m' ? 300 : 100;
     const now = Date.now();
+    // Align now to the timeframe grid to avoid jitter
+    const currentSlot = Math.floor(now / tfMs[timeframe]) * tfMs[timeframe];
 
-    for (let i = 0; i < count; i++) {
+    let candles = SIMULATION_STATE[symbolId][timeframe] || [];
+
+    // If no history, generate initial history
+    if (candles.length === 0) {
+        let lastClose = symbolId.includes('SAF') ? 850000 : 150000;
+        const startTime = currentSlot - (count * tfMs[timeframe]);
+
+        for (let i = 0; i < count; i++) {
+             const timestamp = startTime + (i * tfMs[timeframe]);
+             const candle = this.generateSingleCandle(lastClose, timestamp, timeframe);
+             candles.push(candle);
+             lastClose = candle.close;
+        }
+    } else {
+        // Append new candles if time has passed
+        const lastCandle = candles[candles.length - 1];
+        let nextTimestamp = lastCandle.timestamp + tfMs[timeframe];
+        let lastClose = lastCandle.close;
+
+        while (nextTimestamp <= currentSlot) {
+            const candle = this.generateSingleCandle(lastClose, nextTimestamp, timeframe);
+            candles.push(candle);
+            lastClose = candle.close;
+            nextTimestamp += tfMs[timeframe];
+        }
+
+        // Prune old candles to keep memory usage checking
+        if (candles.length > count * 2) {
+            candles = candles.slice(-count);
+        }
+    }
+
+    // Update the simulation state
+    SIMULATION_STATE[symbolId][timeframe] = candles;
+
+    // Return the last 'count' candles
+    return candles.slice(-count);
+  }
+
+  private generateSingleCandle(prevClose: number, timestamp: number, timeframe: TimeFrame): MarketCandle {
+      const tfMs: Record<TimeFrame, number> = {
+        '1m': 60 * 1000,
+        '15m': 15 * 60 * 1000,
+        '1h': 60 * 60 * 1000,
+        '1d': 24 * 60 * 60 * 1000,
+      };
+
+      const mu = 0.00005;
+      const sigma = timeframe === '1m' ? 0.005 : timeframe === '15m' ? 0.01 : timeframe === '1h' ? 0.015 : 0.025;
+      const dt = 1;
+
+      // Add a simple trend component based on sine wave to simulate market cycles
+      const trendComponent = Math.sin(timestamp / (1000 * 60 * 60 * 24 * 7)) * 0.001; // Weekly cycle
+
       const epsilon = Math.random() * 2 - 1;
-      const change = lastClose * (mu * dt + sigma * epsilon * Math.sqrt(dt));
-      const close = lastClose + change;
-      const high = Math.max(lastClose, close) * (1 + Math.random() * (sigma / 2));
-      const low = Math.min(lastClose, close) * (1 - Math.random() * (sigma / 2));
-      const open = lastClose;
-      const volume = Math.floor(Math.random() * 1000000 * (tfMs[timeframe] / tfMs['1m']));
+      const change = prevClose * (mu * dt + trendComponent + sigma * epsilon * Math.sqrt(dt));
+      const close = prevClose + change;
       
+      const high = Math.max(prevClose, close) * (1 + Math.random() * (sigma / 2));
+      const low = Math.min(prevClose, close) * (1 - Math.random() * (sigma / 2));
+      const open = prevClose;
+
+      const volume = Math.floor(Math.random() * 1000000 * (tfMs[timeframe] / tfMs['1m']));
       const openInterest = 5000 + Math.floor(Math.random() * 10000);
       const basis = close * (0.02 + Math.random() * 0.08); 
       const warehouseVolume = 10000 + Math.floor(Math.random() * 50000);
 
-      candles.push({
-        timestamp: now - (count - i) * tfMs[timeframe],
+      return {
+        timestamp,
         open,
         high,
         low,
@@ -141,10 +207,7 @@ export class TseApiClient {
         openInterest,
         basis,
         warehouseVolume,
-      });
-      lastClose = close;
-    }
-    return candles;
+      };
   }
 }
 
