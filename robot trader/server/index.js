@@ -6,7 +6,7 @@ import bodyParser from 'body-parser';
 
 // Internal Logic
 import { generateNews } from './newsEngine.js';
-import { generateHistoricalData } from './dataFactory.js';
+import { generateHistoricalData, generateSimulationData } from './dataFactory.js';
 import { optimizeStrategy } from './strategyOptimizer.js';
 
 const app = express();
@@ -59,51 +59,11 @@ function parseTseDate(dateInt) {
   return new Date(year, month, day).getTime();
 }
 
-function generateSimulationData(symbolId) {
-    console.log(`Generating fallback simulation for ${symbolId}`);
-    const now = Date.now();
-    const data = [];
-    let price = symbolId.includes('GOLD') ? 35000000 : 1200000;
-    let openInterest = 5000;
-
-    for (let i = 0; i < 100; i++) {
-        const date = now - (100 - i) * 24 * 60 * 60 * 1000;
-
-        const isLimitUp = Math.random() > 0.95;
-        const isLimitDown = Math.random() > 0.95;
-
-        let change = (Math.random() - 0.5) * 0.02;
-        if (isLimitUp) change = 0.05;
-        if (isLimitDown) change = -0.05;
-
-        const close = Math.floor(price * (1 + change));
-        const open = Math.floor(price * (1 + (Math.random() - 0.5) * 0.005));
-        const high = Math.max(open, close, Math.floor(price * (1 + Math.abs(change) + 0.005)));
-        const low = Math.min(open, close, Math.floor(price * (1 - Math.abs(change) - 0.005)));
-        const volume = Math.floor(Math.random() * 100000) + 5000;
-
-        openInterest += Math.floor((Math.random() - 0.4) * 500);
-
-        data.push({
-          timestamp: date,
-          open,
-          high,
-          low,
-          close,
-          volume,
-          openInterest: Math.max(0, openInterest),
-          basis: symbolId.includes('FUT') ? close - (close * (0.98 + Math.random() * 0.04)) : 0
-        });
-        price = close;
-    }
-    return data;
-}
-
 // --- Endpoints ---
 
 // 1. Status Check
 app.get('/api/status', (req, res) => {
-  res.json({ status: 'Online', service: 'Robot Trader Intelligence Core', version: '2.5.0' });
+  res.json({ status: 'Online', service: 'Robot Trader Intelligence Core', version: '2.6.0' });
 });
 
 // 2. NLP News Analysis
@@ -129,10 +89,9 @@ app.get('/api/tse/history/:symbolId', async (req, res) => {
   const { symbolId } = req.params;
   const insCode = SYMBOL_MAP[symbolId];
 
+  // If not in map or unavailable, fallback to centralized simulation
   if (!insCode) {
-    // If not in map, default to simulation immediately?
-    // Or return 404? Frontend expects array or fallback.
-    // Let's fallback to simulation for unknown symbols too for robustness.
+    console.warn(`Symbol ${symbolId} not found in map, using Digital Twin.`);
     return res.json(generateSimulationData(symbolId));
   }
 
@@ -142,6 +101,8 @@ app.get('/api/tse/history/:symbolId', async (req, res) => {
 
   try {
     const data = await fetchWithRetry(`${TSETMC_URL}/${insCode}/0`);
+
+    if (!data || !data.instrumentHistory) throw new Error('Invalid TSETMC response');
 
     const candles = data.instrumentHistory.map(item => ({
       timestamp: parseTseDate(item.dEven),
@@ -196,7 +157,7 @@ app.get('/api/tse/info/:symbolId', async (req, res) => {
 
   } catch (error) {
     console.error(`Error fetching info for ${symbolId}:`, error.message);
-    res.status(500).json({ error: 'Failed to fetch info' });
+    res.status(500).json({ error: 'Failed to fetch info', details: error.message });
   }
 });
 
@@ -214,7 +175,7 @@ app.post('/api/train', (req, res) => {
   }
 });
 
-// 6. Generic Market Mock (Legacy support for Professional branch clients if any)
+// 6. Generic Market Mock (Legacy support)
 app.get('/api/market/history', (req, res) => {
   const symbol = req.query.symbol || 'SAF1403';
   const data = generateHistoricalData(symbol);
