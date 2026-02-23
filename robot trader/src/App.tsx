@@ -71,6 +71,7 @@ const App: React.FC = () => {
   const [forecast, setForecast] = useState<ExpertForecast | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
+  const [errorState, setErrorState] = useState<string | null>(null);
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
   
   // Risk Engine needs to persist equity state potentially
@@ -86,11 +87,16 @@ const App: React.FC = () => {
 
   const loadData = async () => {
     setIsLoading(true);
+    setErrorState(null);
     try {
-      const data = await apiClient.fetchMultiTimeframeData(selectedSymbol.id);
-      const ob = await apiClient.fetchOrderBook(selectedSymbol.id);
-      const corr = await apiClient.fetchMarketCorrelation();
-      const sent = await apiClient.fetchSentiment();
+      // Parallel Fetching with individual error handling handled inside client if needed,
+      // but here we want to ensure critical data loads.
+      const [data, ob, corr, sent] = await Promise.all([
+          apiClient.fetchMultiTimeframeData(selectedSymbol.id),
+          apiClient.fetchOrderBook(selectedSymbol.id),
+          apiClient.fetchMarketCorrelation(),
+          apiClient.fetchSentiment()
+      ]);
 
       setMtfData(data);
       setOrderBook(ob);
@@ -115,6 +121,7 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error('Failed to load market data', error);
+      setErrorState('Partial Data Load Failure - Some metrics may be simulated.');
     } finally {
       setIsLoading(false);
     }
@@ -132,6 +139,9 @@ const App: React.FC = () => {
       const accuracy = await trainModelEpoch(data, selectedSymbol.id);
       setMetrics(prev => ({ ...prev, accuracy, winRate: accuracy }));
       riskEngine.updatePerformanceMetrics(accuracy, metrics.profitFactor);
+    } catch (e) {
+       console.error("Training failed", e);
+       alert("Model training failed. Please check server connection.");
     } finally {
       setIsTraining(false);
     }
@@ -282,8 +292,14 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-6">
+            {errorState && (
+                <div className="flex items-center gap-2 text-rose-500 bg-rose-500/10 px-3 py-1 rounded-full border border-rose-500/20">
+                    <ShieldAlert className="w-3 h-3" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">System Warning</span>
+                </div>
+            )}
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              <span className={`w-2 h-2 rounded-full animate-pulse ${errorState ? 'bg-amber-500' : 'bg-emerald-500'}`} />
               <span className="text-sm font-mono text-slate-400">{metrics.uptime}</span>
             </div>
             <div className="flex items-center gap-2 border-l border-slate-800 pl-6">
