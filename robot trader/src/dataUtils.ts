@@ -278,7 +278,7 @@ export const calculateSeasonalityFactor = (symbolId: string): number => {
   return 1.0;
 };
 
-export const detectMarketRegime = (candles: MarketCandle[], atr: number): MarketRegime => {
+const detectMarketRegime = (candles: MarketCandle[], atr: number): MarketRegime => {
   const prices = candles.map(c => c.close);
   const ema20 = calculateEMA(prices, 20);
   const ema50 = calculateEMA(prices, 50);
