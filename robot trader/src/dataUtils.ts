@@ -19,11 +19,9 @@ export class TseApiClient {
         return await response.json();
       } catch (error) {
         console.error('Failed to fetch from proxy, falling back to Digital Twin', error);
-        return this.generateDigitalTwinData(symbolId);
       }
-    } else {
-      return this.generateDigitalTwinData(symbolId);
     }
+    return this.generateDigitalTwinData(symbolId);
   }
 
   async fetchOrderBook(symbolId: string): Promise<OrderBook> {
