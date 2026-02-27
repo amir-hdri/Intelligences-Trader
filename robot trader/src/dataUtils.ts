@@ -230,18 +230,6 @@ export const calculateBollingerBands = (prices: number[], period: number = 20, s
   };
 };
 
-export const calculatePivots = (candle: MarketCandle) => {
-  const { high, low, close } = candle;
-  const p = (high + low + close) / 3;
-  return {
-    p,
-    r1: 2 * p - low,
-    s1: 2 * p - high,
-    r2: p + (high - low),
-    s2: p - (high - low),
-  };
-};
-
 // Intelligence Core Functions
 export const calculateFairValue = (symbolId: string, currentPrice: number, correlation: CorrelationMetrics): number => {
   if (symbolId.includes('GOLD')) {
