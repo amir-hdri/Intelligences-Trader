@@ -152,6 +152,7 @@ export interface SystemMetrics {
   status: SystemStatusCode;
   marketCorrelation: CorrelationMetrics;
   sentiment: SentimentData;
+  balance: number; // Added for persistence
 }
 
 export interface Order {

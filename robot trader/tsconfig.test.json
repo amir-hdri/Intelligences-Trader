@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2019",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "test-out",
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowJs": true,
+    "noEmit": false,
+    "strict": false
+  },
+  "include": [
+    "src/dataUtils.ts",
+    "src/types.ts",
+    "src/constants.ts",
+    "src/dataUtils.test.ts"
+  ]
+}
