@@ -606,8 +606,10 @@ export const performWalkForwardBacktest = (candles: MarketCandle[]) => {
     let windowProfit = 0;
     const trades = [];
 
+    const currentWindow = [...trainData];
+
     for (let j = 0; j < testData.length; j++) {
-      const forecast = analyzeMarket(trainData.concat(testData.slice(0, j)));
+      const forecast = analyzeMarket(currentWindow);
       if (forecast.action !== 'HOLD') {
         const entryPrice = testData[j].close;
         const exitPrice = testData[Math.min(j + 1, testData.length - 1)].close;
@@ -615,6 +617,7 @@ export const performWalkForwardBacktest = (candles: MarketCandle[]) => {
         windowProfit += profit;
         trades.push({ profit });
       }
+      currentWindow.push(testData[j]);
     }
 
     const { winRate, profitFactor } = calculateStrategyMetrics(trades);
