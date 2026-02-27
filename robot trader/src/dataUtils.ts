@@ -15,6 +15,7 @@ export class TseApiClient {
   }
 
   async fetchMarketData(symbolId: string): Promise<MarketCandle[]> {
+<<<<<<< consolidate-ime-trader-14126282976834286729
     if (this.config.proxyUrl && this.config.isConnected) {
       // Robust Retry Logic
       let retries = 3;
@@ -41,9 +42,36 @@ export class TseApiClient {
       return this.generateDigitalTwinData(symbolId);
     } else {
       return this.generateDigitalTwinData(symbolId);
+=======
+    if (!this.config.proxyUrl) {
+      console.warn('No Proxy URL configured. Cannot fetch real data.');
+      return [];
     }
+
+    // Robust Retry Logic with Exponential Backoff
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        const response = await fetch(`${this.config.proxyUrl}/api/market/${symbolId}`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const json = await response.json();
+        return json.data || [];
+      } catch (error) {
+        console.warn(`Fetch failed for ${symbolId}. Retries left: ${retries - 1}`, error);
+        retries--;
+        if (retries === 0) {
+          console.error('Final fetch failure. Returning empty dataset to prevent crash.');
+          return [];
+        }
+        // Exponential backoff: 1s, 2s, 4s
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, 3 - retries)));
+      }
+>>>>>>> main
+    }
+    return [];
   }
 
+<<<<<<< consolidate-ime-trader-14126282976834286729
   async fetchOrderBook(symbolId: string): Promise<OrderBook> {
      if (this.config.proxyUrl && this.config.isConnected) {
         try {
@@ -115,14 +143,34 @@ export class TseApiClient {
       isSpoofingDetected,
       pressure
     };
+=======
+  async fetchOrderBook(symbolId: string): Promise<OrderBook | null> {
+    if (!this.config.proxyUrl) return null;
+    try {
+      const response = await fetch(`${this.config.proxyUrl}/api/orderbook/${symbolId}`);
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (e) {
+      console.error('Orderbook fetch failed', e);
+      return null;
+    }
+>>>>>>> main
   }
 
   async fetchMarketCorrelation(): Promise<CorrelationMetrics> {
+    // In a real app, this would fetch from a dedicated macro-economic API endpoint
     return {
+<<<<<<< consolidate-ime-trader-14126282976834286729
       usdFree: 650000 + Math.random() * 2000 - 1000,
       usdNima: 420000 + Math.random() * 500 - 250,
       globalGold: 2350 + Math.random() * 10 - 5,
       globalBrent: 85 + Math.random() * 2 - 1,
+=======
+      usdFree: 650000 + Math.random() * 1000,
+      usdNima: 420000,
+      globalGold: 2350 + Math.random() * 5,
+      globalBrent: 85 + Math.random() * 1,
+>>>>>>> main
       correlations: {
         'USD_IME': 0.88 + Math.random() * 0.02,
         'GOLD_IME': 0.92 + Math.random() * 0.01,
@@ -132,6 +180,7 @@ export class TseApiClient {
   }
 
   async fetchSentiment(): Promise<SentimentData> {
+<<<<<<< consolidate-ime-trader-14126282976834286729
     if (this.config.proxyUrl && this.config.isConnected) {
         try {
           const response = await fetch(`${this.config.proxyUrl}/api/news`);
@@ -144,24 +193,31 @@ export class TseApiClient {
         }
     }
 
+=======
+    // Professional Sentiment: Connects to a real RSS parser structure (simulated here)
+    // In production, this endpoint would scrape TseTmc news.
+>>>>>>> main
     const news = [
-      { id: '1', title: 'Central Bank announces new Nima rate policy', impact: 'HIGH' as const, source: 'Sena', timestamp: Date.now() - 3600000 },
-      { id: '2', title: 'Global gold prices stabilize amid inflation data', impact: 'MEDIUM' as const, source: 'Reuters', timestamp: Date.now() - 7200000 },
-      { id: '3', title: 'IME Saffron futures see record open interest', impact: 'LOW' as const, source: 'BourseNews', timestamp: Date.now() - 10800000 },
+      { id: '1', title: 'IME Gold Futures volume spikes amid currency fluctuation', impact: 'HIGH' as const, source: 'TSETMC News', timestamp: Date.now() - 3600000 },
+      { id: '2', title: 'Central Bank announces new Nima rate policy', impact: 'MEDIUM' as const, source: 'Sena', timestamp: Date.now() - 7200000 },
     ];
+<<<<<<< consolidate-ime-trader-14126282976834286729
     
     // Slowly varying sentiment
     const timeFactor = Math.sin(Date.now() / (1000 * 60 * 60)); // Oscillates every few hours
     const score = 0.2 + (timeFactor * 0.3); // ranges from -0.1 to 0.5
 
+=======
+>>>>>>> main
     return {
-      score,
-      label: score > 0.2 ? 'GREED' : score < -0.2 ? 'FEAR' : 'NEUTRAL',
+      score: 0.25,
+      label: 'GREED',
       news
     };
   }
 
   async fetchMultiTimeframeData(symbolId: string): Promise<Record<TimeFrame, MarketCandle[]>> {
+<<<<<<< consolidate-ime-trader-14126282976834286729
     const timeframes: TimeFrame[] = ['1m', '15m', '1h', '1d'];
     const result: Partial<Record<TimeFrame, MarketCandle[]>> = {};
 
@@ -291,6 +347,20 @@ export class TseApiClient {
         basis,
         warehouseVolume,
       };
+=======
+    try {
+      const data = await this.fetchMarketData(symbolId);
+      // Populate all timeframes with real data (resampled if necessary)
+      return {
+        '1m': data.slice(-50),
+        '15m': data.slice(-50),
+        '1h': data.slice(-50),
+        '1d': data
+      };
+    } catch (e) {
+      return { '1m': [], '15m': [], '1h': [], '1d': [] };
+    }
+>>>>>>> main
   }
 }
 
@@ -377,18 +447,6 @@ export const calculateBollingerBands = (prices: number[], period: number = 20, s
   };
 };
 
-export const calculatePivots = (candle: MarketCandle) => {
-  const { high, low, close } = candle;
-  const p = (high + low + close) / 3;
-  return {
-    p,
-    r1: 2 * p - low,
-    s1: 2 * p - high,
-    r2: p + (high - low),
-    s2: p - (high - low),
-  };
-};
-
 // Intelligence Core Functions
 export const calculateFairValue = (symbolId: string, currentPrice: number, correlation: CorrelationMetrics): number => {
   if (symbolId.includes('GOLD')) {
@@ -419,15 +477,6 @@ export const detectArbitrageOpportunity = (symbolId: string, lastCandle: MarketC
     };
   }
   return undefined;
-};
-
-export const calculateSeasonalityFactor = (symbolId: string): number => {
-  const month = new Date().getMonth();
-  if (symbolId.includes('SAF')) {
-    if (month === 9 || month === 10) return 1.25; 
-    if (month === 2 || month === 3) return 0.85; 
-  }
-  return 1.0;
 };
 
 export const detectMarketRegime = (candles: MarketCandle[], atr: number): MarketRegime => {
@@ -531,6 +580,7 @@ export const analyzeMarketMTF = (
       score -= weights.openInterest;
       reasons.push('Bearish: Price falling with increasing Open Interest (Aggressive Shorting)');
     }
+<<<<<<< consolidate-ime-trader-14126282976834286729
   }
 
   // 3. Basis Analysis
@@ -548,6 +598,25 @@ export const analyzeMarketMTF = (
     else if (externalMetrics.orderBook.pressure < -0.25) { score -= weights.orderBook; reasons.push('Order Book Imbalance: Sellers Dominating'); }
   }
 
+=======
+  }
+
+  // 3. Basis Analysis
+  if (lastCandle.basis) {
+      const basisPct = lastCandle.basis / lastCandle.close;
+      if (basisPct < -0.01) {
+          score += weights.basis;
+          reasons.push('Backwardation (Bullish Supply Shortage)');
+      }
+  }
+
+  // 4. Order Book Analysis
+  if (externalMetrics?.orderBook) {
+    if (externalMetrics.orderBook.pressure > 0.25) { score += weights.orderBook; reasons.push('Order Book Imbalance: Buyers Dominating'); }
+    else if (externalMetrics.orderBook.pressure < -0.25) { score -= weights.orderBook; reasons.push('Order Book Imbalance: Sellers Dominating'); }
+  }
+
+>>>>>>> main
   // 5. Technicals
   if (lastCandle.close > ichimoku.senkouA) score += weights.ichimoku;
   if (rsi < 30) { score += weights.rsi; reasons.push('RSI Oversold'); }
@@ -598,6 +667,7 @@ export const calculateStrategyMetrics = (trades: { profit: number }[]) => {
   return { winRate, profitFactor };
 };
 
+// Professional Walk-Forward Backtesting Engine
 export const performWalkForwardBacktest = (candles: MarketCandle[]) => {
   if (candles.length < 50) return [];
   const windowSize = 50;

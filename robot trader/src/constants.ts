@@ -46,10 +46,10 @@ export const IME_SYMBOLS: SymbolInfo[] = [
 export const REAL_TSE_SYMBOLS = IME_SYMBOLS; 
 
 export const DEFAULT_API_CONFIG: ApiConfig = {
-  proxyUrl: '',
-  apiKey: '',
-  isConnected: false,
-  useDigitalTwin: true,
+  proxyUrl: 'http://localhost:3001',
+  apiKey: 'demo-key', // Placeholder for professional auth
+  isConnected: true,  // Default to connected for real data mode
+  useDigitalTwin: false, // Disable simulation by default
 };
 
 export const INDICATOR_PARAMS = {
