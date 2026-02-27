@@ -75,11 +75,13 @@ const MOCK_CORRELATION: CorrelationMetrics = {
   usdFree: 650000,
   usdNima: 420000,
   globalGold: 2350,
+  globalCopper: 8400,
   globalBrent: 85,
   correlations: { 'USD_IME': 0.88, 'GOLD_IME': 0.92 }
 };
 
 const MOCK_SENTIMENT: SentimentData = {
+  politicalRiskIndex: 50,
   score: 0.45,
   label: 'GREED',
   news: []
