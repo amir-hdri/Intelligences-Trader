@@ -1,4 +1,4 @@
-import { SymbolInfo, ApiConfig, RiskLimits, SystemMetrics, CorrelationMetrics, SentimentData } from './types';
+import type { SymbolInfo, ApiConfig, RiskLimits, SystemMetrics, CorrelationMetrics, SentimentData } from './types';
 
 export const IME_SYMBOLS: SymbolInfo[] = [
   { 
