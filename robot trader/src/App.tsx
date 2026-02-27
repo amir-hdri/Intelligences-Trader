@@ -6,13 +6,16 @@ import { OrderBook } from './components/analytics/OrderBook';
 import { MarketCorrelation } from './components/analytics/MarketCorrelation';
 import { SentimentMonitor } from './components/analytics/SentimentMonitor';
 import { ArbitragePanel } from './components/analytics/ArbitragePanel';
+import { LearningDashboard } from './components/analytics/LearningDashboard';
 import { IME_SYMBOLS, DEFAULT_API_CONFIG, INITIAL_METRICS, DEFAULT_RISK_LIMITS } from './constants';
 import { 
   MarketCandle, ExpertForecast, ApiConfig, SystemMetrics, SymbolInfo, TimeFrame, 
   TradeLogEntry, RiskLimits, RiskStatus, OrderBook as OrderBookType, 
   CorrelationMetrics, SentimentData 
 } from './types';
-import { TseApiClient, analyzeMarketMTF, performWalkForwardBacktest, trainModelEpoch } from './dataUtils';
+import { TseApiClient, analyzeMarketMTF, performWalkForwardBacktest, trainModelEpoch, StrategyWeights, DEFAULT_WEIGHTS } from './dataUtils';
+import { predictionService } from './services/PredictionHistoryService';
+import { learningEngine } from './services/LearningEngine';
 import { RiskEngine } from './riskEngine';
 import { 
   Activity, Cpu, TrendingUp, Clock, AlertCircle, Play, RefreshCcw, Save, 
@@ -82,6 +85,7 @@ const App: React.FC = () => {
   const [walkForwardResults, setWalkForwardResults] = useState<any[]>([]);
   const [isTraining, setIsTraining] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(0);
+  const [strategyWeights, setStrategyWeights] = useState<StrategyWeights>(DEFAULT_WEIGHTS);
 
   const apiClient = useMemo(() => new TseApiClient(apiConfig), [apiConfig]);
 
@@ -103,12 +107,36 @@ const App: React.FC = () => {
       setCorrelation(corr);
       setSentiment(sent);
 
-      const analysis = analyzeMarketMTF(data, selectedSymbol.id, { 
-        orderBook: ob, 
-        correlation: corr, 
-        sentiment: sent 
-      });
-      setForecast(analysis);
+      if (data['1h'] && data['1h'].length > 0) {
+        const currentPrice = data['1h'][data['1h'].length - 1].close;
+
+        // 1. Evaluate pending predictions
+        predictionService.evaluatePredictions(currentPrice, selectedSymbol.id);
+
+        // 2. Learn from history
+        const history = predictionService.getHistory();
+        const newWeights = learningEngine.calculateAdaptiveWeights(history);
+        const confidenceMod = learningEngine.calculateConfidenceModifier(history);
+
+        setStrategyWeights(newWeights);
+
+        // 3. Analyze with new intelligence
+        const analysis = analyzeMarketMTF(data, selectedSymbol.id, {
+          orderBook: ob,
+          correlation: corr,
+          sentiment: sent
+        }, newWeights);
+
+        // Apply confidence modifier
+        analysis.confidence *= confidenceMod;
+
+        // 4. Save analysis if actionable
+        if (analysis.action !== 'HOLD') {
+          predictionService.savePrediction(analysis, selectedSymbol.id, newWeights);
+        }
+
+        setForecast(analysis);
+      }
       
       const wfResults = performWalkForwardBacktest(data['1h']);
       setWalkForwardResults(wfResults);
@@ -403,6 +431,13 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === 'performance' && (
+            <LearningDashboard
+              history={predictionService.getHistory()}
+              currentWeights={strategyWeights}
+            />
           )}
 
           {activeTab === 'intelligence' && (
