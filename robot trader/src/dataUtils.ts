@@ -1,4 +1,4 @@
-import { 
+import type {
   MarketCandle, ExpertForecast, ApiConfig, TradeAction, TimeFrame, MarketRegime, 
   OrderBook, OrderBookItem, CorrelationMetrics, SentimentData, ArbitrageOpportunity 
 } from './types';
