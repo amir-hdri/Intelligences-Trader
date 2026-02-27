@@ -1,12 +1,14 @@
-
 // @ts-ignore
-import { describe, it } from 'node:test';
+import { describe, it, test, before, after } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { analyzeMarketMTF } from './dataUtils';
+import { analyzeMarketMTF, TseApiClient } from './dataUtils';
 import { MarketCandle } from './types';
+import type { ApiConfig } from './types';
 
+// ========================================
 // Helper to create candles
+// ========================================
 const createCandles = (count: number, trend: 'UP' | 'DOWN' | 'FLAT' | 'VOLATILE'): MarketCandle[] => {
     const candles: MarketCandle[] = [];
     let price = 10000;
@@ -33,7 +35,10 @@ const createCandles = (count: number, trend: 'UP' | 'DOWN' | 'FLAT' | 'VOLATILE'
     return candles;
 };
 
-describe('dataUtils', () => {
+// ========================================
+// Test Suite: Market Regime Detection
+// ========================================
+describe('dataUtils - Market Regime Detection', () => {
     it('should detect TRENDING_UP regime indirectly via analyzeMarketMTF', () => {
         const candles = createCandles(100, 'UP');
         const mtfData = {
@@ -71,13 +76,95 @@ describe('dataUtils', () => {
 
         const result = analyzeMarketMTF(mtfData, 'TEST_SYMBOL');
         const volatility = result.indicators.atr / result.entryPrice;
-        // console.log('Volatile Test - ATR:', result.indicators.atr, 'Price:', result.entryPrice, 'Vol:', volatility);
 
         // Ensure volatility is high enough for the test
         if (volatility <= 0.03) {
             console.warn('Test warning: Generated data was not volatile enough. Retrying or adjusting test expectations might be needed.');
-            // We can assert that volatility matches what we expect, or just fail with a better message
         }
         assert.strictEqual(result.regime, 'HIGH_VOLATILITY');
     });
+});
+
+// ========================================
+// Test Suite: TseApiClient
+// ========================================
+describe('TseApiClient', () => {
+  let originalFetch: typeof globalThis.fetch;
+  let originalConsoleError: typeof console.error;
+
+  before(() => {
+    originalFetch = globalThis.fetch;
+    originalConsoleError = console.error;
+    // Suppress console.error for expected failures
+    console.error = () => {};
+  });
+
+  after(() => {
+    globalThis.fetch = originalFetch;
+    console.error = originalConsoleError;
+  });
+
+  test('fetchMarketData fetches from proxy when configured and connected', async () => {
+    const mockResponse: MarketCandle[] = [{
+      timestamp: 12345,
+      open: 100,
+      high: 110,
+      low: 90,
+      close: 105,
+      volume: 1000
+    }];
+
+    // Mock fetch success
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({ data: mockResponse }),
+    } as any);
+
+    const config: ApiConfig = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config);
+    const data = await client.fetchMarketData('TEST');
+
+    assert.deepStrictEqual(data, mockResponse);
+  });
+
+  test('fetchMarketData returns empty array on fetch error after retries', async () => {
+    // Mock fetch failure
+    globalThis.fetch = async () => {
+      throw new Error('Network Error');
+    };
+
+    const config: ApiConfig = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config);
+    const data = await client.fetchMarketData('TEST');
+
+    assert.ok(Array.isArray(data));
+    assert.strictEqual(data.length, 0); // Returns empty array after retries (per main branch logic)
+  });
+
+  test('fetchMarketData returns empty array when no proxy URL configured', async () => {
+    const config: ApiConfig = {
+      proxyUrl: undefined,
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config);
+    const data = await client.fetchMarketData('TEST');
+
+    assert.ok(Array.isArray(data));
+    assert.strictEqual(data.length, 0);
+  });
 });
