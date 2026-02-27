@@ -17,7 +17,7 @@ export class TseApiClient {
       return [];
     }
 
-    // Robust Retry Logic
+    // Robust Retry Logic with Exponential Backoff
     let retries = 3;
     while (retries > 0) {
       try {
@@ -29,10 +29,11 @@ export class TseApiClient {
         console.warn(`Fetch failed for ${symbolId}. Retries left: ${retries - 1}`, error);
         retries--;
         if (retries === 0) {
-           console.error('Final fetch failure. Returning empty dataset to prevent crash.');
-           return [];
+          console.error('Final fetch failure. Returning empty dataset to prevent crash.');
+          return [];
         }
-        await new Promise(r => setTimeout(r, 1000)); // Exponential backoff could go here
+        // Exponential backoff: 1s, 2s, 4s
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, 3 - retries)));
       }
     }
     return [];
@@ -66,8 +67,8 @@ export class TseApiClient {
   }
 
   async fetchSentiment(): Promise<SentimentData> {
-     // Professional Sentiment: Connects to a real RSS parser structure (simulated here)
-     // In production, this endpoint would scrape TseTmc news.
+    // Professional Sentiment: Connects to a real RSS parser structure (simulated here)
+    // In production, this endpoint would scrape TseTmc news.
     const news = [
       { id: '1', title: 'IME Gold Futures volume spikes amid currency fluctuation', impact: 'HIGH' as const, source: 'TSETMC News', timestamp: Date.now() - 3600000 },
       { id: '2', title: 'Central Bank announces new Nima rate policy', impact: 'MEDIUM' as const, source: 'Sena', timestamp: Date.now() - 7200000 },
