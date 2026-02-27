@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Database, BrainCircuit, Settings, Activity, ShieldAlert, History, Zap, Layers } from 'lucide-react';
+import { LayoutDashboard, Database, BrainCircuit, Settings, Activity, ShieldAlert, History, Zap, Layers, TrendingUp } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -11,6 +11,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, status }) =>
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'intelligence', label: 'Intelligence', icon: Layers },
+    { id: 'performance', label: 'Performance', icon: TrendingUp },
     { id: 'data', label: 'Market Data', icon: Database },
     { id: 'strategy', label: 'Strategy Lab', icon: BrainCircuit },
     { id: 'risk', label: 'Risk Control', icon: ShieldAlert },
