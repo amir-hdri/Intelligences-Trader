@@ -95,5 +95,6 @@ export const INITIAL_METRICS: SystemMetrics = {
   winRate: 0.68,
   status: 'OPERATIONAL',
   marketCorrelation: MOCK_CORRELATION,
-  sentiment: MOCK_SENTIMENT
+  sentiment: MOCK_SENTIMENT,
+  balance: 1000000
 };
