@@ -12,18 +12,36 @@ export class TseApiClient {
   }
 
   async fetchMarketData(symbolId: string): Promise<MarketCandle[]> {
-    if (this.config.proxyUrl && this.config.isConnected) {
-      try {
-        const response = await fetch(`${this.config.proxyUrl}/api/tse/${symbolId}`);
-        if (!response.ok) throw new Error('Network response was not ok');
-        return await response.json();
-      } catch (error) {
-        console.error('Failed to fetch from proxy, falling back to Digital Twin', error);
-        return this.generateDigitalTwinData(symbolId);
+    // 1. Prioritize real API on localhost proxy
+    const apiUrl = this.config.proxyUrl || 'http://localhost:3000';
+    try {
+      const response = await fetch(`${apiUrl}/api/tse/${symbolId}`);
+      if (!response.ok) throw new Error('Network response was not ok');
+      const json = await response.json();
+      if (json.success && json.data) {
+          return json.data;
       }
-    } else {
+      throw new Error('Invalid real data format');
+    } catch (error) {
+      console.error('Failed to fetch from Real API proxy, falling back to Digital Twin', error);
       return this.generateDigitalTwinData(symbolId);
     }
+  }
+
+  async fetchAdvancedMetrics(historyData: MarketCandle[]) {
+      const apiUrl = this.config.proxyUrl || 'http://localhost:3000';
+      try {
+          const response = await fetch(`${apiUrl}/api/analyze`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ historyData })
+          });
+          if (!response.ok) throw new Error('Network response was not ok');
+          return await response.json();
+      } catch (error) {
+          console.error('Failed to fetch advanced metrics from API:', error);
+          return null; // Graceful fallback if backend analysis fails
+      }
   }
 
   async fetchOrderBook(symbolId: string): Promise<OrderBook> {

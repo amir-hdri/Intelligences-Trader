@@ -58,11 +58,41 @@ const App: React.FC = () => {
       setCorrelation(corr);
       setSentiment(sent);
 
-      const analysis = analyzeMarketMTF(data, selectedSymbol.id, { 
-        orderBook: ob, 
-        correlation: corr, 
-        sentiment: sent 
-      });
+      // 1. Try to fetch advanced metrics from the new backend
+      const advancedData = await apiClient.fetchAdvancedMetrics(data['1h']);
+
+      let analysis: ExpertForecast;
+      let advancedRiskData: any;
+
+      if (advancedData) {
+        // Use Backend Analysis
+        analysis = {
+            action: advancedData.prediction,
+            confidence: advancedData.confidence,
+            reason: advancedData.reasoning,
+            regime: advancedData.volatility.regime,
+            indicators: advancedData.indicators,
+            sentimentScore: sent.score,
+            basisOpportunity: 0,
+            orderBookPressure: ob.pressure
+        } as ExpertForecast;
+
+        advancedRiskData = {
+           var95: advancedData.risk.valueAtRisk95,
+           suggestedRiskCapital: advancedData.risk.suggestedRiskCapital
+        };
+
+        // Attach external data to forecast for UI rendering
+        (analysis as any).backendRisk = advancedRiskData;
+      } else {
+        // Fallback to local analysis
+        analysis = analyzeMarketMTF(data, selectedSymbol.id, {
+          orderBook: ob,
+          correlation: corr,
+          sentiment: sent
+        });
+      }
+
       setForecast(analysis);
       
       const wfResults = performWalkForwardBacktest(data['1h']);
@@ -99,7 +129,11 @@ const App: React.FC = () => {
 
   const executeTrade = () => {
     if (!forecast) return;
-    const validation = riskEngine.validateTrade(forecast, metrics.activeOrders, selectedSymbol);
+
+    // Pass advanced risk data if available
+    const advancedRiskData = (forecast as any).backendRisk ? { var95: (forecast as any).backendRisk.var95 } : undefined;
+
+    const validation = riskEngine.validateTrade(forecast, metrics.activeOrders, selectedSymbol, advancedRiskData);
     if (!validation.allowed) {
       alert(`Trade Rejected: ${validation.reason}`);
       return;
@@ -241,8 +275,20 @@ const App: React.FC = () => {
                         
                         <div className="grid grid-cols-2 gap-4">
                           <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700">
-                            <div className="text-[10px] text-slate-500 uppercase font-bold text-center">Kelly Units</div>
-                            <div className="text-sm font-mono text-center text-indigo-400">{riskEngine.calculateKellySize(forecast.entryPrice, forecast.indicators.atr)}</div>
+                            <div className="text-[10px] text-slate-500 uppercase font-bold text-center">Units (Kelly + VaR)</div>
+                            <div className="text-sm font-mono text-center text-indigo-400">
+                              {riskEngine.calculateKellySize(forecast.entryPrice, forecast.indicators.atr, (forecast as any).backendRisk?.suggestedRiskCapital)}
+                            </div>
+                          </div>
+                          <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700">
+                            <div className="text-[10px] text-slate-500 uppercase font-bold text-center">VaR (95%)</div>
+                            <div className="text-sm font-mono text-center text-rose-400">
+                               {(((forecast as any).backendRisk?.var95 || 0) * 100).toFixed(2)}%
+                            </div>
+                          </div>
+                          <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700">
+                            <div className="text-[10px] text-slate-500 uppercase font-bold text-center">Regime</div>
+                            <div className="text-sm font-mono text-center">{forecast.regime}</div>
                           </div>
                           <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700">
                             <div className="text-[10px] text-slate-500 uppercase font-bold text-center">Confidence</div>
@@ -505,20 +551,31 @@ const App: React.FC = () => {
                         <span className="text-indigo-400 font-mono">312MB</span>
                       </div>
                       <div className="flex justify-between p-3 bg-slate-800/50 rounded-lg">
-                        <span className="text-slate-500 font-bold text-xs uppercase">WebSocket</span>
-                        <span className="text-emerald-400 font-bold text-[10px] uppercase">Connected</span>
+                        <span className="text-slate-500 font-bold text-xs uppercase">Local Server Proxy</span>
+                        <span className={`font-bold text-[10px] uppercase ${apiConfig.isConnected ? 'text-emerald-400' : 'text-rose-400'}`}>{apiConfig.isConnected ? 'Connected' : 'Disconnected'}</span>
                       </div>
                    </div>
                 </div>
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8">
                    <h2 className="text-xl font-bold mb-6 flex items-center gap-3 text-indigo-400">
                      <Cpu className="w-6 h-6" />
-                     Digital Twin Config
+                     Data Source Status
                    </h2>
-                   <div className="p-4 bg-indigo-500/5 rounded-xl border border-indigo-500/20 font-mono text-[10px] text-indigo-300">
-                      Model: Geometric Brownian Motion<br/>
-                      Drift: 0.0001 | Sigma: 0.02<br/>
-                      Sync: Enabled
+                   <div className={`p-4 rounded-xl border font-mono text-[10px] ${apiConfig.isConnected ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-300' : 'bg-indigo-500/5 border-indigo-500/20 text-indigo-300'}`}>
+                      {apiConfig.isConnected ? (
+                        <>
+                           Source: Real TSETMC via Node.js Proxy<br/>
+                           Advanced Analysis Engine: ONLINE<br/>
+                           VaR Modeling: ACTIVE
+                        </>
+                      ) : (
+                        <>
+                           Source: Fallback Digital Twin Simulation<br/>
+                           Model: Geometric Brownian Motion<br/>
+                           Drift: 0.0001 | Sigma: 0.02<br/>
+                           Sync: Local Offline Mode
+                        </>
+                      )}
                    </div>
                 </div>
              </div>
