@@ -21,32 +21,48 @@ export interface OrderBookItem {
   count: number;
 }
 
+export interface QueueDynamics {
+  buyVolume: number;
+  sellVolume: number;
+  totalVolume: number;
+  buyRatio: number; // buyVolume / totalVolume
+  isHerdingDetected: boolean; // buyRatio > 0.5
+  momentumMultiplier: number;
+}
+
 export interface OrderBook {
   bids: OrderBookItem[];
   asks: OrderBookItem[];
   timestamp: number;
   isSpoofingDetected: boolean;
   pressure: number; // -1 to 1
+  queueDynamics: QueueDynamics;
 }
 
 export interface CorrelationMetrics {
   usdFree: number;
   usdNima: number;
-  globalGold: number;
+  globalGold: number; // Ounce
+  globalCopper: number; // LME Copper
   globalBrent: number;
   correlations: { [key: string]: number };
 }
 
+export interface PoliticalRiskNews {
+  id: string;
+  title: string;
+  nerTags: string[];
+  sentimentScore: number; // -1 to 1
+  impactEffect: 'DOLLAR_BULLISH' | 'DOLLAR_BEARISH' | 'NEUTRAL';
+  source: string;
+  timestamp: number;
+}
+
 export interface SentimentData {
+  politicalRiskIndex: number; // 0 to 100
   score: number; // -1 to 1
   label: 'FEAR' | 'GREED' | 'NEUTRAL';
-  news: {
-    id: string;
-    title: string;
-    impact: 'HIGH' | 'MEDIUM' | 'LOW';
-    source: string;
-    timestamp: number;
-  }[];
+  news: PoliticalRiskNews[];
 }
 
 export interface ArbitrageOpportunity {
@@ -73,8 +89,11 @@ export interface ExpertForecast {
   sentimentScore: number;
   basisOpportunity: number;
   fairValue?: number;
+  bubbleGap?: number; // Gap = (P_Market - P_Fair) / P_Fair
   arbitrage?: ArbitrageOpportunity;
   orderBookPressure: number;
+  politicalRiskIndex: number;
+  queueDynamicsRatio: number;
   timeframeAnalysis: {
     [key in TimeFrame]?: {
       trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
