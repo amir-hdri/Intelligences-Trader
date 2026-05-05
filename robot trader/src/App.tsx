@@ -347,9 +347,10 @@ const App: React.FC = () => {
         <div className="p-8">
           {activeTab === 'dashboard' && (
             <div className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <MetricCard title="Fair Value Gap" value={forecast?.fairValue ? `${(((forecast.entryPrice - forecast.fairValue) / forecast.fairValue) * 100).toFixed(1)}%` : '0%'} icon={Zap} trend={{ value: 0.5, isPositive: false }} />
-                <MetricCard title="Order Pressure" value={orderBook ? `${(orderBook.pressure * 100).toFixed(1)}%` : '0%'} icon={BarChart3} />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                <MetricCard title="Political Risk Index" value={sentiment ? `${sentiment.politicalRiskIndex.toFixed(0)}` : '50'} icon={AlertCircle} trend={{ value: sentiment?.politicalRiskIndex ? sentiment.politicalRiskIndex - 50 : 0, isPositive: sentiment?.politicalRiskIndex ? sentiment.politicalRiskIndex > 50 : false }} />
+                <MetricCard title="Bubble Gap" value={forecast?.bubbleGap !== undefined ? `${(forecast.bubbleGap * 100).toFixed(1)}%` : '0%'} icon={Zap} trend={{ value: forecast?.bubbleGap || 0, isPositive: forecast?.bubbleGap ? forecast.bubbleGap > 0 : false }} />
+                <MetricCard title="Queue Herding" value={orderBook ? `${(orderBook.queueDynamics.buyRatio * 100).toFixed(1)}%` : '0%'} icon={BarChart3} trend={{ value: orderBook ? orderBook.queueDynamics.buyRatio - 0.5 : 0, isPositive: orderBook ? orderBook.queueDynamics.buyRatio > 0.5 : false }} />
                 <MetricCard title="Market Sentiment" value={sentiment ? `${(sentiment.score * 100).toFixed(0)}%` : '0%'} icon={BrainCircuit} />
                 <MetricCard title="Risk Buffer" value={`${(riskStatus.margin.freeMargin / 10000).toFixed(1)}%`} icon={ShieldCheck} />
               </div>
@@ -367,7 +368,7 @@ const App: React.FC = () => {
                            <span className="px-2 py-0.5 bg-rose-500/10 text-rose-500 text-[9px] font-black border border-rose-500/20 rounded uppercase tracking-tighter">LIMIT DOWN: {selectedSymbol.priceLimit.down.toLocaleString()}</span>
                            <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 text-[9px] font-black border border-emerald-500/20 rounded uppercase tracking-tighter">LIMIT UP: {selectedSymbol.priceLimit.up.toLocaleString()}</span>
                         </div>
-                        <span className="px-2 py-1 bg-indigo-500/10 text-indigo-400 text-[10px] font-bold rounded border border-indigo-500/20 uppercase tracking-widest">v2.5 Trained</span>
+                        <span className="px-2 py-1 bg-amber-500/10 text-amber-500 text-[10px] font-bold rounded border border-amber-500/20 uppercase tracking-widest">Hedge Fund Core Active</span>
                       </div>
                     </div>
                     <WalkForwardChart data={mtfData['1h']} forecast={forecast} />

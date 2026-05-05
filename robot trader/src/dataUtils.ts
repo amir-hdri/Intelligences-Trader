@@ -58,14 +58,27 @@ export class TseApiClient {
 
           let buyVolume = bids.reduce((acc: number, b: any) => acc + b.quantity, 0);
           let sellVolume = asks.reduce((acc: number, a: any) => acc + a.quantity, 0);
-          const pressure = (buyVolume - sellVolume) / (buyVolume + sellVolume || 1);
+          const totalVolume = buyVolume + sellVolume || 1;
+          const pressure = (buyVolume - sellVolume) / totalVolume;
+
+          const buyRatio = buyVolume / totalVolume;
+          const isHerdingDetected = buyRatio > 0.5;
+          const momentumMultiplier = isHerdingDetected ? 1.5 : 1.0;
 
           return {
             bids,
             asks,
             timestamp: data.timestamp || Date.now(),
             isSpoofingDetected: false,
-            pressure
+            pressure,
+            queueDynamics: {
+              buyVolume,
+              sellVolume,
+              totalVolume,
+              buyRatio,
+              isHerdingDetected,
+              momentumMultiplier
+            }
           };
         }
       } catch (e) {
@@ -104,32 +117,53 @@ export class TseApiClient {
 
     // Simulate occasional large orders ("Whales")
     if (Math.random() > 0.8) {
-      if (Math.random() > 0.5) bids[0].quantity += 100000;
-      else asks[0].quantity += 100000;
+      if (Math.random() > 0.5) {
+        bids[0].quantity += 100000;
+        buyVolume += 100000;
+      } else {
+        asks[0].quantity += 100000;
+        sellVolume += 100000;
+      }
     }
 
     const isSpoofingDetected = bids[4].quantity > 200000 || asks[4].quantity > 200000;
-    const pressure = (buyVolume - sellVolume) / (buyVolume + sellVolume);
+    const totalVolume = buyVolume + sellVolume;
+    const pressure = (buyVolume - sellVolume) / totalVolume;
+
+    // Phase 3: Queue Dynamics Module (Detecting Herding Behavior)
+    const buyRatio = buyVolume / totalVolume;
+    const isHerdingDetected = buyRatio > 0.5;
+    const momentumMultiplier = isHerdingDetected ? 1.5 : 1.0; // Boost momentum if herding
 
     return {
       bids,
       asks,
       timestamp: Date.now(),
       isSpoofingDetected,
-      pressure
+      pressure,
+      queueDynamics: {
+        buyVolume,
+        sellVolume,
+        totalVolume,
+        buyRatio,
+        isHerdingDetected,
+        momentumMultiplier
+      }
     };
   }
 
   async fetchMarketCorrelation(): Promise<CorrelationMetrics> {
     // In a real app, this would fetch from a dedicated macro-economic API endpoint
     return {
-      usdFree: 650000 + Math.random() * 2000 - 1000,
+      usdFree: 650000 + Math.random() * 5000 - 2000,
       usdNima: 420000 + Math.random() * 500 - 250,
       globalGold: 2350 + Math.random() * 10 - 5,
+      globalCopper: 8500 + Math.random() * 100 - 50, // LME Copper Price
       globalBrent: 85 + Math.random() * 2 - 1,
       correlations: {
         'USD_IME': 0.88 + Math.random() * 0.02,
         'GOLD_IME': 0.92 + Math.random() * 0.01,
+        'COPPER_IME': 0.85 + Math.random() * 0.03,
         'BRENT_PETRO': 0.75 + Math.random() * 0.03
       }
     };
@@ -149,10 +183,36 @@ export class TseApiClient {
       }
     }
 
-    // Simulated sentiment (fallback)
-    const news = [
-      { id: '1', title: 'IME Gold Futures volume spikes amid currency fluctuation', impact: 'HIGH' as const, source: 'TSETMC News', timestamp: Date.now() - 3600000 },
-      { id: '2', title: 'Central Bank announces new Nima rate policy', impact: 'MEDIUM' as const, source: 'Sena', timestamp: Date.now() - 7200000 },
+    // Phase 1: Political Risk Indexer (Simulated ParsBERT NLP Engine)
+    // We simulate parsing news for keywords and determining Dollar Bullish/Bearish impact
+    const news: any[] = [
+      {
+        id: '1',
+        title: 'Central Bank announces new strict limits on currency allocation',
+        nerTags: ['Central Bank', 'Currency Allocation'],
+        sentimentScore: 0.8,
+        impactEffect: 'DOLLAR_BULLISH',
+        source: 'Fars News',
+        timestamp: Date.now() - 3600000
+      },
+      {
+        id: '2',
+        title: 'Talks stall regarding international trade agreements',
+        nerTags: ['Sanctions', 'Trade', 'International'],
+        sentimentScore: 0.6,
+        impactEffect: 'DOLLAR_BULLISH',
+        source: 'Bloomberg Persian',
+        timestamp: Date.now() - 7200000
+      },
+      {
+        id: '3',
+        title: 'Ministry of Industry increases export duties on metals',
+        nerTags: ['Ministry', 'Export', 'Metals'],
+        sentimentScore: -0.4,
+        impactEffect: 'NEUTRAL',
+        source: 'ISNA',
+        timestamp: Date.now() - 12000000
+      }
     ];
     
     // Slowly varying sentiment
@@ -160,7 +220,16 @@ export class TseApiClient {
     const score = 0.2 + (timeFactor * 0.3);
     const label = score > 0.3 ? 'GREED' : score < -0.1 ? 'FEAR' : 'NEUTRAL';
 
+    // Calculate dynamic Political Risk Index (0-100) based on news impact
+    let bullishCount = news.filter(n => n.impactEffect === 'DOLLAR_BULLISH').length;
+    let bearishCount = news.filter(n => n.impactEffect === 'DOLLAR_BEARISH').length;
+
+    // Base risk of 50. Increase if bullish for dollar (meaning high political tension/inflation).
+    let politicalRiskIndex = 50 + (bullishCount * 15) - (bearishCount * 15) + (Math.random() * 10 - 5);
+    politicalRiskIndex = Math.max(0, Math.min(100, politicalRiskIndex));
+
     return {
+      politicalRiskIndex,
       score,
       label,
       news
@@ -554,9 +623,55 @@ export const analyzeMarketMTF = (
     reasons.push(`Arbitrage Opportunity: ${arbitrage.details}`);
   }
 
+  // 6. Macro & Political Engineering (Hedge Fund Fusion Layer)
+  let bubbleGap = 0;
+  let politicalRiskIndex = externalMetrics?.sentiment?.politicalRiskIndex || 50;
+  let queueDynamicsRatio = externalMetrics?.orderBook?.queueDynamics?.buyRatio || 0.5;
+
+  if (externalMetrics?.correlation) {
+    // Determine dynamic fair value based on global macro covariates
+    let pGlobal = 1;
+    let usdRate = externalMetrics.correlation.usdNima;
+
+    if (symbolId.includes('SAF') || symbolId.includes('GOLD')) {
+      pGlobal = externalMetrics.correlation.globalGold / 31.1035; // per gram approx
+      usdRate = externalMetrics.correlation.usdFree;
+    } else if (symbolId.includes('COPPER')) {
+      pGlobal = externalMetrics.correlation.globalCopper / 1000; // per kg
+      usdRate = externalMetrics.correlation.usdNima;
+    }
+
+    const pFair = pGlobal * usdRate;
+    bubbleGap = (lastCandle.close - pFair) / pFair;
+
+    // Apply Bubble Detector Logic
+    if (bubbleGap > 0.2) {
+      score -= 3; // Bearish divergence
+      reasons.push(`Bubble Detected: Market price is ${(bubbleGap * 100).toFixed(1)}% above Macro Fair Value.`);
+    } else if (bubbleGap < -0.1) {
+      score += 2;
+      reasons.push('Undervalued relative to Global/USD Covariates.');
+    }
+  }
+
+  // Apply Political Risk Tensor
+  if (politicalRiskIndex > 70) {
+    score += 4; // High tension = Dollar Bullish = Commodity Bullish
+    reasons.push('High Political Risk Index -> Expecting USD/Commodity inflation leap.');
+  } else if (politicalRiskIndex < 30) {
+    score -= 3;
+    reasons.push('Low Political Risk Index -> Bearish for USD-pegged assets.');
+  }
+
+  // Apply Queue Dynamics Momentum (Herding behavior overrides technicals)
+  if (externalMetrics?.orderBook?.queueDynamics?.isHerdingDetected) {
+    score *= externalMetrics.orderBook.queueDynamics.momentumMultiplier;
+    reasons.push('Queue Dynamics: Herding behavior detected. Momentum multiplier applied.');
+  }
+
   // Scoring Logic
-  const action: TradeAction = score >= 4 ? 'BUY' : score <= -4 ? 'SELL' : 'HOLD';
-  const confidence = Math.min(Math.abs(score) / 12, 0.99);
+  const action: TradeAction = score >= 5 ? 'BUY' : score <= -5 ? 'SELL' : 'HOLD';
+  const confidence = Math.min(Math.abs(score) / 15, 0.99); // Normalized based on new max potential score
 
   return {
     action,
@@ -568,8 +683,11 @@ export const analyzeMarketMTF = (
     sentimentScore,
     basisOpportunity: lastCandle.basis || 0,
     fairValue: externalMetrics?.correlation ? calculateFairValue(symbolId, lastCandle.close, externalMetrics.correlation) : undefined,
+    bubbleGap,
     arbitrage,
     orderBookPressure: externalMetrics?.orderBook?.pressure || 0,
+    politicalRiskIndex,
+    queueDynamicsRatio,
     timeframeAnalysis: {
       '1d': { trend: dailyTrend, signal: 'Trend Context' },
       '1h': { trend: score > 0 ? 'BULLISH' : 'BEARISH', signal: action },

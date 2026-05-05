@@ -1,6 +1,10 @@
-import { test } from 'node:test';
+// @ts-ignore
+import { describe, it, test, before, after } from 'node:test';
+// @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient } from './dataUtils';
+import { MarketCandle } from './types';
+import type { ApiConfig } from './types';
 
 test('calculateMACD - returns correct structure', () => {
   const prices = [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115];
@@ -63,13 +67,6 @@ test('calculateMACD - handles single price element', () => {
   assert.strictEqual(result.signal, 0);
   assert.strictEqual(result.histogram, 0);
 });
-// @ts-ignore
-import { describe, it, test, before, after } from 'node:test';
-// @ts-ignore
-import assert from 'node:assert';
-import { analyzeMarketMTF, TseApiClient } from './dataUtils';
-import { MarketCandle } from './types';
-import type { ApiConfig } from './types';
 
 // ========================================
 // Helper to create candles
@@ -198,7 +195,7 @@ describe('TseApiClient', () => {
     assert.deepStrictEqual(data, mockResponse);
   });
 
-  test('fetchMarketData returns empty array on fetch error after retries', async () => {
+  test('fetchMarketData falls back to Digital Twin on fetch error after retries', async () => {
     // Mock fetch failure
     globalThis.fetch = async () => {
       throw new Error('Network Error');
@@ -215,12 +212,12 @@ describe('TseApiClient', () => {
     const data = await client.fetchMarketData('TEST');
 
     assert.ok(Array.isArray(data));
-    assert.strictEqual(data.length, 0); // Returns empty array after retries (per main branch logic)
+    assert.strictEqual(data.length, 100); // Now falls back to digital twin (default 100 candles for 1d)
   });
 
-  test('fetchMarketData returns empty array when no proxy URL configured', async () => {
+  test('fetchMarketData falls back to Digital Twin when no proxy URL configured', async () => {
     const config: ApiConfig = {
-      proxyUrl: undefined,
+      proxyUrl: undefined as any,
       apiKey: 'key',
       isConnected: true,
       useDigitalTwin: false,
@@ -230,6 +227,6 @@ describe('TseApiClient', () => {
     const data = await client.fetchMarketData('TEST');
 
     assert.ok(Array.isArray(data));
-    assert.strictEqual(data.length, 0);
+    assert.strictEqual(data.length, 100); // Falls back to digital twin
   });
 });
