@@ -68,7 +68,7 @@ export class PredictionHistoryService {
     }
 
     const prediction: StoredPrediction = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       timestamp: Date.now(),
       symbol,
       action: forecast.action as 'BUY' | 'SELL',
