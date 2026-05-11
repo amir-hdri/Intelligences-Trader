@@ -53,9 +53,9 @@ export const SentimentMonitor: React.FC<SentimentMonitorProps> = ({ data }) => {
           <div key={n.id} className="border-l-2 border-gray-800 pl-3 py-1">
             <div className="flex justify-between items-start mb-1">
               <span className={`text-[9px] font-bold px-1 rounded ${
-                n.impact === 'HIGH' ? 'bg-orange-500/20 text-orange-400' : 'bg-blue-500/20 text-blue-400'
+                n.impactEffect === 'DOLLAR_BULLISH' ? 'bg-orange-500/20 text-orange-400' : 'bg-blue-500/20 text-blue-400'
               }`}>
-                {n.impact}
+                {n.impactEffect}
               </span>
               <span className="text-[9px] text-gray-600">{new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
