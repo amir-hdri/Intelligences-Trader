@@ -13,7 +13,7 @@ const app = express();
 const port = 3000;
 const cache = new NodeCache({ stdTTL: 10 }); // Cache for 10 seconds
 
-app.use(cors());
+app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
 app.use(bodyParser.json());
 
