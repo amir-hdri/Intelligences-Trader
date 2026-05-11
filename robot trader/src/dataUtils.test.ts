@@ -2,7 +2,7 @@
 import { describe, it, test, before, after } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, detectArbitrageOpportunity } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -229,4 +229,96 @@ describe('TseApiClient', () => {
     assert.ok(Array.isArray(data));
     assert.strictEqual(data.length, 100); // Falls back to digital twin
   });
+});
+
+// ========================================
+// Test Suite: detectArbitrageOpportunity
+// ========================================
+describe('detectArbitrageOpportunity', () => {
+    it('returns undefined if lastCandle.basis is not provided', () => {
+        const lastCandle: MarketCandle = {
+            timestamp: 12345,
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 105,
+            volume: 1000
+        };
+        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
+        assert.strictEqual(result, undefined);
+    });
+
+    it('returns CASH_AND_CARRY when basisPct > 0.05', () => {
+        const lastCandle: MarketCandle = {
+            timestamp: 12345,
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 100,
+            volume: 1000,
+            basis: 5.1 // basisPct = 5.1 / 100 = 0.051 > 0.05
+        };
+        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
+        assert.ok(result);
+        assert.strictEqual(result?.type, 'CASH_AND_CARRY');
+        assert.ok(Math.abs((result?.profitPercentage ?? 0) - (0.051 - 0.025) * 100) < 0.0001);
+    });
+
+    it('returns BASIS when basisPct < -0.01', () => {
+        const lastCandle: MarketCandle = {
+            timestamp: 12345,
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 100,
+            volume: 1000,
+            basis: -1.1 // basisPct = -1.1 / 100 = -0.011 < -0.01
+        };
+        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
+        assert.ok(result);
+        assert.strictEqual(result?.type, 'BASIS');
+        assert.ok(Math.abs((result?.profitPercentage ?? 0) - 1.1) < 0.0001);
+    });
+
+    it('returns undefined when basisPct is exactly -0.01', () => {
+        const lastCandle: MarketCandle = {
+            timestamp: 12345,
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 100,
+            volume: 1000,
+            basis: -1.0 // basisPct = -1.0 / 100 = -0.01
+        };
+        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
+        assert.strictEqual(result, undefined);
+    });
+
+    it('returns undefined when basisPct is exactly 0.05', () => {
+        const lastCandle: MarketCandle = {
+            timestamp: 12345,
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 100,
+            volume: 1000,
+            basis: 5.0 // basisPct = 5.0 / 100 = 0.05
+        };
+        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
+        assert.strictEqual(result, undefined);
+    });
+
+    it('returns undefined when basisPct is between -0.01 and 0.05', () => {
+        const lastCandle: MarketCandle = {
+            timestamp: 12345,
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 100,
+            volume: 1000,
+            basis: 2.0 // basisPct = 2.0 / 100 = 0.02
+        };
+        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
+        assert.strictEqual(result, undefined);
+    });
 });
