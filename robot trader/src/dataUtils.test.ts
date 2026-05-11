@@ -2,8 +2,8 @@
 import { describe, it, test, before, after } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient } from './dataUtils';
-import { MarketCandle } from './types';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateRSI } from './dataUtils';
+import type { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
 test('calculateMACD - returns correct structure', () => {
@@ -228,5 +228,68 @@ describe('TseApiClient', () => {
 
     assert.ok(Array.isArray(data));
     assert.strictEqual(data.length, 100); // Falls back to digital twin
+  });
+});
+
+describe('calculateRSI', () => {
+  test('returns 50 if prices.length is less than period + 1', () => {
+    assert.strictEqual(calculateRSI([100, 101], 14), 50);
+  });
+
+  test('returns 100 if there are only gains during the period (average loss is 0)', () => {
+    // 15 prices for period 14, strictly increasing
+    const prices = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
+    assert.strictEqual(calculateRSI(prices, 14), 100);
+  });
+
+  test('returns 0 if there are only losses during the period (average gain is 0)', () => {
+    // 15 prices for period 14, strictly decreasing
+    const prices = [24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10];
+    assert.strictEqual(calculateRSI(prices, 14), 0);
+  });
+
+  test('returns correct RSI for a mixed sequence of gains and losses', () => {
+    // 15 prices:
+    // changes:
+    // 1 -> 2 (+1)
+    // 2 -> 3 (+1)
+    // 3 -> 2 (-1)
+    // 2 -> 3 (+1)
+    // 3 -> 2 (-1)
+    // 2 -> 3 (+1)
+    // 3 -> 2 (-1)
+    // 2 -> 3 (+1)
+    // 3 -> 2 (-1)
+    // 2 -> 3 (+1)
+    // 3 -> 2 (-1)
+    // 2 -> 3 (+1)
+    // 3 -> 2 (-1)
+    // 2 -> 3 (+1)
+    // gains: 8 * (+1) = +8
+    // losses: 6 * (-1) = -6
+    // avgGain = 8/14
+    // avgLoss = 6/14
+    // rs = 8/6 = 1.333...
+    // RSI = 100 - 100 / (1 + 1.333...) = 100 - 100 / (14/6) = 100 - 600/14 = 100 - 42.857... = 57.142857...
+    const prices = [1, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3];
+    const rsi = calculateRSI(prices, 14);
+    assert.ok(rsi > 57.1 && rsi < 57.2);
+  });
+
+  test('calculates RSI properly using a custom period', () => {
+    // Period = 3, prices length = 4
+    // changes:
+    // 10 -> 12 (+2)
+    // 12 -> 9 (-3)
+    // 9 -> 11 (+2)
+    // gains: +4
+    // losses: -3
+    // avgGain: 4/3
+    // avgLoss: 3/3 = 1
+    // rs: (4/3) / 1 = 4/3
+    // RSI = 100 - 100 / (1 + 4/3) = 100 - 100 / (7/3) = 100 - 300/7 = 100 - 42.857... = 57.142857...
+    const prices = [10, 12, 9, 11];
+    const rsi = calculateRSI(prices, 3);
+    assert.ok(rsi > 57.1 && rsi < 57.2);
   });
 });
