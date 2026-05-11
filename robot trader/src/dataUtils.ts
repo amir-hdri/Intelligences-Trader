@@ -755,8 +755,12 @@ export const optimizeStrategyWeights = (candles: MarketCandle[]): { weights: Str
   let bestWeights = { ...DEFAULT_WEIGHTS };
   let maxWinRate = 0;
 
+  // Generate candidates
+  const candidates: StrategyWeights[] = [];
+  const tradesList: { profit: number }[][] = [];
+
   for (let i = 0; i < 15; i++) {
-    const candidate: StrategyWeights = {
+    candidates.push({
       ichimoku: Math.random() * 4,
       rsi: Math.random() * 4,
       macd: Math.random() * 4,
@@ -765,21 +769,36 @@ export const optimizeStrategyWeights = (candles: MarketCandle[]): { weights: Str
       orderBook: Math.random() * 4,
       correlation: Math.random() * 4,
       openInterest: Math.random() * 4
+    });
+    tradesList.push([]);
+  }
+
+  // Iterate through candles and slice only once per index
+  for (let j = 50; j < candles.length - 1; j++) {
+    const currentSlice = candles.slice(0, j);
+    const mtfData: Record<TimeFrame, MarketCandle[]> = {
+      '1h': currentSlice,
+      '1d': currentSlice,
+      '1m': [],
+      '15m': []
     };
 
-    const trades = [];
-    for (let j = 50; j < candles.length - 1; j++) {
-      const forecast = analyzeMarketMTF({ '1h': candles.slice(0, j), '1d': candles.slice(0, j), '1m': [], '15m': [] }, '', undefined, candidate);
+    for (let i = 0; i < 15; i++) {
+      const forecast = analyzeMarketMTF(mtfData, '', undefined, candidates[i]);
       if (forecast.action !== 'HOLD') {
-        const profit = forecast.action === 'BUY' ? candles[j + 1].close - candles[j].close : candles[j].close - candles[j + 1].close;
-        trades.push({ profit });
+        const profit = forecast.action === 'BUY'
+          ? candles[j + 1].close - candles[j].close
+          : candles[j].close - candles[j + 1].close;
+        tradesList[i].push({ profit });
       }
     }
+  }
 
-    const { winRate } = calculateStrategyMetrics(trades);
+  for (let i = 0; i < 15; i++) {
+    const { winRate } = calculateStrategyMetrics(tradesList[i]);
     if (winRate > maxWinRate) {
       maxWinRate = winRate;
-      bestWeights = candidate;
+      bestWeights = candidates[i];
     }
   }
 
