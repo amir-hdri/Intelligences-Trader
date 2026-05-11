@@ -45,7 +45,7 @@ async function fetchWithRetry(url, params = {}, retries = 2) {
       });
       return response.data;
     } catch (error) {
-      if (i === retries - 1) throw error;
+      if (i === retries - 1) return null; // FIX: return null instead of throwing unhandled promise rejection
       await new Promise(r => setTimeout(r, 1000));
     }
   }
@@ -133,7 +133,9 @@ app.get('/api/tse/info/:symbolId', async (req, res) => {
 
   try {
     const infoData = await fetchWithRetry(`${TSETMC_INFO_URL}/${insCode}`);
+    if (!infoData) throw new Error('Failed to fetch infoData');
     const obData = await fetchWithRetry(`${TSETMC_OB_URL}/${insCode}`);
+    if (!obData) throw new Error('Failed to fetch obData');
 
     const lastPrice = infoData.instrumentInfo.priceClosing;
 
