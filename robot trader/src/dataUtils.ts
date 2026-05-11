@@ -717,34 +717,35 @@ export const performWalkForwardBacktest = (candles: MarketCandle[]) => {
   const stepSize = 10;
   const results = [];
 
+  const currentWindow = candles.slice(0, windowSize);
+
   for (let i = windowSize; i < candles.length - stepSize; i += stepSize) {
-    const trainData = candles.slice(i - windowSize, i);
-    const testData = candles.slice(i, i + stepSize);
-    
     let windowProfit = 0;
     const trades = [];
 
-    const currentWindow = [...trainData];
-
-    for (let j = 0; j < testData.length; j++) {
+    for (let j = 0; j < stepSize; j++) {
       const forecast = analyzeMarket(currentWindow);
+      const testCandle = candles[i + j];
       if (forecast.action !== 'HOLD') {
-        const entryPrice = testData[j].close;
-        const exitPrice = testData[Math.min(j + 1, testData.length - 1)].close;
+        const entryPrice = testCandle.close;
+        const exitIndex = i + Math.min(j + 1, stepSize - 1);
+        const exitPrice = candles[exitIndex].close;
         const profit = forecast.action === 'BUY' ? exitPrice - entryPrice : entryPrice - exitPrice;
         windowProfit += profit;
         trades.push({ profit });
       }
-      currentWindow.push(testData[j]);
+      currentWindow.push(testCandle);
     }
 
     const { winRate, profitFactor } = calculateStrategyMetrics(trades);
     results.push({
-      period: new Date(testData[0].timestamp).toLocaleDateString(),
+      period: new Date(candles[i].timestamp).toLocaleDateString(),
       winRate,
       profitFactor,
       profit: windowProfit
     });
+
+    currentWindow.splice(0, stepSize);
   }
 
   return results;
