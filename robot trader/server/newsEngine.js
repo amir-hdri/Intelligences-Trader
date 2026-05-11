@@ -1,4 +1,5 @@
 import Sentiment from 'sentiment';
+import crypto from 'crypto';
 const sentiment = new Sentiment();
 
 // Mock News Database
@@ -47,7 +48,7 @@ export const generateNews = (count = 5) => {
     }
 
     news.push({
-      id: Math.random().toString(36).substring(7),
+      id: crypto.randomUUID(),
       title: randomHeadline,
       source: randomSource,
       timestamp: now - timeOffset,
