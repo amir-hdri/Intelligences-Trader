@@ -3,6 +3,10 @@ import type {
   OrderBook, OrderBookItem, CorrelationMetrics, SentimentData, ArbitrageOpportunity 
 } from './types';
 import { INDICATOR_PARAMS } from './constants';
+import Sentiment from 'sentiment';
+
+const sentiment = new Sentiment();
+
 
 // Module-level storage for simulation state to ensure continuity
 const SIMULATION_STATE: Record<string, Record<string, MarketCandle[]>> = {};
@@ -184,13 +188,12 @@ export class TseApiClient {
     }
 
     // Phase 1: Political Risk Indexer (Simulated ParsBERT NLP Engine)
-    // We simulate parsing news for keywords and determining Dollar Bullish/Bearish impact
+    // We parse simulated news using real NLP sentiment analysis
     const news: any[] = [
       {
         id: '1',
         title: 'Central Bank announces new strict limits on currency allocation',
         nerTags: ['Central Bank', 'Currency Allocation'],
-        sentimentScore: 0.8,
         impactEffect: 'DOLLAR_BULLISH',
         source: 'Fars News',
         timestamp: Date.now() - 3600000
@@ -199,7 +202,6 @@ export class TseApiClient {
         id: '2',
         title: 'Talks stall regarding international trade agreements',
         nerTags: ['Sanctions', 'Trade', 'International'],
-        sentimentScore: 0.6,
         impactEffect: 'DOLLAR_BULLISH',
         source: 'Bloomberg Persian',
         timestamp: Date.now() - 7200000
@@ -208,17 +210,20 @@ export class TseApiClient {
         id: '3',
         title: 'Ministry of Industry increases export duties on metals',
         nerTags: ['Ministry', 'Export', 'Metals'],
-        sentimentScore: -0.4,
         impactEffect: 'NEUTRAL',
         source: 'ISNA',
         timestamp: Date.now() - 12000000
       }
     ];
-    
-    // Slowly varying sentiment
-    const timeFactor = Math.sin(Date.now() / (1000 * 60 * 60));
-    const score = 0.2 + (timeFactor * 0.3);
-    const label = score > 0.3 ? 'GREED' : score < -0.1 ? 'FEAR' : 'NEUTRAL';
+
+    // Real NLP implementation
+    news.forEach(item => {
+      const result = sentiment.analyze(item.title);
+      item.sentimentScore = result.comparative;
+    });
+
+    const score = news.reduce((acc, curr) => acc + curr.sentimentScore, 0) / (news.length || 1);
+    const label = score > 0.1 ? 'GREED' : score < -0.1 ? 'FEAR' : 'NEUTRAL';
 
     // Calculate dynamic Political Risk Index (0-100) based on news impact
     let bullishCount = news.filter(n => n.impactEffect === 'DOLLAR_BULLISH').length;
