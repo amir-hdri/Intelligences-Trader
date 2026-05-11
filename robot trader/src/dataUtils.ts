@@ -795,7 +795,7 @@ export const trainModelEpoch = async (candles: MarketCandle[], symbolId: string 
     });
     if (response.ok) {
       const result = await response.json();
-      console.log('Deep Learning Result:', result);
+
       return result.performance?.winRate || 0.5;
     }
   } catch (e) {
