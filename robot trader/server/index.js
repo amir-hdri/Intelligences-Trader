@@ -86,8 +86,8 @@ app.get('/api/news', (req, res) => {
 
 // 3. TSETMC History (with Fallback)
 app.get('/api/tse/history/:symbolId', async (req, res) => {
-  const { symbolId } = req.params;
-  const insCode = SYMBOL_MAP[symbolId];
+  const symbolId = String(req.params.symbolId);
+  const insCode = Object.prototype.hasOwnProperty.call(SYMBOL_MAP, symbolId) ? SYMBOL_MAP[symbolId] : null;
 
   // If not in map or unavailable, fallback to centralized simulation
   if (!insCode) {
@@ -126,8 +126,8 @@ app.get('/api/tse/history/:symbolId', async (req, res) => {
 
 // 4. Real-Time Info (Last Price, Best Limits)
 app.get('/api/tse/info/:symbolId', async (req, res) => {
-  const { symbolId } = req.params;
-  const insCode = SYMBOL_MAP[symbolId];
+  const symbolId = String(req.params.symbolId);
+  const insCode = Object.prototype.hasOwnProperty.call(SYMBOL_MAP, symbolId) ? SYMBOL_MAP[symbolId] : null;
 
   if (!insCode) return res.status(404).json({ error: 'Symbol not found' });
 
@@ -163,7 +163,12 @@ app.get('/api/tse/info/:symbolId', async (req, res) => {
 
 // 5. Deep Training (Strategy Optimization)
 app.post('/api/train', (req, res) => {
-  const symbol = req.body.symbol || 'SAF1403';
+  let symbol = req.body.symbol || 'SAF1403';
+
+  if (typeof symbol !== 'string' || !/^[A-Z0-9-]+$/.test(symbol)) {
+    return res.status(400).json({ error: 'Invalid symbol format' });
+  }
+
   console.log(`Starting deep training for ${symbol}...`);
 
   try {
@@ -177,7 +182,12 @@ app.post('/api/train', (req, res) => {
 
 // 6. Generic Market Mock (Legacy support)
 app.get('/api/market/history', (req, res) => {
-  const symbol = req.query.symbol || 'SAF1403';
+  const symbol = String(req.query.symbol || 'SAF1403');
+
+  if (!/^[A-Z0-9-]+$/.test(symbol)) {
+    return res.status(400).json({ error: 'Invalid symbol format' });
+  }
+
   const data = generateHistoricalData(symbol);
   res.json(data);
 });
