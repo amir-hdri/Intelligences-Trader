@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, analyzeMarket } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -100,6 +100,35 @@ const createCandles = (count: number, trend: 'UP' | 'DOWN' | 'FLAT' | 'VOLATILE'
 // ========================================
 // Test Suite: Market Regime Detection
 // ========================================
+describe('dataUtils - analyzeMarket', () => {
+    it('should correctly wrap analyzeMarketMTF', () => {
+        const candles = createCandles(35, 'UP');
+        const result = analyzeMarket(candles);
+
+        assert.ok(result, 'Result should be defined');
+        assert.strictEqual(typeof result.action, 'string', 'Action should be a string');
+        assert.strictEqual(typeof result.entryPrice, 'number', 'entryPrice should be a number');
+        assert.strictEqual(typeof result.confidence, 'number', 'confidence should be a number');
+        assert.ok(['BUY', 'SELL', 'HOLD'].includes(result.action), 'Action should be BUY, SELL, or HOLD');
+        assert.ok(result.reason, 'Reason should be populated');
+    });
+
+    it('should handle empty candle arrays', () => {
+        const result = analyzeMarket([]);
+
+        assert.strictEqual(result.action, 'HOLD');
+        assert.strictEqual(result.reason, 'Insufficient Data');
+    });
+
+    it('should handle small candle arrays (insufficient data)', () => {
+        const candles = createCandles(15, 'FLAT');
+        const result = analyzeMarket(candles);
+
+        assert.strictEqual(result.action, 'HOLD');
+        assert.strictEqual(result.reason, 'Insufficient Data');
+    });
+});
+
 describe('dataUtils - Market Regime Detection', () => {
     it('should detect TRENDING_UP regime indirectly via analyzeMarketMTF', () => {
         const candles = createCandles(100, 'UP');
