@@ -120,6 +120,10 @@ export class RiskEngine {
     // p = win rate, b = win/loss ratio (profit factor), q = 1 - p
     const p = this.winRate;
     const b = this.profitFactor;
+
+    // Avoid division by zero and handle non-positive profit factor
+    if (b <= 0) return 0;
+
     const q = 1 - p;
     const kellyF = (p * b - q) / b;
     

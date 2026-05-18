@@ -7,14 +7,14 @@ interface SentimentMonitorProps {
 
 export const SentimentMonitor: React.FC<SentimentMonitorProps> = ({ data }) => {
   return (
-    <div className="bg-gray-900 p-4 rounded-xl border border-gray-800 h-full">
+    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 h-full">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-gray-400 font-bold text-xs uppercase tracking-wider">News Sentiment (NLP)</h3>
+        <h3 className="text-slate-400 font-bold text-xs uppercase tracking-wider">Macro Political NLP</h3>
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-          data.label === 'GREED' ? 'bg-green-500/20 text-green-400' : 
-          data.label === 'FEAR' ? 'bg-red-500/20 text-red-400' : 'bg-gray-500/20 text-gray-400'
+          data.politicalRiskIndex > 60 ? 'bg-rose-500/20 text-rose-400' :
+          data.politicalRiskIndex < 40 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'
         }`}>
-          {data.label}
+          {data.politicalRiskIndex > 60 ? 'HIGH TENSION' : data.politicalRiskIndex < 40 ? 'STABLE' : 'NEUTRAL'}
         </span>
       </div>
 
@@ -22,7 +22,7 @@ export const SentimentMonitor: React.FC<SentimentMonitorProps> = ({ data }) => {
         <div className="relative w-16 h-16">
           <svg className="w-full h-full" viewBox="0 0 36 36">
             <path
-              className="text-gray-800"
+              className="text-slate-800"
               strokeDasharray="100, 100"
               d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
               fill="none"
@@ -30,8 +30,8 @@ export const SentimentMonitor: React.FC<SentimentMonitorProps> = ({ data }) => {
               strokeWidth="3"
             />
             <path
-              className={data.score > 0 ? 'text-green-500' : 'text-red-500'}
-              strokeDasharray={`${(Math.abs(data.score) * 100).toFixed(0)}, 100`}
+              className={`${data.politicalRiskIndex > 50 ? 'text-rose-500' : 'text-emerald-500'}`}
+              strokeDasharray={`${data.politicalRiskIndex}, 100`}
               d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
               fill="none"
               stroke="currentColor"
