@@ -737,9 +737,9 @@ export const optimizeStrategyWeights = (candles: MarketCandle[]): { weights: Str
     tradesList.push([]);
   }
 
-  // Iterate through candles and slice only once per index
+  // Maintain a growing slice to avoid O(N^2) array slicing allocations
+  const currentSlice = candles.slice(0, 50);
   for (let j = 50; j < candles.length - 1; j++) {
-    const currentSlice = candles.slice(0, j);
     const mtfData: Record<TimeFrame, MarketCandle[]> = {
       '1h': currentSlice,
       '1d': currentSlice,
@@ -756,6 +756,9 @@ export const optimizeStrategyWeights = (candles: MarketCandle[]): { weights: Str
         tradesList[i].push({ profit });
       }
     }
+
+    // Add current candle for the next iteration
+    currentSlice.push(candles[j]);
   }
 
   for (let i = 0; i < 15; i++) {
