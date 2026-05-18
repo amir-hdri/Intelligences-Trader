@@ -1,49 +1,73 @@
 import { generateHistoricalData } from './dataFactory.js';
 
-// --- Indicator Helpers ---
-const calculateRSI = (prices, period = 14) => {
-  if (prices.length < period + 1) return 50;
-  let gains = 0, losses = 0;
+// --- Indicator Helpers (Optimized) ---
+const calculateRSISeries = (prices, period = 14) => {
+  const rsi = new Array(prices.length).fill(50);
+  if (prices.length <= period) return rsi;
+
+  let gains = 0;
+  let losses = 0;
+
   for (let i = 1; i <= period; i++) {
-    const change = prices[prices.length - i] - prices[prices.length - i - 1];
-    if (change >= 0) gains += change; else losses -= change;
+    const change = prices[i] - prices[i - 1];
+    if (change >= 0) gains += change;
+    else losses -= change;
   }
-  const avgGain = gains / period;
-  const avgLoss = losses / period;
-  if (avgLoss === 0) return 100;
-  const rs = avgGain / avgLoss;
-  return 100 - 100 / (1 + rs);
+
+  const getRSIValue = (g, l) => {
+    if (l === 0) return 100;
+    const rs = g / l;
+    return 100 - 100 / (1 + rs);
+  };
+
+  rsi[period] = getRSIValue(gains, losses);
+
+  for (let i = period + 1; i < prices.length; i++) {
+    const oldChange = prices[i - period] - prices[i - period - 1];
+    const newChange = prices[i] - prices[i - 1];
+
+    if (oldChange >= 0) gains -= oldChange;
+    else losses += oldChange;
+
+    if (newChange >= 0) gains += newChange;
+    else losses -= newChange;
+
+    rsi[i] = getRSIValue(gains, losses);
+  }
+  return rsi;
 };
 
-const calculateEMA = (prices, period) => {
+const calculateEMASeries = (prices, period) => {
+  const ema = new Array(prices.length);
   const k = 2 / (period + 1);
-  let ema = prices[0];
+  ema[0] = prices[0];
   for (let i = 1; i < prices.length; i++) {
-    ema = prices[i] * k + ema * (1 - k);
+    ema[i] = prices[i] * k + ema[i - 1] * (1 - k);
   }
   return ema;
 };
 
 // --- Core Strategy Logic ---
-const evaluateStrategy = (candles, weights) => {
+export const evaluateStrategy = (candles, weights) => {
   let capital = 1000000;
   let position = 0; // 0: None, 1: Long, -1: Short
   let entryPrice = 0;
   let trades = [];
 
+  const prices = candles.map(c => c.close);
+  const rsiSeries = calculateRSISeries(prices, 14);
+  const emaShortSeries = calculateEMASeries(prices, 12);
+  const emaLongSeries = calculateEMASeries(prices, 26);
+
   // Use a sliding window for indicators
   const windowSize = 60;
 
   for (let i = windowSize; i < candles.length; i++) {
-    const slice = candles.slice(i - windowSize, i + 1);
-    const current = slice[slice.length - 1];
-    const prices = slice.map(c => c.close);
+    const current = candles[i];
 
     // Indicators
-    const rsi = calculateRSI(prices);
-    const emaShort = calculateEMA(prices, 12);
-    const emaLong = calculateEMA(prices, 26);
-    const macd = emaShort - emaLong;
+    const rsi = rsiSeries[i];
+    const macd = emaShortSeries[i] - emaLongSeries[i];
 
     let score = 0;
 
@@ -52,9 +76,6 @@ const evaluateStrategy = (candles, weights) => {
     if (rsi > 70) score -= weights.rsi;
     if (macd > 0) score += weights.macd;
     if (macd < 0) score -= weights.macd;
-
-    // Sentiment Simulation (Random for backtest speed, or 0)
-    // score += (Math.random() - 0.5) * weights.sentiment;
 
     // Decision
     const signal = score > 5 ? 'BUY' : score < -5 ? 'SELL' : 'HOLD';
