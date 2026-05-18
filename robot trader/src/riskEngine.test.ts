@@ -1,6 +1,4 @@
-// @ts-ignore
-import { describe, it, test, before, after } from 'node:test';
-// @ts-ignore
+import test from 'node:test';
 import assert from 'node:assert';
 import { RiskEngine } from './riskEngine';
 import { ExpertForecast, MarketRegime, RiskLimits, TradeAction } from './types';

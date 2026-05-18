@@ -52,11 +52,15 @@ app.get('/api/tse/:id', async (req, res) => {
   }
 });
 
-// Advanced Analysis Endpoint
-app.post('/api/analyze', (req, res) => {
-  const { historyData } = req.body; // Expects an array of MarketCandles
-  if (!historyData || historyData.length < 50) {
-      return res.status(400).json({ error: 'Not enough data points for analysis' });
+// 3. TSETMC History (with Fallback)
+app.get('/api/tse/history/:symbolId', async (req, res) => {
+  const symbolId = String(req.params.symbolId);
+  const insCode = Object.prototype.hasOwnProperty.call(SYMBOL_MAP, symbolId) ? SYMBOL_MAP[symbolId] : null;
+
+  // If not in map or unavailable, fallback to centralized simulation
+  if (!insCode) {
+    console.warn(`Symbol ${symbolId} not found in map, using Digital Twin.`);
+    return res.json(generateSimulationData(symbolId));
   }
 
   // 1. Analyze Market (Direction & Confidence)
@@ -76,29 +80,51 @@ app.post('/api/analyze', (req, res) => {
   for(let i=1; i<historyData.length; i++){
       returns.push((historyData[i].close - historyData[i-1].close) / historyData[i-1].close);
   }
-  returns.sort((a,b) => a - b);
-  const index = Math.floor(returns.length * 0.05);
-  const var95 = returns[index] || 0; // Negative value representing potential loss%
+});
 
-  // Prepare enhanced response
-  const advancedMetrics = {
-      prediction: analysis.action,
-      confidence: analysis.confidence,
-      reasoning: analysis.reason,
-      indicators: analysis.indicators,
-      volatility: {
-          atr: atr,
-          regime: regime
-      },
-      risk: {
-          valueAtRisk95: var95,
-          suggestedRiskCapital: calculateSuggestedCapital(regime, var95)
-      }
-  };
+// 4. Real-Time Info (Last Price, Best Limits)
+app.get('/api/tse/info/:symbolId', async (req, res) => {
+  const symbolId = String(req.params.symbolId);
+  const insCode = Object.prototype.hasOwnProperty.call(SYMBOL_MAP, symbolId) ? SYMBOL_MAP[symbolId] : null;
+
+  if (!insCode) return res.status(404).json({ error: 'Symbol not found' });
+
+  try {
+    const infoData = await fetchWithRetry(`${TSETMC_INFO_URL}/${insCode}`);
+    const obData = await fetchWithRetry(`${TSETMC_OB_URL}/${insCode}`);
+
+    const lastPrice = infoData.instrumentInfo.priceClosing;
+
+    const bids = obData.bestLimits.map(limit => ({
+      price: limit.pMeDem,
+      quantity: limit.qTitMeDem,
+      count: limit.zTitMeDem
+    })).filter(b => b.quantity > 0);
+
+    const asks = obData.bestLimits.map(limit => ({
+        price: limit.pMeOf,
+        quantity: limit.qTitMeOf,
+        count: limit.zTitMeOf
+    })).filter(a => a.quantity > 0);
+
+    res.json({
+      price: lastPrice,
+      orderBook: { bids, asks },
+      timestamp: Date.now()
+    });
 
   res.json(advancedMetrics);
 });
 
+// 5. Deep Training (Strategy Optimization)
+app.post('/api/train', (req, res) => {
+  let symbol = req.body.symbol || 'SAF1403';
+
+  if (typeof symbol !== 'string' || !/^[A-Z0-9-]+$/.test(symbol)) {
+    return res.status(400).json({ error: 'Invalid symbol format' });
+  }
+
+  console.log(`Starting deep training for ${symbol}...`);
 
 // Helper to generate fake history anchored to real price
 function generateHistory(currentCandle) {
@@ -129,15 +155,17 @@ function generateHistory(currentCandle) {
     return candles;
 }
 
-function calculateSuggestedCapital(regime, var95) {
-    // Dynamic position sizing logic
-    // Low volatility = can risk more capital
-    // High volatility = restrict capital
-    const baseRisk = 0.02; // 2% account risk
-    if(regime === 'HIGH_VOLATILITY') return baseRisk * 0.5;
-    if(regime === 'RANGING') return baseRisk * 0.8;
-    return baseRisk; // Trending
-}
+// 6. Generic Market Mock (Legacy support)
+app.get('/api/market/history', (req, res) => {
+  const symbol = String(req.query.symbol || 'SAF1403');
+
+  if (!/^[A-Z0-9-]+$/.test(symbol)) {
+    return res.status(400).json({ error: 'Invalid symbol format' });
+  }
+
+  const data = generateHistoricalData(symbol);
+  res.json(data);
+});
 
 app.listen(port, () => {
   console.log(`Smart Analysis Backend listening on port ${port}`);
