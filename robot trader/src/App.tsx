@@ -6,52 +6,101 @@ import { OrderBook } from './components/analytics/OrderBook';
 import { MarketCorrelation } from './components/analytics/MarketCorrelation';
 import { SentimentMonitor } from './components/analytics/SentimentMonitor';
 import { ArbitragePanel } from './components/analytics/ArbitragePanel';
+import { LearningDashboard } from './components/analytics/LearningDashboard';
 import { IME_SYMBOLS, DEFAULT_API_CONFIG, INITIAL_METRICS, DEFAULT_RISK_LIMITS } from './constants';
 import { 
   MarketCandle, ExpertForecast, ApiConfig, SystemMetrics, SymbolInfo, TimeFrame, 
   TradeLogEntry, RiskLimits, RiskStatus, OrderBook as OrderBookType, 
   CorrelationMetrics, SentimentData 
 } from './types';
-import { TseApiClient, analyzeMarketMTF, performWalkForwardBacktest, trainModelEpoch } from './dataUtils';
+import { TseApiClient, analyzeMarketMTF, performWalkForwardBacktest, trainModelEpoch, StrategyWeights, DEFAULT_WEIGHTS } from './dataUtils';
+import { predictionService } from './services/PredictionHistoryService';
+import { learningEngine } from './services/LearningEngine';
 import { RiskEngine } from './riskEngine';
 import { 
   Activity, Cpu, TrendingUp, Clock, AlertCircle, Play, RefreshCcw, Save, 
   BrainCircuit, Settings, Database, ShieldAlert, History, ShieldCheck, Zap, 
-  Layers, BarChart3, Globe, MessageSquare, ArrowRightLeft 
+  Layers, BarChart3, Globe, MessageSquare, ArrowRightLeft, Trash2
 } from 'lucide-react';
+
+// Helper for local storage
+const usePersistedState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(() => {
+    try {
+      const item = localStorage.getItem(key);
+      if (item) {
+          const parsed = JSON.parse(item);
+          // Merge with default value to ensure new fields (like balance) are present if missing in storage
+          if (typeof parsed === 'object' && parsed !== null && typeof defaultValue === 'object' && !Array.isArray(defaultValue)) {
+              return { ...defaultValue, ...parsed };
+          }
+          return parsed;
+      }
+      return defaultValue;
+    } catch (error) {
+      console.error(`Error reading localStorage key "${key}":`, error);
+      return defaultValue;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(state));
+    } catch (error) {
+      console.error(`Error writing localStorage key "${key}":`, error);
+    }
+  }, [key, state]);
+
+  return [state, setState];
+};
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [selectedSymbol, setSelectedSymbol] = useState<SymbolInfo>(IME_SYMBOLS[0]);
+
+  // Persisted States
+  const [selectedSymbolId, setSelectedSymbolId] = usePersistedState<string>('selectedSymbolId', IME_SYMBOLS[0].id);
+  const [apiConfig, setApiConfig] = usePersistedState<ApiConfig>('apiConfig', DEFAULT_API_CONFIG);
+  const [metrics, setMetrics] = usePersistedState<SystemMetrics>('metrics', INITIAL_METRICS);
+  const [riskLimits, setRiskLimits] = usePersistedState<RiskLimits>('riskLimits', DEFAULT_RISK_LIMITS);
+  const [tradeLogs, setTradeLogs] = usePersistedState<TradeLogEntry[]>('tradeLogs', []);
+
+  // Derived or Transient States
+  const selectedSymbol = useMemo(() => IME_SYMBOLS.find(s => s.id === selectedSymbolId) || IME_SYMBOLS[0], [selectedSymbolId]);
+
   const [mtfData, setMtfData] = useState<Record<TimeFrame, MarketCandle[]>>({ '1m': [], '15m': [], '1h': [], '1d': [] });
   const [orderBook, setOrderBook] = useState<OrderBookType | null>(null);
   const [correlation, setCorrelation] = useState<CorrelationMetrics | null>(null);
   const [sentiment, setSentiment] = useState<SentimentData | null>(null);
   const [forecast, setForecast] = useState<ExpertForecast | null>(null);
   
-  const [apiConfig, setApiConfig] = useState<ApiConfig>(DEFAULT_API_CONFIG);
-  const [metrics, setMetrics] = useState<SystemMetrics>(INITIAL_METRICS);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorState, setErrorState] = useState<string | null>(null);
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
-  const [riskLimits, setRiskLimits] = useState<RiskLimits>(DEFAULT_RISK_LIMITS);
   
-  const riskEngine = useMemo(() => new RiskEngine(riskLimits, 1000000), [riskLimits]);
+  // Risk Engine needs to persist equity state potentially
+  const riskEngine = useMemo(() => new RiskEngine(riskLimits, metrics.balance || 1000000), [riskLimits]);
+
   const [riskStatus, setRiskStatus] = useState<RiskStatus>(riskEngine.getStatus());
   
-  const [tradeLogs, setTradeLogs] = useState<TradeLogEntry[]>([]);
   const [walkForwardResults, setWalkForwardResults] = useState<any[]>([]);
   const [isTraining, setIsTraining] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(0);
+  const [strategyWeights, setStrategyWeights] = useState<StrategyWeights>(DEFAULT_WEIGHTS);
 
   const apiClient = useMemo(() => new TseApiClient(apiConfig), [apiConfig]);
 
   const loadData = async () => {
     setIsLoading(true);
+    setErrorState(null);
     try {
-      const data = await apiClient.fetchMultiTimeframeData(selectedSymbol.id);
-      const ob = await apiClient.fetchOrderBook(selectedSymbol.id);
-      const corr = await apiClient.fetchMarketCorrelation();
-      const sent = await apiClient.fetchSentiment();
+      // Parallel Fetching with individual error handling handled inside client if needed,
+      // but here we want to ensure critical data loads.
+      const [data, ob, corr, sent] = await Promise.all([
+          apiClient.fetchMultiTimeframeData(selectedSymbol.id),
+          apiClient.fetchOrderBook(selectedSymbol.id),
+          apiClient.fetchMarketCorrelation(),
+          apiClient.fetchSentiment()
+      ]);
 
       setMtfData(data);
       setOrderBook(ob);
@@ -100,11 +149,13 @@ const App: React.FC = () => {
       
       setLastUpdateTime(Date.now());
       
-      riskEngine.updateEquity(1000000 + (metrics.profitFactor * 10000), metrics.activeOrders * 50000);
+      // Sync Risk Engine with current balance
+      riskEngine.updateEquity(metrics.balance || 1000000, metrics.activeOrders * 50000);
       setRiskStatus(riskEngine.getStatus());
 
     } catch (error) {
       console.error('Failed to load market data', error);
+      setErrorState('Partial Data Load Failure - Some metrics may be simulated.');
     } finally {
       setIsLoading(false);
     }
@@ -119,9 +170,12 @@ const App: React.FC = () => {
     }
     try {
       const data = mtfData['1h'].length > 0 ? mtfData['1h'] : await apiClient.fetchMarketData(selectedSymbol.id);
-      const accuracy = trainModelEpoch(data);
+      const accuracy = await trainModelEpoch(data, selectedSymbol.id);
       setMetrics(prev => ({ ...prev, accuracy, winRate: accuracy }));
       riskEngine.updatePerformanceMetrics(accuracy, metrics.profitFactor);
+    } catch (e) {
+       console.error("Training failed", e);
+       alert("Model training failed. Please check server connection.");
     } finally {
       setIsTraining(false);
     }
@@ -139,12 +193,13 @@ const App: React.FC = () => {
       return;
     }
 
+    const price = forecast.entryPrice;
     const newLog: TradeLogEntry = {
       id: Math.random().toString(36).substr(2, 9),
       timestamp: Date.now(),
       symbol: selectedSymbol.name,
       action: forecast.action,
-      price: forecast.entryPrice,
+      price: price,
       reason: forecast.reason,
       metricsAtTrade: { 
         rsi: forecast.indicators.rsi, 
@@ -154,15 +209,80 @@ const App: React.FC = () => {
     };
 
     setTradeLogs(prev => [newLog, ...prev]);
-    setMetrics(prev => ({ ...prev, activeOrders: prev.activeOrders + 1 }));
+
+    // Simulate immediate outcome for demonstration
+    // 55% chance of win based on "AI" win rate or 50/50
+    const isWin = Math.random() < metrics.winRate;
+    const riskPerTrade = 0.01 * (metrics.balance || 1000000); // 1% risk
+    const reward = riskPerTrade * metrics.profitFactor;
+    const pnl = isWin ? reward : -riskPerTrade;
+
+    const newBalance = (metrics.balance || 1000000) + pnl;
+
+    setMetrics(prev => ({
+        ...prev,
+        balance: newBalance
+        // In a real scenario, activeOrders would increment, then decrement on close.
+        // For this simulator, we assume "Spot" or "Instant" settlement for simplicity unless we add position management.
+    }));
+
+    // Update Risk Engine immediately
+    riskEngine.updateEquity(newBalance, metrics.activeOrders * 50000);
+    setRiskStatus(riskEngine.getStatus());
+
+    alert(`Trade Executed: ${forecast.action} @ ${price.toLocaleString()}\nResult: ${isWin ? 'PROFIT' : 'LOSS'} (${pnl.toFixed(0)})\nNew Balance: ${newBalance.toFixed(0)}`);
   };
 
   const handleRollover = () => {
     if (selectedSymbol.type !== 'FUTURES') return;
-    alert(`Rolling over ${selectedSymbol.name} to next contract...`);
-    const nextFutures = IME_SYMBOLS.find(s => s.type === 'FUTURES' && s.id !== selectedSymbol.id);
-    if (nextFutures) setSelectedSymbol(nextFutures);
+
+    const currentIndex = IME_SYMBOLS.findIndex(s => s.id === selectedSymbol.id);
+    let nextIndex = currentIndex + 1;
+    let nextSymbol = null;
+
+    // Find next FUTURE
+    while(nextIndex < IME_SYMBOLS.length) {
+        if(IME_SYMBOLS[nextIndex].type === 'FUTURES') {
+            nextSymbol = IME_SYMBOLS[nextIndex];
+            break;
+        }
+        nextIndex++;
+    }
+
+    // If none found forward, wrap around to find any other future
+    if(!nextSymbol) {
+         nextIndex = 0;
+         while(nextIndex < currentIndex) {
+            if(IME_SYMBOLS[nextIndex].type === 'FUTURES') {
+                nextSymbol = IME_SYMBOLS[nextIndex];
+                break;
+            }
+            nextIndex++;
+        }
+    }
+
+    if (nextSymbol) {
+        if(confirm(`Rolling over position from ${selectedSymbol.name} to ${nextSymbol.name}.\nThis will close current positions and open on the new contract.`)) {
+             setSelectedSymbolId(nextSymbol.id);
+             // Simulate cost of rollover?
+             const rolloverCost = 50000;
+             setMetrics(prev => ({
+                 ...prev,
+                 balance: (prev.balance || 1000000) - rolloverCost
+             }));
+             alert('Rollover Complete. Rollover costs applied.');
+        }
+    } else {
+        alert('No other futures contract available for rollover.');
+    }
   };
+
+  const clearData = () => {
+      if(confirm('Are you sure you want to clear all data and reset the simulator?')) {
+          localStorage.clear();
+          window.location.reload();
+      }
+  }
 
   useEffect(() => {
     loadData();
@@ -180,7 +300,7 @@ const App: React.FC = () => {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [selectedSymbol, apiConfig]);
+  }, [selectedSymbolId, apiConfig]); // Changed dependency to selectedSymbolId
 
   return (
     <div className="flex h-screen bg-slate-950 overflow-hidden text-slate-200 font-sans">
@@ -191,7 +311,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-4 text-xs">
             <select 
               value={selectedSymbol.id}
-              onChange={(e) => setSelectedSymbol(IME_SYMBOLS.find(s => s.id === e.target.value) || IME_SYMBOLS[0])}
+              onChange={(e) => setSelectedSymbolId(e.target.value)}
               className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               {IME_SYMBOLS.map(symbol => (
@@ -210,23 +330,37 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-6">
+            {errorState && (
+                <div className="flex items-center gap-2 text-rose-500 bg-rose-500/10 px-3 py-1 rounded-full border border-rose-500/20">
+                    <ShieldAlert className="w-3 h-3" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">System Warning</span>
+                </div>
+            )}
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              <span className={`w-2 h-2 rounded-full animate-pulse ${errorState ? 'bg-amber-500' : 'bg-emerald-500'}`} />
               <span className="text-sm font-mono text-slate-400">{metrics.uptime}</span>
             </div>
             <div className="flex items-center gap-2 border-l border-slate-800 pl-6">
               <Activity className="w-4 h-4 text-indigo-500" />
               <span className="text-sm font-mono text-slate-400">{metrics.latency}ms</span>
             </div>
+             <div className="flex items-center gap-2 border-l border-slate-800 pl-6">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Balance</span>
+              <span className="text-sm font-mono text-white">{(metrics.balance || 1000000).toLocaleString()}</span>
+            </div>
+            <button onClick={clearData} className="text-slate-500 hover:text-rose-500 transition-colors" title="Reset All Data">
+                <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         </header>
 
         <div className="p-8">
           {activeTab === 'dashboard' && (
             <div className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <MetricCard title="Fair Value Gap" value={forecast?.fairValue ? `${(((forecast.entryPrice - forecast.fairValue) / forecast.fairValue) * 100).toFixed(1)}%` : '0%'} icon={Zap} trend={{ value: 0.5, isPositive: false }} />
-                <MetricCard title="Order Pressure" value={orderBook ? `${(orderBook.pressure * 100).toFixed(1)}%` : '0%'} icon={BarChart3} />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                <MetricCard title="Political Risk Index" value={sentiment ? `${sentiment.politicalRiskIndex.toFixed(0)}` : '50'} icon={AlertCircle} trend={{ value: sentiment?.politicalRiskIndex ? sentiment.politicalRiskIndex - 50 : 0, isPositive: sentiment?.politicalRiskIndex ? sentiment.politicalRiskIndex > 50 : false }} />
+                <MetricCard title="Bubble Gap" value={forecast?.bubbleGap !== undefined ? `${(forecast.bubbleGap * 100).toFixed(1)}%` : '0%'} icon={Zap} trend={{ value: forecast?.bubbleGap || 0, isPositive: forecast?.bubbleGap ? forecast.bubbleGap > 0 : false }} />
+                <MetricCard title="Queue Herding" value={orderBook ? `${(orderBook.queueDynamics.buyRatio * 100).toFixed(1)}%` : '0%'} icon={BarChart3} trend={{ value: orderBook ? orderBook.queueDynamics.buyRatio - 0.5 : 0, isPositive: orderBook ? orderBook.queueDynamics.buyRatio > 0.5 : false }} />
                 <MetricCard title="Market Sentiment" value={sentiment ? `${(sentiment.score * 100).toFixed(0)}%` : '0%'} icon={BrainCircuit} />
                 <MetricCard title="Risk Buffer" value={`${(riskStatus.margin.freeMargin / 10000).toFixed(1)}%`} icon={ShieldCheck} />
               </div>
@@ -244,7 +378,7 @@ const App: React.FC = () => {
                            <span className="px-2 py-0.5 bg-rose-500/10 text-rose-500 text-[9px] font-black border border-rose-500/20 rounded uppercase tracking-tighter">LIMIT DOWN: {selectedSymbol.priceLimit.down.toLocaleString()}</span>
                            <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 text-[9px] font-black border border-emerald-500/20 rounded uppercase tracking-tighter">LIMIT UP: {selectedSymbol.priceLimit.up.toLocaleString()}</span>
                         </div>
-                        <span className="px-2 py-1 bg-indigo-500/10 text-indigo-400 text-[10px] font-bold rounded border border-indigo-500/20 uppercase tracking-widest">v2.5 Trained</span>
+                        <span className="px-2 py-1 bg-amber-500/10 text-amber-500 text-[10px] font-bold rounded border border-amber-500/20 uppercase tracking-widest">Hedge Fund Core Active</span>
                       </div>
                     </div>
                     <WalkForwardChart data={mtfData['1h']} forecast={forecast} />
@@ -320,6 +454,13 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === 'performance' && (
+            <LearningDashboard
+              history={predictionService.getHistory()}
+              currentWeights={strategyWeights}
+            />
           )}
 
           {activeTab === 'intelligence' && (

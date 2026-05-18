@@ -22,7 +22,7 @@ const MetricCard: React.FC<MetricCardProps> = ({ title, value, icon: Icon, trend
         <h3 className="text-2xl font-bold text-white">{value}</h3>
         {trend && (
           <span className={`text-xs font-semibold ${trend.isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {trend.isPositive ? '+' : '-'}{Math.abs(trend.value)}%
+            {trend.isPositive ? '+' : '-'}{Math.abs(trend.value).toFixed(1)}
           </span>
         )}
       </div>

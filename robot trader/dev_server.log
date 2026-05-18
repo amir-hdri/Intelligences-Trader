@@ -3,7 +3,68 @@
 > vite
 
 
-  VITE v7.3.1  ready in 364 ms
+  VITE v7.3.1  ready in 413 ms
+  VITE v7.3.1  ready in 559 ms
 
   ➜  Local:   http://localhost:5173/
   ➜  Network: use --host to expose
+2:52:20 AM [vite] (client) hmr update /src/components/Sidebar.tsx, /src/index.css
+2:53:42 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+2:53:49 AM [vite] (client) Pre-transform error: Failed to resolve import "./components/analytics/LearningDashboard" from "src/App.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /app/robot trader/src/App.tsx:9:34
+  9  |  import { SentimentMonitor } from "./components/analytics/SentimentMonitor";
+  10 |  import { ArbitragePanel } from "./components/analytics/ArbitragePanel";
+  11 |  import { LearningDashboard } from "./components/analytics/LearningDashboard";
+     |                                     ^
+  12 |  import { IME_SYMBOLS, DEFAULT_API_CONFIG, INITIAL_METRICS, DEFAULT_RISK_LIMITS } from "./constants";
+  13 |  import { TseApiClient, analyzeMarketMTF, performWalkForwardBacktest, trainModelEpoch, DEFAULT_WEIGHTS } from "./dataU...
+2:53:49 AM [vite] Internal server error: Failed to resolve import "./components/analytics/LearningDashboard" from "src/App.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /app/robot trader/src/App.tsx:9:34
+  9  |  import { SentimentMonitor } from "./components/analytics/SentimentMonitor";
+  10 |  import { ArbitragePanel } from "./components/analytics/ArbitragePanel";
+  11 |  import { LearningDashboard } from "./components/analytics/LearningDashboard";
+     |                                     ^
+  12 |  import { IME_SYMBOLS, DEFAULT_API_CONFIG, INITIAL_METRICS, DEFAULT_RISK_LIMITS } from "./constants";
+  13 |  import { TseApiClient, analyzeMarketMTF, performWalkForwardBacktest, trainModelEpoch, DEFAULT_WEIGHTS } from "./dataU...
+      at TransformPluginContext._formatLog (file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:28999:43)
+      at TransformPluginContext.error (file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:28996:14)
+      at normalizeUrl (file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:27119:18)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:27177:32
+      at async Promise.all (index 9)
+      at async TransformPluginContext.transform (file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:27145:4)
+      at async EnvironmentPluginContainer.transform (file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:28797:14)
+      at async loadAndTransform (file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:22670:26)
+      at async viteTransformMiddleware (file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:24542:20)
+2:55:06 AM [vite] (client) page reload src/components/analytics/LearningDashboard.tsx
+2:55:21 AM [vite] (client) Pre-transform error: Failed to resolve import "./services/PredictionHistoryService" from "src/App.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /app/robot trader/src/App.tsx:17:34
+  12 |  import { IME_SYMBOLS, DEFAULT_API_CONFIG, INITIAL_METRICS, DEFAULT_RISK_LIMITS } from "./constants";
+  13 |  import { TseApiClient, analyzeMarketMTF, performWalkForwardBacktest, trainModelEpoch, DEFAULT_WEIGHTS } from "./dataU...
+  14 |  import { predictionService } from "./services/PredictionHistoryService";
+     |                                     ^
+  15 |  import { learningEngine } from "./services/LearningEngine";
+  16 |  import { RiskEngine } from "./riskEngine";
+2:55:21 AM [vite] Internal server error: Failed to resolve import "./services/PredictionHistoryService" from "src/App.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /app/robot trader/src/App.tsx:17:34
+  12 |  import { IME_SYMBOLS, DEFAULT_API_CONFIG, INITIAL_METRICS, DEFAULT_RISK_LIMITS } from "./constants";
+  13 |  import { TseApiClient, analyzeMarketMTF, performWalkForwardBacktest, trainModelEpoch, DEFAULT_WEIGHTS } from "./dataU...
+  14 |  import { predictionService } from "./services/PredictionHistoryService";
+     |                                     ^
+  15 |  import { learningEngine } from "./services/LearningEngine";
+  16 |  import { RiskEngine } from "./riskEngine";
+      at TransformPluginContext._formatLog (file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:28999:43)
+      at TransformPluginContext.error (file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:28996:14)
+      at normalizeUrl (file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:27119:18)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:27177:32
+      at async Promise.all (index 12)
+      at async TransformPluginContext.transform (file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:27145:4)
+      at async EnvironmentPluginContainer.transform (file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:28797:14)
+      at async loadAndTransform (file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:22670:26)
+      at async viteTransformMiddleware (file:///app/robot%20trader/node_modules/vite/dist/node/chunks/config.js:24542:20)
+2:56:40 AM [vite] (client) page reload src/services/PredictionHistoryService.ts
