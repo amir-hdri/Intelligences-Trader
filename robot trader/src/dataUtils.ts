@@ -19,83 +19,41 @@ export class TseApiClient {
   }
 
   async fetchMarketData(symbolId: string): Promise<MarketCandle[]> {
-    // If proxy is configured and connected, try to fetch real data
-    if (this.config.proxyUrl && this.config.isConnected) {
-      let retries = 3;
-      while (retries > 0) {
-        try {
-          const response = await fetch(`${this.config.proxyUrl}/api/tse/history/${symbolId}`);
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-          const json = await response.json();
-          if (Array.isArray(json)) return json;
-          if (json.data && Array.isArray(json.data)) return json.data;
-          return [];
-        } catch (error) {
-          console.warn(`Fetch failed for ${symbolId}. Retries left: ${retries - 1}`, error);
-          retries--;
-          if (retries === 0) {
-            console.error('Final fetch failure. Falling back to Digital Twin.');
-            return this.generateDigitalTwinData(symbolId);
-          }
-          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, 3 - retries)));
-        }
+    // 1. Prioritize real API on localhost proxy
+    const apiUrl = this.config.proxyUrl || 'http://localhost:3000';
+    try {
+      const response = await fetch(`${apiUrl}/api/tse/${symbolId}`);
+      if (!response.ok) throw new Error('Network response was not ok');
+      const json = await response.json();
+      if (json.success && json.data) {
+          return json.data;
       }
-      return this.generateDigitalTwinData(symbolId);
-    } else {
-      // No proxy or not connected - use Digital Twin
-      if (!this.config.proxyUrl) {
-        console.warn('No Proxy URL configured. Using Digital Twin.');
-      }
+      throw new Error('Invalid real data format');
+    } catch (error) {
+      console.error('Failed to fetch from Real API proxy, falling back to Digital Twin', error);
       return this.generateDigitalTwinData(symbolId);
     }
   }
 
-  async fetchOrderBook(symbolId: string): Promise<OrderBook | null> {
-    // Try to fetch from API first
-    if (this.config.proxyUrl && this.config.isConnected) {
+  async fetchAdvancedMetrics(historyData: MarketCandle[]) {
+      const apiUrl = this.config.proxyUrl || 'http://localhost:3000';
       try {
-        const response = await fetch(`${this.config.proxyUrl}/api/tse/info/${symbolId}`);
-        if (response.ok) {
-          const data = await response.json();
-          const bids = data.orderBook?.bids || [];
-          const asks = data.orderBook?.asks || [];
-
-          let buyVolume = bids.reduce((acc: number, b: any) => acc + b.quantity, 0);
-          let sellVolume = asks.reduce((acc: number, a: any) => acc + a.quantity, 0);
-          const totalVolume = buyVolume + sellVolume || 1;
-          const pressure = (buyVolume - sellVolume) / totalVolume;
-
-          const buyRatio = buyVolume / totalVolume;
-          const isHerdingDetected = buyRatio > 0.5;
-          const momentumMultiplier = isHerdingDetected ? 1.5 : 1.0;
-
-          return {
-            bids,
-            asks,
-            timestamp: data.timestamp || Date.now(),
-            isSpoofingDetected: false,
-            pressure,
-            queueDynamics: {
-              buyVolume,
-              sellVolume,
-              totalVolume,
-              buyRatio,
-              isHerdingDetected,
-              momentumMultiplier
-            }
-          };
-        }
-      } catch (e) {
-        console.warn('Orderbook fetch failed, using simulation', e);
+          const response = await fetch(`${apiUrl}/api/analyze`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ historyData })
+          });
+          if (!response.ok) throw new Error('Network response was not ok');
+          return await response.json();
+      } catch (error) {
+          console.error('Failed to fetch advanced metrics from API:', error);
+          return null; // Graceful fallback if backend analysis fails
       }
-    }
+  }
 
-    // Simulated Order Book (Fallback)
-    if (!this.config.proxyUrl) {
-      console.warn('No Proxy URL configured. Using simulated order book.');
-    }
-
-    const lastPrice = await this.getLastPrice(symbolId);
+  async fetchOrderBook(symbolId: string): Promise<OrderBook> {
+    // Simulated Order Book with Spoofing detection logic
+    const lastPrice = 150000; // Mock base price
     const bids: OrderBookItem[] = [];
     const asks: OrderBookItem[] = [];
 
@@ -174,17 +132,14 @@ export class TseApiClient {
   }
 
   async fetchSentiment(): Promise<SentimentData> {
-    // Try to fetch from API first
-    if (this.config.proxyUrl && this.config.isConnected) {
-      try {
-        const response = await fetch(`${this.config.proxyUrl}/api/news`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.sentiment) return data.sentiment;
-        }
-      } catch (error) {
-        console.warn('Failed to fetch NLP news from server, falling back to simulation.');
+    try {
+      const response = await fetch('/api/news');
+      if (response.ok) {
+        const data = await response.json();
+        return data.sentiment;
       }
+    } catch (error) {
+      console.warn('Failed to fetch NLP news from server, falling back to simulation.');
     }
 
     // Phase 1: Political Risk Indexer (Simulated ParsBERT NLP Engine)
@@ -722,34 +677,35 @@ export const performWalkForwardBacktest = (candles: MarketCandle[]) => {
   const stepSize = 10;
   const results = [];
 
+  const currentWindow = candles.slice(0, windowSize);
+
   for (let i = windowSize; i < candles.length - stepSize; i += stepSize) {
-    const trainData = candles.slice(i - windowSize, i);
-    const testData = candles.slice(i, i + stepSize);
-    
     let windowProfit = 0;
     const trades = [];
 
-    const currentWindow = [...trainData];
-
-    for (let j = 0; j < testData.length; j++) {
+    for (let j = 0; j < stepSize; j++) {
       const forecast = analyzeMarket(currentWindow);
+      const testCandle = candles[i + j];
       if (forecast.action !== 'HOLD') {
-        const entryPrice = testData[j].close;
-        const exitPrice = testData[Math.min(j + 1, testData.length - 1)].close;
+        const entryPrice = testCandle.close;
+        const exitIndex = i + Math.min(j + 1, stepSize - 1);
+        const exitPrice = candles[exitIndex].close;
         const profit = forecast.action === 'BUY' ? exitPrice - entryPrice : entryPrice - exitPrice;
         windowProfit += profit;
         trades.push({ profit });
       }
-      currentWindow.push(testData[j]);
+      currentWindow.push(testCandle);
     }
 
     const { winRate, profitFactor } = calculateStrategyMetrics(trades);
     results.push({
-      period: new Date(testData[0].timestamp).toLocaleDateString(),
+      period: new Date(candles[i].timestamp).toLocaleDateString(),
       winRate,
       profitFactor,
       profit: windowProfit
     });
+
+    currentWindow.splice(0, stepSize);
   }
 
   return results;
@@ -759,8 +715,12 @@ export const optimizeStrategyWeights = (candles: MarketCandle[]): { weights: Str
   let bestWeights = { ...DEFAULT_WEIGHTS };
   let maxWinRate = 0;
 
+  // Generate candidates
+  const candidates: StrategyWeights[] = [];
+  const tradesList: { profit: number }[][] = [];
+
   for (let i = 0; i < 15; i++) {
-    const candidate: StrategyWeights = {
+    candidates.push({
       ichimoku: Math.random() * 4,
       rsi: Math.random() * 4,
       macd: Math.random() * 4,
@@ -769,21 +729,36 @@ export const optimizeStrategyWeights = (candles: MarketCandle[]): { weights: Str
       orderBook: Math.random() * 4,
       correlation: Math.random() * 4,
       openInterest: Math.random() * 4
+    });
+    tradesList.push([]);
+  }
+
+  // Iterate through candles and slice only once per index
+  for (let j = 50; j < candles.length - 1; j++) {
+    const currentSlice = candles.slice(0, j);
+    const mtfData: Record<TimeFrame, MarketCandle[]> = {
+      '1h': currentSlice,
+      '1d': currentSlice,
+      '1m': [],
+      '15m': []
     };
 
-    const trades = [];
-    for (let j = 50; j < candles.length - 1; j++) {
-      const forecast = analyzeMarketMTF({ '1h': candles.slice(0, j), '1d': candles.slice(0, j), '1m': [], '15m': [] }, '', undefined, candidate);
+    for (let i = 0; i < 15; i++) {
+      const forecast = analyzeMarketMTF(mtfData, '', undefined, candidates[i]);
       if (forecast.action !== 'HOLD') {
-        const profit = forecast.action === 'BUY' ? candles[j + 1].close - candles[j].close : candles[j].close - candles[j + 1].close;
-        trades.push({ profit });
+        const profit = forecast.action === 'BUY'
+          ? candles[j + 1].close - candles[j].close
+          : candles[j].close - candles[j + 1].close;
+        tradesList[i].push({ profit });
       }
     }
+  }
 
-    const { winRate } = calculateStrategyMetrics(trades);
+  for (let i = 0; i < 15; i++) {
+    const { winRate } = calculateStrategyMetrics(tradesList[i]);
     if (winRate > maxWinRate) {
       maxWinRate = winRate;
-      bestWeights = candidate;
+      bestWeights = candidates[i];
     }
   }
 
@@ -791,21 +766,25 @@ export const optimizeStrategyWeights = (candles: MarketCandle[]): { weights: Str
   return { weights: bestWeights, accuracy: maxWinRate };
 };
 
-export const trainModelEpoch = async (candles: MarketCandle[], symbolId: string = 'SAF1403'): Promise<number> => {
+export const trainModelEpoch = async (candles: MarketCandle[], symbolId: string): Promise<number> => {
   try {
     const response = await fetch('/api/train', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol: symbolId })
     });
+
     if (response.ok) {
       const result = await response.json();
       console.log('Deep Learning Result:', result);
-      return result.performance?.winRate || 0.5;
+      // Update local weights with server-optimized ones if necessary
+      // optimizedWeights = result.optimizedWeights;
+      return result.performance.winRate;
     }
-  } catch (e) {
-    console.warn('Deep training failed, using local optimization', e);
+  } catch (error) {
+    console.error('Deep training failed, falling back to local optimization', error);
   }
+
   const { accuracy } = optimizeStrategyWeights(candles);
   return accuracy;
 };
