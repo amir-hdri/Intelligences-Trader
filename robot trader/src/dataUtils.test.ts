@@ -1,8 +1,8 @@
 // @ts-ignore
-import { describe, it, test, before, after } from 'node:test';
+import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, trainModelEpoch } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -154,14 +154,14 @@ describe('TseApiClient', () => {
   let originalFetch: typeof globalThis.fetch;
   let originalConsoleError: typeof console.error;
 
-  before(() => {
+  beforeEach(() => {
     originalFetch = globalThis.fetch;
     originalConsoleError = console.error;
     // Suppress console.error for expected failures
     console.error = () => {};
   });
 
-  after(() => {
+  afterEach(() => {
     globalThis.fetch = originalFetch;
     console.error = originalConsoleError;
   });
@@ -228,5 +228,63 @@ describe('TseApiClient', () => {
 
     assert.ok(Array.isArray(data));
     assert.strictEqual(data.length, 100); // Falls back to digital twin
+  });
+});
+
+describe('trainModelEpoch', () => {
+  let originalFetch: typeof fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('handles successful API response', async () => {
+    const mockCandles: MarketCandle[] = [];
+    globalThis.fetch = async () => {
+      return {
+        ok: true,
+        json: async () => ({ performance: { winRate: 0.85 } })
+      } as Response;
+    };
+
+    const accuracy = await trainModelEpoch(mockCandles, 'TEST_SYMBOL');
+    assert.strictEqual(accuracy, 0.85);
+  });
+
+  it('handles API error by falling back to local optimization', async () => {
+    const mockCandles: MarketCandle[] = [
+      { timestamp: 1, open: 100, high: 105, low: 95, close: 102, volume: 1000 },
+      { timestamp: 2, open: 102, high: 106, low: 101, close: 105, volume: 1200 },
+      { timestamp: 3, open: 105, high: 110, low: 104, close: 108, volume: 1500 }
+    ];
+    globalThis.fetch = async () => {
+      throw new Error('Network Error');
+    };
+
+    const accuracy = await trainModelEpoch(mockCandles, 'TEST_SYMBOL');
+    // Since we throw, it should fallback to local optimization.
+    // optimizeStrategyWeights returns a number between 0 and 1.
+    assert.ok(typeof accuracy === 'number');
+    assert.ok(accuracy >= 0 && accuracy <= 1);
+  });
+
+  it('handles non-ok API response by falling back to local optimization', async () => {
+    const mockCandles: MarketCandle[] = [
+      { timestamp: 1, open: 100, high: 105, low: 95, close: 102, volume: 1000 }
+    ];
+    globalThis.fetch = async () => {
+      return {
+        ok: false,
+        status: 500
+      } as Response;
+    };
+
+    const accuracy = await trainModelEpoch(mockCandles, 'TEST_SYMBOL');
+    assert.ok(typeof accuracy === 'number');
+    assert.ok(accuracy >= 0 && accuracy <= 1);
   });
 });
