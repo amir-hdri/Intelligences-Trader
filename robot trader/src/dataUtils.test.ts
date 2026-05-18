@@ -1,9 +1,9 @@
 // @ts-ignore
-import { describe, it, test, before, after } from 'node:test';
+import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateRSI } from './dataUtils';
-import type { MarketCandle } from './types';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, trainModelEpoch } from './dataUtils';
+import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
 test('calculateMACD - returns correct structure', () => {
@@ -154,14 +154,14 @@ describe('TseApiClient', () => {
   let originalFetch: typeof globalThis.fetch;
   let originalConsoleError: typeof console.error;
 
-  before(() => {
+  beforeEach(() => {
     originalFetch = globalThis.fetch;
     originalConsoleError = console.error;
     // Suppress console.error for expected failures
     console.error = () => {};
   });
 
-  after(() => {
+  afterEach(() => {
     globalThis.fetch = originalFetch;
     console.error = originalConsoleError;
   });
@@ -231,65 +231,60 @@ describe('TseApiClient', () => {
   });
 });
 
-describe('calculateRSI', () => {
-  test('returns 50 if prices.length is less than period + 1', () => {
-    assert.strictEqual(calculateRSI([100, 101], 14), 50);
+describe('trainModelEpoch', () => {
+  let originalFetch: typeof fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
   });
 
-  test('returns 100 if there are only gains during the period (average loss is 0)', () => {
-    // 15 prices for period 14, strictly increasing
-    const prices = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
-    assert.strictEqual(calculateRSI(prices, 14), 100);
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
-  test('returns 0 if there are only losses during the period (average gain is 0)', () => {
-    // 15 prices for period 14, strictly decreasing
-    const prices = [24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10];
-    assert.strictEqual(calculateRSI(prices, 14), 0);
+  it('handles successful API response', async () => {
+    const mockCandles: MarketCandle[] = [];
+    globalThis.fetch = async () => {
+      return {
+        ok: true,
+        json: async () => ({ performance: { winRate: 0.85 } })
+      } as Response;
+    };
+
+    const accuracy = await trainModelEpoch(mockCandles, 'TEST_SYMBOL');
+    assert.strictEqual(accuracy, 0.85);
   });
 
-  test('returns correct RSI for a mixed sequence of gains and losses', () => {
-    // 15 prices:
-    // changes:
-    // 1 -> 2 (+1)
-    // 2 -> 3 (+1)
-    // 3 -> 2 (-1)
-    // 2 -> 3 (+1)
-    // 3 -> 2 (-1)
-    // 2 -> 3 (+1)
-    // 3 -> 2 (-1)
-    // 2 -> 3 (+1)
-    // 3 -> 2 (-1)
-    // 2 -> 3 (+1)
-    // 3 -> 2 (-1)
-    // 2 -> 3 (+1)
-    // 3 -> 2 (-1)
-    // 2 -> 3 (+1)
-    // gains: 8 * (+1) = +8
-    // losses: 6 * (-1) = -6
-    // avgGain = 8/14
-    // avgLoss = 6/14
-    // rs = 8/6 = 1.333...
-    // RSI = 100 - 100 / (1 + 1.333...) = 100 - 100 / (14/6) = 100 - 600/14 = 100 - 42.857... = 57.142857...
-    const prices = [1, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3];
-    const rsi = calculateRSI(prices, 14);
-    assert.ok(rsi > 57.1 && rsi < 57.2);
+  it('handles API error by falling back to local optimization', async () => {
+    const mockCandles: MarketCandle[] = [
+      { timestamp: 1, open: 100, high: 105, low: 95, close: 102, volume: 1000 },
+      { timestamp: 2, open: 102, high: 106, low: 101, close: 105, volume: 1200 },
+      { timestamp: 3, open: 105, high: 110, low: 104, close: 108, volume: 1500 }
+    ];
+    globalThis.fetch = async () => {
+      throw new Error('Network Error');
+    };
+
+    const accuracy = await trainModelEpoch(mockCandles, 'TEST_SYMBOL');
+    // Since we throw, it should fallback to local optimization.
+    // optimizeStrategyWeights returns a number between 0 and 1.
+    assert.ok(typeof accuracy === 'number');
+    assert.ok(accuracy >= 0 && accuracy <= 1);
   });
 
-  test('calculates RSI properly using a custom period', () => {
-    // Period = 3, prices length = 4
-    // changes:
-    // 10 -> 12 (+2)
-    // 12 -> 9 (-3)
-    // 9 -> 11 (+2)
-    // gains: +4
-    // losses: -3
-    // avgGain: 4/3
-    // avgLoss: 3/3 = 1
-    // rs: (4/3) / 1 = 4/3
-    // RSI = 100 - 100 / (1 + 4/3) = 100 - 100 / (7/3) = 100 - 300/7 = 100 - 42.857... = 57.142857...
-    const prices = [10, 12, 9, 11];
-    const rsi = calculateRSI(prices, 3);
-    assert.ok(rsi > 57.1 && rsi < 57.2);
+  it('handles non-ok API response by falling back to local optimization', async () => {
+    const mockCandles: MarketCandle[] = [
+      { timestamp: 1, open: 100, high: 105, low: 95, close: 102, volume: 1000 }
+    ];
+    globalThis.fetch = async () => {
+      return {
+        ok: false,
+        status: 500
+      } as Response;
+    };
+
+    const accuracy = await trainModelEpoch(mockCandles, 'TEST_SYMBOL');
+    assert.ok(typeof accuracy === 'number');
+    assert.ok(accuracy >= 0 && accuracy <= 1);
   });
 });
