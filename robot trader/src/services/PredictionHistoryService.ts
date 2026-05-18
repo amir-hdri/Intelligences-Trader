@@ -93,7 +93,7 @@ export class PredictionHistoryService {
       this.history = this.history.slice(0, 1000);
     }
     this.saveHistory();
-    console.log('Prediction saved:', prediction);
+
   }
 
   getHistory(): StoredPrediction[] {
@@ -131,7 +131,7 @@ export class PredictionHistoryService {
 
     if (updated) {
       this.saveHistory();
-      console.log('Evaluated predictions for', symbol, '- Updated status');
+
     }
   }
 
