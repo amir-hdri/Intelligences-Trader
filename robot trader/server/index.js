@@ -6,6 +6,8 @@ import { analyzeMarketMTF, detectMarketRegime, calculateATR } from './analyzer.j
 import { generateHistoricalData } from './dataFactory.js';
 import crypto from 'crypto';
 
+const ALLOWED_INS_CODES = ['SAF1403', 'GOLD1403', 'SAFSPOT', 'GOLDFUND', 'STEELSPOT'];
+
 const SYMBOL_MAP = {
   'SAF-NGN-FUT': 'SAF1403',
   'GOLD-FUT': 'GOLD1403',
@@ -141,6 +143,7 @@ app.get('/api/tse/info/:symbolId', async (req, res) => {
   const insCode = Object.prototype.hasOwnProperty.call(SYMBOL_MAP, symbolId) ? SYMBOL_MAP[symbolId] : null;
 
   if (!insCode) return res.status(404).json({ error: 'Symbol not found' });
+  if (!ALLOWED_INS_CODES.includes(insCode)) return res.status(400).json({ error: 'Invalid instrument code' });
 
   try {
     const [infoData, obData] = await Promise.all([
@@ -182,6 +185,7 @@ app.post('/api/train', (req, res) => {
   }
 
   console.log(`Starting deep training for ${symbol}...`);
+});
 
 // Helper to generate fake history anchored to real price
 function generateHistory(currentCandle) {
