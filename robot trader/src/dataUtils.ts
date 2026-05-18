@@ -15,83 +15,41 @@ export class TseApiClient {
   }
 
   async fetchMarketData(symbolId: string): Promise<MarketCandle[]> {
-    // If proxy is configured and connected, try to fetch real data
-    if (this.config.proxyUrl && this.config.isConnected) {
-      let retries = 3;
-      while (retries > 0) {
-        try {
-          const response = await fetch(`${this.config.proxyUrl}/api/tse/history/${symbolId}`);
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-          const json = await response.json();
-          if (Array.isArray(json)) return json;
-          if (json.data && Array.isArray(json.data)) return json.data;
-          return [];
-        } catch (error) {
-          console.warn(`Fetch failed for ${symbolId}. Retries left: ${retries - 1}`, error);
-          retries--;
-          if (retries === 0) {
-            console.error('Final fetch failure. Falling back to Digital Twin.');
-            return this.generateDigitalTwinData(symbolId);
-          }
-          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, 3 - retries)));
-        }
+    // 1. Prioritize real API on localhost proxy
+    const apiUrl = this.config.proxyUrl || 'http://localhost:3000';
+    try {
+      const response = await fetch(`${apiUrl}/api/tse/${symbolId}`);
+      if (!response.ok) throw new Error('Network response was not ok');
+      const json = await response.json();
+      if (json.success && json.data) {
+          return json.data;
       }
-      return this.generateDigitalTwinData(symbolId);
-    } else {
-      // No proxy or not connected - use Digital Twin
-      if (!this.config.proxyUrl) {
-        console.warn('No Proxy URL configured. Using Digital Twin.');
-      }
+      throw new Error('Invalid real data format');
+    } catch (error) {
+      console.error('Failed to fetch from Real API proxy, falling back to Digital Twin', error);
       return this.generateDigitalTwinData(symbolId);
     }
   }
 
-  async fetchOrderBook(symbolId: string): Promise<OrderBook | null> {
-    // Try to fetch from API first
-    if (this.config.proxyUrl && this.config.isConnected) {
+  async fetchAdvancedMetrics(historyData: MarketCandle[]) {
+      const apiUrl = this.config.proxyUrl || 'http://localhost:3000';
       try {
-        const response = await fetch(`${this.config.proxyUrl}/api/tse/info/${symbolId}`);
-        if (response.ok) {
-          const data = await response.json();
-          const bids = data.orderBook?.bids || [];
-          const asks = data.orderBook?.asks || [];
-
-          let buyVolume = bids.reduce((acc: number, b: any) => acc + b.quantity, 0);
-          let sellVolume = asks.reduce((acc: number, a: any) => acc + a.quantity, 0);
-          const totalVolume = buyVolume + sellVolume || 1;
-          const pressure = (buyVolume - sellVolume) / totalVolume;
-
-          const buyRatio = buyVolume / totalVolume;
-          const isHerdingDetected = buyRatio > 0.5;
-          const momentumMultiplier = isHerdingDetected ? 1.5 : 1.0;
-
-          return {
-            bids,
-            asks,
-            timestamp: data.timestamp || Date.now(),
-            isSpoofingDetected: false,
-            pressure,
-            queueDynamics: {
-              buyVolume,
-              sellVolume,
-              totalVolume,
-              buyRatio,
-              isHerdingDetected,
-              momentumMultiplier
-            }
-          };
-        }
-      } catch (e) {
-        console.warn('Orderbook fetch failed, using simulation', e);
+          const response = await fetch(`${apiUrl}/api/analyze`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ historyData })
+          });
+          if (!response.ok) throw new Error('Network response was not ok');
+          return await response.json();
+      } catch (error) {
+          console.error('Failed to fetch advanced metrics from API:', error);
+          return null; // Graceful fallback if backend analysis fails
       }
-    }
+  }
 
-    // Simulated Order Book (Fallback)
-    if (!this.config.proxyUrl) {
-      console.warn('No Proxy URL configured. Using simulated order book.');
-    }
-
-    const lastPrice = await this.getLastPrice(symbolId);
+  async fetchOrderBook(symbolId: string): Promise<OrderBook> {
+    // Simulated Order Book with Spoofing detection logic
+    const lastPrice = 150000; // Mock base price
     const bids: OrderBookItem[] = [];
     const asks: OrderBookItem[] = [];
 
