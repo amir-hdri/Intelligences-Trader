@@ -1,3 +1,4 @@
+import jalaali from 'jalaali-js';
 import { RiskLimits, RiskStatus, TradeAction, MarketCandle, ExpertForecast, MarginStatus } from './types';
 
 export class RiskEngine {
@@ -70,7 +71,29 @@ export class RiskEngine {
     }
   }
 
-  validateTrade(forecast: ExpertForecast, activeTrades: number, symbolInfo: any, advancedRisk?: { var95: number }): { allowed: boolean; reason?: string } {
+
+  private isIranianHoliday(date: Date): boolean {
+    const dayOfWeek = date.getDay();
+    // Thursday (4) and Friday (5) are weekends in Iran
+    if (dayOfWeek === 4 || dayOfWeek === 5) {
+      return true;
+    }
+
+    const { jm, jd } = jalaali.toJalaali(date);
+
+    // Fixed solar Hijri holidays
+    if (jm === 1 && jd >= 1 && jd <= 4) return true; // Nowruz
+    if (jm === 1 && jd === 12) return true; // Islamic Republic Day
+    if (jm === 1 && jd === 13) return true; // Sizdah Bedar
+    if (jm === 3 && jd === 14) return true; // Khomeini's Death
+    if (jm === 3 && jd === 15) return true; // Khordad 15 Revolt
+    if (jm === 11 && jd === 22) return true; // Revolution Day
+    if (jm === 12 && jd === 29) return true; // Oil Nationalization Day
+
+    return false;
+  }
+
+  validateTrade(forecast: ExpertForecast, activeTrades: number, symbolInfo: any): { allowed: boolean; reason?: string } {
     if (this.status.isKillSwitchActive) {
       return { allowed: false, reason: `Kill Switch Active: ${this.status.violations.join(', ')}` };
     }
@@ -83,11 +106,9 @@ export class RiskEngine {
       return { allowed: false, reason: 'Confidence too low' };
     }
 
-    // Holiday Risk Management (Simplified detection for Iranian Calendar)
-    const isThursday = new Date().getDay() === 4;
-    const isFriday = new Date().getDay() === 5;
-    if ((isThursday || isFriday) && forecast.regime === 'HIGH_VOLATILITY') {
-      return { allowed: false, reason: 'Weekend risk high. Volatility prevents new positions.' };
+    // Holiday Risk Management (Iranian Calendar)
+    if (this.isIranianHoliday(new Date()) && forecast.regime === 'HIGH_VOLATILITY') {
+      return { allowed: false, reason: 'Holiday/Weekend risk high. Volatility prevents new positions.' };
     }
 
     // Expiry Management
