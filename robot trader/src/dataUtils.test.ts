@@ -215,7 +215,42 @@ describe('TseApiClient', () => {
     assert.strictEqual(data.length, 0); // Should return empty array when useDigitalTwin is false
   });
 
-  test('fetchMarketData falls back to Digital Twin when no proxy URL configured', async () => {
+
+  test('fetchAdvancedMetrics handles fetch error and returns null', async () => {
+    // Mock fetch failure
+    globalThis.fetch = async () => {
+      throw new Error('Network Error');
+    };
+
+    let errorLogged = false;
+    console.error = () => {
+      errorLogged = true;
+    };
+
+    const config = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config as any);
+    const mockHistoryData = [{
+      timestamp: 12345,
+      open: 100,
+      high: 110,
+      low: 90,
+      close: 105,
+      volume: 1000
+    }];
+
+    const data = await client.fetchAdvancedMetrics(mockHistoryData);
+
+    assert.strictEqual(data, null);
+    assert.strictEqual(errorLogged, true, 'console.error should have been called');
+  });
+
+test('fetchMarketData falls back to Digital Twin when no proxy URL configured', async () => {
     const config: ApiConfig = {
       proxyUrl: undefined as any,
       apiKey: 'key',
