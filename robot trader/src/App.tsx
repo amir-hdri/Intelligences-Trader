@@ -195,7 +195,7 @@ const App: React.FC = () => {
 
     const price = forecast.entryPrice;
     const newLog: TradeLogEntry = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       timestamp: Date.now(),
       symbol: selectedSymbol.name,
       action: forecast.action,
