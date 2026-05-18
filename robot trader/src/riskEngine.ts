@@ -70,7 +70,7 @@ export class RiskEngine {
     }
   }
 
-  validateTrade(forecast: ExpertForecast, activeTrades: number, symbolInfo: any): { allowed: boolean; reason?: string } {
+  validateTrade(forecast: ExpertForecast, activeTrades: number, symbolInfo: any, advancedRisk?: { var95: number }): { allowed: boolean; reason?: string } {
     if (this.status.isKillSwitchActive) {
       return { allowed: false, reason: `Kill Switch Active: ${this.status.violations.join(', ')}` };
     }
@@ -98,6 +98,15 @@ export class RiskEngine {
       }
     }
 
+    // VaR Management (If Value at Risk implies a loss greater than our daily allowed drawdown)
+    if (advancedRisk && advancedRisk.var95) {
+      // var95 is negative, e.g. -0.05 means 5% loss
+      const varLossPct = Math.abs(advancedRisk.var95) * 100;
+      if (varLossPct > this.limits.maxDailyDrawdown) {
+          return { allowed: false, reason: `Value at Risk (${varLossPct.toFixed(2)}%) exceeds Daily Drawdown Limit (${this.limits.maxDailyDrawdown}%)` };
+      }
+    }
+
     // Free Margin Buffer (>30%)
     if (this.status.margin.freeMargin / this.currentEquity < 0.3) {
       return { allowed: false, reason: 'Insufficient Free Margin (maintained >30% requirement)' };
@@ -106,7 +115,7 @@ export class RiskEngine {
     return { allowed: true };
   }
 
-  calculateKellySize(price: number, atr: number): number {
+  calculateKellySize(price: number, atr: number, suggestedRiskCapitalPct?: number): number {
     // Kelly Criterion: f* = (p * b - q) / b
     // p = win rate, b = win/loss ratio (profit factor), q = 1 - p
     const p = this.winRate;
@@ -120,7 +129,13 @@ export class RiskEngine {
     
     // Fractional Kelly (25% of Kelly for safety)
     const safeKelly = Math.max(0, kellyF * 0.25);
-    const riskAmount = this.currentEquity * safeKelly;
+
+    // Use the backend's suggested risk capital if available, otherwise fallback to Kelly
+    const finalRiskPct = suggestedRiskCapitalPct !== undefined ?
+                         Math.min(suggestedRiskCapitalPct, safeKelly) :
+                         safeKelly;
+
+    const riskAmount = this.currentEquity * finalRiskPct;
     
     const stopLossDistance = 1.5 * atr; 
     if (stopLossDistance === 0) return 0;

@@ -1,4 +1,4 @@
-import Sentiment from 'sentiment';
+const Sentiment = require('sentiment');
 const sentiment = new Sentiment();
 
 // Mock News Database
@@ -23,7 +23,7 @@ const HEADLINES = [
   "Market sentiment turns bearish ahead of holiday season"
 ];
 
-export const generateNews = (count = 5) => {
+const generateNews = (count = 5) => {
   const news = [];
   const now = Date.now();
 
@@ -65,3 +65,5 @@ export const generateNews = (count = 5) => {
   // Sort by newest
   return news.sort((a, b) => b.timestamp - a.timestamp);
 };
+
+module.exports = { generateNews };
