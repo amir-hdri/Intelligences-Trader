@@ -1,5 +1,5 @@
 // @ts-ignore
-import { describe, it, test, before, after } from 'node:test';
+import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
 import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR } from './dataUtils';
@@ -154,14 +154,14 @@ describe('TseApiClient', () => {
   let originalFetch: typeof globalThis.fetch;
   let originalConsoleError: typeof console.error;
 
-  before(() => {
+  beforeEach(() => {
     originalFetch = globalThis.fetch;
     originalConsoleError = console.error;
     // Suppress console.error for expected failures
     console.error = () => {};
   });
 
-  after(() => {
+  afterEach(() => {
     globalThis.fetch = originalFetch;
     console.error = originalConsoleError;
   });
