@@ -1,5 +1,5 @@
 import jalaali from 'jalaali-js';
-import { RiskLimits, RiskStatus, TradeAction, MarketCandle, ExpertForecast, MarginStatus } from './types';
+import { RiskLimits, RiskStatus, TradeAction, MarketCandle, ExpertForecast, MarginStatus, SymbolInfo } from './types';
 
 export class RiskEngine {
   private limits: RiskLimits;
@@ -93,7 +93,7 @@ export class RiskEngine {
     return false;
   }
 
-  validateTrade(forecast: ExpertForecast, activeTrades: number, symbolInfo: any): { allowed: boolean; reason?: string } {
+  validateTrade(forecast: ExpertForecast, activeTrades: number, symbolInfo: SymbolInfo, advancedRisk?: any): { allowed: boolean; reason?: string } {
     if (this.status.isKillSwitchActive) {
       return { allowed: false, reason: `Kill Switch Active: ${this.status.violations.join(', ')}` };
     }

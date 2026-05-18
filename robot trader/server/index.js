@@ -3,6 +3,38 @@ import cors from 'cors';
 import { DayDetails } from 'tsetmc-client';
 import { analyzeMarketMTF, detectMarketRegime, calculateATR } from './analyzer.js';
 
+import { generateHistoricalData } from './dataFactory.js';
+import crypto from 'crypto';
+
+const SYMBOL_MAP = {
+  'SAF-NGN-FUT': 'SAF1403',
+  'GOLD-FUT': 'GOLD1403',
+  'SAF-NGN-SPOT': 'SAFSPOT',
+  'GOLD-FUND': 'GOLDFUND',
+  'STEEL-SPOT': 'STEELSPOT'
+};
+
+const TSETMC_INFO_URL = 'http://cdn.tsetmc.com/api/Instrument/GetInstrumentInfo';
+const TSETMC_OB_URL = 'http://cdn.tsetmc.com/api/Instrument/GetInstrumentOrderBook';
+
+const fetchWithRetry = async (url, retries = 3) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return await response.json();
+    } catch (e) {
+      if (i === retries - 1) throw e;
+      await new Promise(res => setTimeout(res, 500 * (i + 1)));
+    }
+  }
+};
+
+const generateSimulationData = (symbolId) => {
+  return generateHistoricalData(symbolId);
+};
+
+
 const app = express();
 const port = 3000;
 
@@ -55,6 +87,9 @@ app.get('/api/tse/:id', async (req, res) => {
 // 3. TSETMC History (with Fallback)
 app.get('/api/tse/history/:symbolId', async (req, res) => {
   const symbolId = String(req.params.symbolId);
+  if (!/^[A-Z0-9-]+$/.test(symbolId)) {
+    return res.status(400).json({ error: 'Invalid symbol format' });
+  }
   const insCode = Object.prototype.hasOwnProperty.call(SYMBOL_MAP, symbolId) ? SYMBOL_MAP[symbolId] : null;
 
   // If not in map or unavailable, fallback to centralized simulation
@@ -62,6 +97,9 @@ app.get('/api/tse/history/:symbolId', async (req, res) => {
     console.warn(`Symbol ${symbolId} not found in map, using Digital Twin.`);
     return res.json(generateSimulationData(symbolId));
   }
+
+  // Generate historical data since we aren't actually fetching it from TSETMC history api here.
+  const historyData = generateSimulationData(symbolId);
 
   // 1. Analyze Market (Direction & Confidence)
   const analysis = analyzeMarketMTF({
@@ -80,28 +118,45 @@ app.get('/api/tse/history/:symbolId', async (req, res) => {
   for(let i=1; i<historyData.length; i++){
       returns.push((historyData[i].close - historyData[i-1].close) / historyData[i-1].close);
   }
+  returns.sort((a,b) => a-b);
+  const var95 = returns[Math.floor(returns.length * 0.05)] || 0;
+
+  res.json({
+    prediction: analysis.action,
+    confidence: analysis.confidence,
+    regime: regime,
+    risk: {
+      valueAtRisk95: var95,
+      suggestedRiskCapital: 0.1 // 10% base
+    }
+  });
 });
 
 // 4. Real-Time Info (Last Price, Best Limits)
 app.get('/api/tse/info/:symbolId', async (req, res) => {
   const symbolId = String(req.params.symbolId);
+  if (!/^[A-Z0-9-]+$/.test(symbolId)) {
+    return res.status(400).json({ error: 'Invalid symbol format' });
+  }
   const insCode = Object.prototype.hasOwnProperty.call(SYMBOL_MAP, symbolId) ? SYMBOL_MAP[symbolId] : null;
 
   if (!insCode) return res.status(404).json({ error: 'Symbol not found' });
 
   try {
-    const infoData = await fetchWithRetry(`${TSETMC_INFO_URL}/${insCode}`);
-    const obData = await fetchWithRetry(`${TSETMC_OB_URL}/${insCode}`);
+    const [infoData, obData] = await Promise.all([
+      fetchWithRetry(`${TSETMC_INFO_URL}/${insCode}`),
+      fetchWithRetry(`${TSETMC_OB_URL}/${insCode}`)
+    ]);
 
-    const lastPrice = infoData.instrumentInfo.priceClosing;
+    const lastPrice = infoData?.instrumentInfo?.priceClosing || 0;
 
-    const bids = obData.bestLimits.map(limit => ({
+    const bids = (obData?.bestLimits || []).map(limit => ({
       price: limit.pMeDem,
       quantity: limit.qTitMeDem,
       count: limit.zTitMeDem
     })).filter(b => b.quantity > 0);
 
-    const asks = obData.bestLimits.map(limit => ({
+    const asks = (obData?.bestLimits || []).map(limit => ({
         price: limit.pMeOf,
         quantity: limit.qTitMeOf,
         count: limit.zTitMeOf
@@ -112,8 +167,10 @@ app.get('/api/tse/info/:symbolId', async (req, res) => {
       orderBook: { bids, asks },
       timestamp: Date.now()
     });
-
-  res.json(advancedMetrics);
+  } catch(error) {
+    console.error('Real API Info Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch from real API. Please try again later.' });
+  }
 });
 
 // 5. Deep Training (Strategy Optimization)
@@ -135,7 +192,7 @@ function generateHistory(currentCandle) {
     const now = currentCandle.timestamp;
 
     for (let i = 0; i < count - 1; i++) {
-        const change = lastClose * (Math.random() * 0.02 - 0.01);
+        const change = lastClose * ((crypto.randomBytes(4).readUInt32BE() / 0x100000000) * 0.02 - 0.01);
         const close = lastClose + change;
         candles.push({
             timestamp: now - (count - i) * tfMs,
@@ -143,7 +200,7 @@ function generateHistory(currentCandle) {
             high: Math.max(lastClose, close) * 1.01,
             low: Math.min(lastClose, close) * 0.99,
             close: close,
-            volume: Math.floor(Math.random() * 50000),
+            volume: Math.floor((crypto.randomBytes(4).readUInt32BE() / 0x100000000) * 50000),
             openInterest: 5000,
             basis: 0,
             warehouseVolume: 10000
