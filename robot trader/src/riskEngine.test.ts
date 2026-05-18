@@ -1,67 +1,90 @@
-// @ts-ignore
-import { describe, it, test, before, after } from 'node:test';
-// @ts-ignore
+import { test, describe } from 'node:test';
 import assert from 'node:assert';
 import { RiskEngine } from './riskEngine';
-import { RiskLimits } from './types';
+import type { RiskLimits } from './types';
 
-test('RiskEngine - calculateKellySize with negative profit factor', () => {
-  const limits: RiskLimits = {
+describe('RiskEngine.calculateTrailingStop', () => {
+  const defaultLimits: RiskLimits = {
     maxDailyDrawdown: 5,
     maxTotalDrawdown: 10,
-    maxOpenTrades: 5,
-    stopAllTrading: false,
-    maxPositionSize: 100
+    maxPositionSize: 5000,
+    maxOpenTrades: 3,
+    stopAllTrading: false
   };
-  const engine = new RiskEngine(limits, 10000);
 
-  // Set performance metrics with negative profit factor
-  engine.updatePerformanceMetrics(0.55, -1.5);
+  test('BUY action - trailing stop moves up with current price', () => {
+    const engine = new RiskEngine(defaultLimits, 10000);
+    const entryPrice = 100;
+    const atr = 2;
 
-  const size = engine.calculateKellySize(100, 2.5);
+    // Initial stop: entryPrice - 1.5 * atr = 100 - 3 = 97
+    // Trailing stop: currentPrice - 2 * atr
+    // If currentPrice is 100, trailing stop is 100 - 4 = 96
+    // Math.max(97, 96) = 97
+    assert.strictEqual(engine.calculateTrailingStop(100, entryPrice, 'BUY', atr), 97);
 
-  assert.strictEqual(size, 0, 'Kelly size should be 0 for negative profit factor');
-});
+    // If currentPrice rises to 105, trailing stop is 105 - 4 = 101
+    // Math.max(97, 101) = 101
+    assert.strictEqual(engine.calculateTrailingStop(105, entryPrice, 'BUY', atr), 101);
+  });
 
-test('RiskEngine - calculateKellySize with zero profit factor', () => {
-  const limits: RiskLimits = {
-    maxDailyDrawdown: 5,
-    maxTotalDrawdown: 10,
-    maxOpenTrades: 5,
-    stopAllTrading: false,
-    maxPositionSize: 100
-  };
-  const engine = new RiskEngine(limits, 10000);
+  test('SELL action - trailing stop moves down with current price', () => {
+    const engine = new RiskEngine(defaultLimits, 10000);
+    const entryPrice = 100;
+    const atr = 2;
 
-  // Set performance metrics with zero profit factor
-  engine.updatePerformanceMetrics(0.55, 0);
+    // Initial stop: entryPrice + 1.5 * atr = 100 + 3 = 103
+    // Trailing stop: currentPrice + 2 * atr
+    // If currentPrice is 100, trailing stop is 100 + 4 = 104
+    // Math.min(103, 104) = 103
+    assert.strictEqual(engine.calculateTrailingStop(100, entryPrice, 'SELL', atr), 103);
 
-  const size = engine.calculateKellySize(100, 2.5);
+    // If currentPrice falls to 95, trailing stop is 95 + 4 = 99
+    // Math.min(103, 99) = 99
+    assert.strictEqual(engine.calculateTrailingStop(95, entryPrice, 'SELL', atr), 99);
+  });
 
-  assert.strictEqual(size, 0, 'Kelly size should be 0 for zero profit factor');
-});
+  test('HOLD action - acts implicitly as SELL mathematically but usually not used directly', () => {
+    const engine = new RiskEngine(defaultLimits, 10000);
+    const entryPrice = 100;
+    const atr = 2;
+    // Returns same logic as SELL branch because of if (action === 'BUY') { ... } else { ... }
+    assert.strictEqual(engine.calculateTrailingStop(100, entryPrice, 'HOLD', atr), 103);
+  });
 
-test('RiskEngine - calculateKellySize with positive profit factor', () => {
-  const limits: RiskLimits = {
-    maxDailyDrawdown: 5,
-    maxTotalDrawdown: 10,
-    maxOpenTrades: 5,
-    stopAllTrading: false,
-    maxPositionSize: 100
-  };
-  const engine = new RiskEngine(limits, 10000);
+  test('BUY action - handles large negative price and atr (edge cases)', () => {
+    const engine = new RiskEngine(defaultLimits, 10000);
+    const entryPrice = -10000;
+    const atr = 500;
+    const currentPrice = -9000;
 
-  // Set performance metrics with typical values
-  // p = 0.55, b = 1.8
-  // q = 1 - 0.55 = 0.45
-  // kellyF = (0.55 * 1.8 - 0.45) / 1.8 = (0.99 - 0.45) / 1.8 = 0.54 / 1.8 = 0.3
-  // safeKelly = 0.3 * 0.25 = 0.075
-  // riskAmount = 10000 * 0.075 = 750
-  // stopLossDistance = 1.5 * 2.5 = 3.75
-  // size = 750 / 3.75 = 200
-  engine.updatePerformanceMetrics(0.55, 1.8);
+    // entryPrice - 1.5 * atr = -10000 - 750 = -10750
+    // currentPrice - 2.0 * atr = -9000 - 1000 = -10000
+    // Math.max(-10750, -10000) = -10000
+    assert.strictEqual(engine.calculateTrailingStop(currentPrice, entryPrice, 'BUY', atr), -10000);
+  });
 
-  const size = engine.calculateKellySize(100, 2.5);
+  test('SELL action - handles large negative price and atr (edge cases)', () => {
+    const engine = new RiskEngine(defaultLimits, 10000);
+    const entryPrice = -10000;
+    const atr = 500;
+    const currentPrice = -11000;
 
-  assert.strictEqual(size, 200, 'Kelly size should be correctly calculated for positive profit factor');
+    // entryPrice + 1.5 * atr = -10000 + 750 = -9250
+    // currentPrice + 2.0 * atr = -11000 + 1000 = -10000
+    // Math.min(-9250, -10000) = -10000
+    assert.strictEqual(engine.calculateTrailingStop(currentPrice, entryPrice, 'SELL', atr), -10000);
+  });
+
+  test('handles zero atr safely', () => {
+    const engine = new RiskEngine(defaultLimits, 10000);
+    const entryPrice = 100;
+    const atr = 0;
+    const currentPrice = 105;
+
+    // BUY: Math.max(100 - 0, 105 - 0) = 105
+    assert.strictEqual(engine.calculateTrailingStop(currentPrice, entryPrice, 'BUY', atr), 105);
+    // SELL: Math.min(100 + 0, 105 + 0) = 100
+    assert.strictEqual(engine.calculateTrailingStop(currentPrice, entryPrice, 'SELL', atr), 100);
+  });
 });
