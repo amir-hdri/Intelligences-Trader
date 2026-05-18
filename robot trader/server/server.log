@@ -1,3 +1,4 @@
-Robot Trader Unified Server running on http://localhost:3000
-Error fetching history for GOLD-FUT: timeout of 5000ms exceeded
-Generating fallback simulation for GOLD-FUT
+Server running on http://localhost:3000
+Starting deep training for SAF1403...
+Generating 3 years of data...
+Data generated: 26280 candles.

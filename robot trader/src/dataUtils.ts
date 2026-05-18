@@ -170,49 +170,20 @@ export class TseApiClient {
   }
 
   async fetchSentiment(): Promise<SentimentData> {
-    // Try to fetch from API first
-    if (this.config.proxyUrl && this.config.isConnected) {
-      try {
-        const response = await fetch(`${this.config.proxyUrl}/api/news`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.sentiment) return data.sentiment;
-        }
-      } catch (error) {
-        console.warn('Failed to fetch NLP news from server, falling back to simulation.');
+    try {
+      const response = await fetch('/api/news');
+      if (response.ok) {
+        const data = await response.json();
+        return data.sentiment;
       }
+    } catch (error) {
+      console.warn('Failed to fetch NLP news from server, falling back to simulation.');
     }
 
-    // Phase 1: Political Risk Indexer (Simulated ParsBERT NLP Engine)
-    // We simulate parsing news for keywords and determining Dollar Bullish/Bearish impact
-    const news: any[] = [
-      {
-        id: '1',
-        title: 'Central Bank announces new strict limits on currency allocation',
-        nerTags: ['Central Bank', 'Currency Allocation'],
-        sentimentScore: 0.8,
-        impactEffect: 'DOLLAR_BULLISH',
-        source: 'Fars News',
-        timestamp: Date.now() - 3600000
-      },
-      {
-        id: '2',
-        title: 'Talks stall regarding international trade agreements',
-        nerTags: ['Sanctions', 'Trade', 'International'],
-        sentimentScore: 0.6,
-        impactEffect: 'DOLLAR_BULLISH',
-        source: 'Bloomberg Persian',
-        timestamp: Date.now() - 7200000
-      },
-      {
-        id: '3',
-        title: 'Ministry of Industry increases export duties on metals',
-        nerTags: ['Ministry', 'Export', 'Metals'],
-        sentimentScore: -0.4,
-        impactEffect: 'NEUTRAL',
-        source: 'ISNA',
-        timestamp: Date.now() - 12000000
-      }
+    const news = [
+      { id: '1', title: 'Central Bank announces new Nima rate policy', impact: 'HIGH' as const, source: 'Sena', timestamp: Date.now() - 3600000 },
+      { id: '2', title: 'Global gold prices stabilize amid inflation data', impact: 'MEDIUM' as const, source: 'Reuters', timestamp: Date.now() - 7200000 },
+      { id: '3', title: 'IME Saffron futures see record open interest', impact: 'LOW' as const, source: 'BourseNews', timestamp: Date.now() - 10800000 },
     ];
     
     // Slowly varying sentiment
@@ -806,21 +777,25 @@ export const optimizeStrategyWeights = (candles: MarketCandle[]): { weights: Str
   return { weights: bestWeights, accuracy: maxWinRate };
 };
 
-export const trainModelEpoch = async (candles: MarketCandle[], symbolId: string = 'SAF1403'): Promise<number> => {
+export const trainModelEpoch = async (candles: MarketCandle[], symbolId: string): Promise<number> => {
   try {
     const response = await fetch('/api/train', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol: symbolId })
     });
+
     if (response.ok) {
       const result = await response.json();
-
-      return result.performance?.winRate || 0.5;
+      console.log('Deep Learning Result:', result);
+      // Update local weights with server-optimized ones if necessary
+      // optimizedWeights = result.optimizedWeights;
+      return result.performance.winRate;
     }
-  } catch (e) {
-    console.warn('Deep training failed, using local optimization', e);
+  } catch (error) {
+    console.error('Deep training failed, falling back to local optimization', error);
   }
+
   const { accuracy } = optimizeStrategyWeights(candles);
   return accuracy;
 };
