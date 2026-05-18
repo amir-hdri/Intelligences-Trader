@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, trainModelEpoch } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, detectArbitrageOpportunity } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -231,60 +231,94 @@ describe('TseApiClient', () => {
   });
 });
 
-describe('trainModelEpoch', () => {
-  let originalFetch: typeof fetch;
+// ========================================
+// Test Suite: detectArbitrageOpportunity
+// ========================================
+describe('detectArbitrageOpportunity', () => {
+    it('returns undefined if lastCandle.basis is not provided', () => {
+        const lastCandle: MarketCandle = {
+            timestamp: 12345,
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 105,
+            volume: 1000
+        };
+        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
+        assert.strictEqual(result, undefined);
+    });
 
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-  });
+    it('returns CASH_AND_CARRY when basisPct > 0.05', () => {
+        const lastCandle: MarketCandle = {
+            timestamp: 12345,
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 100,
+            volume: 1000,
+            basis: 5.1 // basisPct = 5.1 / 100 = 0.051 > 0.05
+        };
+        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
+        assert.ok(result);
+        assert.strictEqual(result?.type, 'CASH_AND_CARRY');
+        assert.ok(Math.abs((result?.profitPercentage ?? 0) - (0.051 - 0.025) * 100) < 0.0001);
+    });
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
+    it('returns BASIS when basisPct < -0.01', () => {
+        const lastCandle: MarketCandle = {
+            timestamp: 12345,
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 100,
+            volume: 1000,
+            basis: -1.1 // basisPct = -1.1 / 100 = -0.011 < -0.01
+        };
+        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
+        assert.ok(result);
+        assert.strictEqual(result?.type, 'BASIS');
+        assert.ok(Math.abs((result?.profitPercentage ?? 0) - 1.1) < 0.0001);
+    });
 
-  it('handles successful API response', async () => {
-    const mockCandles: MarketCandle[] = [];
-    globalThis.fetch = async () => {
-      return {
-        ok: true,
-        json: async () => ({ performance: { winRate: 0.85 } })
-      } as Response;
-    };
+    it('returns undefined when basisPct is exactly -0.01', () => {
+        const lastCandle: MarketCandle = {
+            timestamp: 12345,
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 100,
+            volume: 1000,
+            basis: -1.0 // basisPct = -1.0 / 100 = -0.01
+        };
+        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
+        assert.strictEqual(result, undefined);
+    });
 
-    const accuracy = await trainModelEpoch(mockCandles, 'TEST_SYMBOL');
-    assert.strictEqual(accuracy, 0.85);
-  });
+    it('returns undefined when basisPct is exactly 0.05', () => {
+        const lastCandle: MarketCandle = {
+            timestamp: 12345,
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 100,
+            volume: 1000,
+            basis: 5.0 // basisPct = 5.0 / 100 = 0.05
+        };
+        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
+        assert.strictEqual(result, undefined);
+    });
 
-  it('handles API error by falling back to local optimization', async () => {
-    const mockCandles: MarketCandle[] = [
-      { timestamp: 1, open: 100, high: 105, low: 95, close: 102, volume: 1000 },
-      { timestamp: 2, open: 102, high: 106, low: 101, close: 105, volume: 1200 },
-      { timestamp: 3, open: 105, high: 110, low: 104, close: 108, volume: 1500 }
-    ];
-    globalThis.fetch = async () => {
-      throw new Error('Network Error');
-    };
-
-    const accuracy = await trainModelEpoch(mockCandles, 'TEST_SYMBOL');
-    // Since we throw, it should fallback to local optimization.
-    // optimizeStrategyWeights returns a number between 0 and 1.
-    assert.ok(typeof accuracy === 'number');
-    assert.ok(accuracy >= 0 && accuracy <= 1);
-  });
-
-  it('handles non-ok API response by falling back to local optimization', async () => {
-    const mockCandles: MarketCandle[] = [
-      { timestamp: 1, open: 100, high: 105, low: 95, close: 102, volume: 1000 }
-    ];
-    globalThis.fetch = async () => {
-      return {
-        ok: false,
-        status: 500
-      } as Response;
-    };
-
-    const accuracy = await trainModelEpoch(mockCandles, 'TEST_SYMBOL');
-    assert.ok(typeof accuracy === 'number');
-    assert.ok(accuracy >= 0 && accuracy <= 1);
-  });
+    it('returns undefined when basisPct is between -0.01 and 0.05', () => {
+        const lastCandle: MarketCandle = {
+            timestamp: 12345,
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 100,
+            volume: 1000,
+            basis: 2.0 // basisPct = 2.0 / 100 = 0.02
+        };
+        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
+        assert.strictEqual(result, undefined);
+    });
 });
