@@ -1,3 +1,1 @@
-Robot Trader Unified Server running on http://localhost:3000
-Error fetching history for GOLD-FUT: timeout of 5000ms exceeded
-Generating fallback simulation for GOLD-FUT
+Smart Analysis Backend listening on port 3000

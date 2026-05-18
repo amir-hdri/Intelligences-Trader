@@ -14,6 +14,8 @@
     "src/dataUtils.ts",
     "src/types.ts",
     "src/constants.ts",
-    "src/dataUtils.test.ts"
+    "src/dataUtils.test.ts",
+    "src/riskEngine.ts",
+    "src/riskEngine.test.ts"
   ]
 }
