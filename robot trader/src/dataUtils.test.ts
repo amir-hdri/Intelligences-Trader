@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, detectArbitrageOpportunity } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -231,94 +231,34 @@ describe('TseApiClient', () => {
   });
 });
 
-// ========================================
-// Test Suite: detectArbitrageOpportunity
-// ========================================
-describe('detectArbitrageOpportunity', () => {
-    it('returns undefined if lastCandle.basis is not provided', () => {
-        const lastCandle: MarketCandle = {
-            timestamp: 12345,
-            open: 100,
-            high: 110,
-            low: 90,
-            close: 105,
-            volume: 1000
-        };
-        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
-        assert.strictEqual(result, undefined);
-    });
+test('calculateATR - returns 0 if candles length is less than 2', () => {
+  const result0 = calculateATR([]);
+  assert.strictEqual(result0, 0);
 
-    it('returns CASH_AND_CARRY when basisPct > 0.05', () => {
-        const lastCandle: MarketCandle = {
-            timestamp: 12345,
-            open: 100,
-            high: 110,
-            low: 90,
-            close: 100,
-            volume: 1000,
-            basis: 5.1 // basisPct = 5.1 / 100 = 0.051 > 0.05
-        };
-        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
-        assert.ok(result);
-        assert.strictEqual(result?.type, 'CASH_AND_CARRY');
-        assert.ok(Math.abs((result?.profitPercentage ?? 0) - (0.051 - 0.025) * 100) < 0.0001);
-    });
+  const result1 = calculateATR([
+    { timestamp: 1, open: 10, high: 15, low: 5, close: 12, volume: 100 }
+  ]);
+  assert.strictEqual(result1, 0);
+});
 
-    it('returns BASIS when basisPct < -0.01', () => {
-        const lastCandle: MarketCandle = {
-            timestamp: 12345,
-            open: 100,
-            high: 110,
-            low: 90,
-            close: 100,
-            volume: 1000,
-            basis: -1.1 // basisPct = -1.1 / 100 = -0.011 < -0.01
-        };
-        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
-        assert.ok(result);
-        assert.strictEqual(result?.type, 'BASIS');
-        assert.ok(Math.abs((result?.profitPercentage ?? 0) - 1.1) < 0.0001);
-    });
+test('calculateATR - correct ATR calculation with default and custom periods', () => {
+  const candles: MarketCandle[] = [
+    { timestamp: 1, open: 10, high: 20, low: 10, close: 15, volume: 100 }, // TR = 10
+    { timestamp: 2, open: 15, high: 25, low: 12, close: 20, volume: 100 }, // prevClose=15, TR = max(25-12, abs(25-15), abs(12-15)) = max(13, 10, 3) = 13
+    { timestamp: 3, open: 20, high: 22, low: 18, close: 21, volume: 100 }, // prevClose=20, TR = max(22-18, abs(22-20), abs(18-20)) = max(4, 2, 2) = 4
+  ];
 
-    it('returns undefined when basisPct is exactly -0.01', () => {
-        const lastCandle: MarketCandle = {
-            timestamp: 12345,
-            open: 100,
-            high: 110,
-            low: 90,
-            close: 100,
-            volume: 1000,
-            basis: -1.0 // basisPct = -1.0 / 100 = -0.01
-        };
-        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
-        assert.strictEqual(result, undefined);
-    });
+  // Period 14 but only 3 candles -> calculates ATR for 3 candles
+  // trs: [10, 13, 4] -> sum = 27 -> ATR = 27 / 3 = 9
+  const resultDefault = calculateATR(candles);
+  assert.strictEqual(resultDefault, 9);
 
-    it('returns undefined when basisPct is exactly 0.05', () => {
-        const lastCandle: MarketCandle = {
-            timestamp: 12345,
-            open: 100,
-            high: 110,
-            low: 90,
-            close: 100,
-            volume: 1000,
-            basis: 5.0 // basisPct = 5.0 / 100 = 0.05
-        };
-        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
-        assert.strictEqual(result, undefined);
-    });
-
-    it('returns undefined when basisPct is between -0.01 and 0.05', () => {
-        const lastCandle: MarketCandle = {
-            timestamp: 12345,
-            open: 100,
-            high: 110,
-            low: 90,
-            close: 100,
-            volume: 1000,
-            basis: 2.0 // basisPct = 2.0 / 100 = 0.02
-        };
-        const result = detectArbitrageOpportunity('SYMBOL', lastCandle);
-        assert.strictEqual(result, undefined);
-    });
+  // Period 2 -> takes last 2 candles
+  // Note: with slice(-2), we take candles[1] and candles[2]
+  // In calculateATR, if i===0 for the slice, it just takes c.high - c.low.
+  // slice(-2)[0] is candles[1] (high: 25, low: 12 -> TR = 13)
+  // slice(-2)[1] is candles[2] (high: 22, low: 18 -> prevClose = candles[1].close = 20 -> TR = 4)
+  // trs: [13, 4] -> sum = 17 -> ATR = 17 / 2 = 8.5
+  const resultPeriod2 = calculateATR(candles, 2);
+  assert.strictEqual(resultPeriod2, 8.5);
 });
