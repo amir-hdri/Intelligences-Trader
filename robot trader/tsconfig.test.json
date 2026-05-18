@@ -11,9 +11,6 @@
     "strict": false
   },
   "include": [
-    "src/dataUtils.ts",
-    "src/types.ts",
-    "src/constants.ts",
-    "src/dataUtils.test.ts"
+    "src/**/*.ts"
   ]
 }
