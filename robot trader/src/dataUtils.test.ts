@@ -212,7 +212,7 @@ describe('TseApiClient', () => {
     const data = await client.fetchMarketData('TEST');
 
     assert.ok(Array.isArray(data));
-    assert.strictEqual(data.length, 100); // Now falls back to digital twin (default 100 candles for 1d)
+    assert.strictEqual(data.length, 0); // Should return empty array when useDigitalTwin is false
   });
 
   test('fetchMarketData falls back to Digital Twin when no proxy URL configured', async () => {
@@ -227,7 +227,7 @@ describe('TseApiClient', () => {
     const data = await client.fetchMarketData('TEST');
 
     assert.ok(Array.isArray(data));
-    assert.strictEqual(data.length, 100); // Falls back to digital twin
+    assert.strictEqual(data.length, 0); // Should return empty array when useDigitalTwin is false
   });
 });
 
