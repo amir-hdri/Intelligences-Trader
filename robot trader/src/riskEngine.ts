@@ -1,4 +1,3 @@
-import jalaali from 'jalaali-js';
 import { RiskLimits, RiskStatus, TradeAction, MarketCandle, ExpertForecast, MarginStatus } from './types';
 
 export class RiskEngine {
@@ -71,28 +70,6 @@ export class RiskEngine {
     }
   }
 
-
-  private isIranianHoliday(date: Date): boolean {
-    const dayOfWeek = date.getDay();
-    // Thursday (4) and Friday (5) are weekends in Iran
-    if (dayOfWeek === 4 || dayOfWeek === 5) {
-      return true;
-    }
-
-    const { jm, jd } = jalaali.toJalaali(date);
-
-    // Fixed solar Hijri holidays
-    if (jm === 1 && jd >= 1 && jd <= 4) return true; // Nowruz
-    if (jm === 1 && jd === 12) return true; // Islamic Republic Day
-    if (jm === 1 && jd === 13) return true; // Sizdah Bedar
-    if (jm === 3 && jd === 14) return true; // Khomeini's Death
-    if (jm === 3 && jd === 15) return true; // Khordad 15 Revolt
-    if (jm === 11 && jd === 22) return true; // Revolution Day
-    if (jm === 12 && jd === 29) return true; // Oil Nationalization Day
-
-    return false;
-  }
-
   validateTrade(forecast: ExpertForecast, activeTrades: number, symbolInfo: any): { allowed: boolean; reason?: string } {
     if (this.status.isKillSwitchActive) {
       return { allowed: false, reason: `Kill Switch Active: ${this.status.violations.join(', ')}` };
@@ -106,9 +83,11 @@ export class RiskEngine {
       return { allowed: false, reason: 'Confidence too low' };
     }
 
-    // Holiday Risk Management (Iranian Calendar)
-    if (this.isIranianHoliday(new Date()) && forecast.regime === 'HIGH_VOLATILITY') {
-      return { allowed: false, reason: 'Holiday/Weekend risk high. Volatility prevents new positions.' };
+    // Holiday Risk Management (Simplified detection for Iranian Calendar)
+    const isThursday = new Date().getDay() === 4;
+    const isFriday = new Date().getDay() === 5;
+    if ((isThursday || isFriday) && forecast.regime === 'HIGH_VOLATILITY') {
+      return { allowed: false, reason: 'Weekend risk high. Volatility prevents new positions.' };
     }
 
     // Expiry Management
@@ -116,15 +95,6 @@ export class RiskEngine {
       const daysToExpiry = (symbolInfo.expiryDate - Date.now()) / (24 * 60 * 60 * 1000);
       if (daysToExpiry < 5) {
         return { allowed: false, reason: `Contract near expiry (${daysToExpiry.toFixed(1)} days). Rolling required.` };
-      }
-    }
-
-    // VaR Management (If Value at Risk implies a loss greater than our daily allowed drawdown)
-    if (advancedRisk && advancedRisk.var95) {
-      // var95 is negative, e.g. -0.05 means 5% loss
-      const varLossPct = Math.abs(advancedRisk.var95) * 100;
-      if (varLossPct > this.limits.maxDailyDrawdown) {
-          return { allowed: false, reason: `Value at Risk (${varLossPct.toFixed(2)}%) exceeds Daily Drawdown Limit (${this.limits.maxDailyDrawdown}%)` };
       }
     }
 
@@ -136,7 +106,7 @@ export class RiskEngine {
     return { allowed: true };
   }
 
-  calculateKellySize(price: number, atr: number, suggestedRiskCapitalPct?: number): number {
+  calculateKellySize(price: number, atr: number): number {
     // Kelly Criterion: f* = (p * b - q) / b
     // p = win rate, b = win/loss ratio (profit factor), q = 1 - p
     const p = this.winRate;
@@ -150,13 +120,7 @@ export class RiskEngine {
     
     // Fractional Kelly (25% of Kelly for safety)
     const safeKelly = Math.max(0, kellyF * 0.25);
-
-    // Use the backend's suggested risk capital if available, otherwise fallback to Kelly
-    const finalRiskPct = suggestedRiskCapitalPct !== undefined ?
-                         Math.min(suggestedRiskCapitalPct, safeKelly) :
-                         safeKelly;
-
-    const riskAmount = this.currentEquity * finalRiskPct;
+    const riskAmount = this.currentEquity * safeKelly;
     
     const stopLossDistance = 1.5 * atr; 
     if (stopLossDistance === 0) return 0;

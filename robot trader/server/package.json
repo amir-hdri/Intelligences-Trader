@@ -1,7 +1,7 @@
 {
-  "name": "server",
+  "name": "robot-trader-server",
   "version": "1.0.0",
-  "description": "Smart Analysis Backend for Robot Trader",
+  "description": "Consolidated Backend for Robot Trader (TSETMC Proxy + NLP + Sim)",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -9,9 +9,15 @@
     "dev": "nodemon index.js"
   },
   "dependencies": {
-    "axios": "^1.7.9",
+    "body-parser": "^1.20.2",
     "cors": "^2.8.5",
-    "express": "^4.22.1",
-    "tsetmc-client": "^1.0.8"
+    "express": "^4.19.2",
+    "sentiment": "^5.0.2",
+    "axios": "^1.6.2",
+    "cheerio": "^1.0.0-rc.12",
+    "node-cache": "^5.1.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
   }
 }

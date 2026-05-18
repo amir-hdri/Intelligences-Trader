@@ -43,6 +43,8 @@ export const IME_SYMBOLS: SymbolInfo[] = [
   },
 ];
 
+export const REAL_TSE_SYMBOLS = IME_SYMBOLS;
+
 export const DEFAULT_API_CONFIG: ApiConfig = {
   proxyUrl: 'http://localhost:3001',
   apiKey: 'demo-key', // Placeholder for professional auth

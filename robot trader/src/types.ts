@@ -13,6 +13,7 @@ export interface MarketCandle {
 export type TradeAction = 'BUY' | 'SELL' | 'HOLD';
 export type TimeFrame = '1m' | '15m' | '1h' | '1d';
 export type MarketRegime = 'TRENDING_UP' | 'TRENDING_DOWN' | 'RANGING' | 'HIGH_VOLATILITY';
+export type SystemStatusCode = 'OPERATIONAL' | 'WARNING' | 'CRITICAL' | 'KILL_SWITCH_ACTIVE';
 
 export interface OrderBookItem {
   price: number;
@@ -167,7 +168,7 @@ export interface SystemMetrics {
   profitFactor: number;
   maxDrawdown: number;
   winRate: number;
-  status: 'OPERATIONAL' | 'WARNING' | 'CRITICAL' | 'KILL_SWITCH_ACTIVE';
+  status: SystemStatusCode;
   marketCorrelation: CorrelationMetrics;
   sentiment: SentimentData;
   balance: number; // Added for persistence

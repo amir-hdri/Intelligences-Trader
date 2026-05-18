@@ -1,61 +1,93 @@
 import express from 'express';
 import cors from 'cors';
-import { DayDetails } from 'tsetmc-client';
-import { analyzeMarketMTF, detectMarketRegime, calculateATR } from './analyzer.js';
+import axios from 'axios';
+import NodeCache from 'node-cache';
+import bodyParser from 'body-parser';
+
+// Internal Logic
+import { generateNews } from './newsEngine.js';
+import { generateHistoricalData, generateSimulationData } from './dataFactory.js';
+import { optimizeStrategy } from './strategyOptimizer.js';
 
 const app = express();
 const port = 3000;
+const cache = new NodeCache({ stdTTL: 10 }); // Cache for 10 seconds
 
 app.use(cors());
 app.use(express.json());
+app.use(bodyParser.json());
 
-// Proxy for Real API (TSETMC)
-app.get('/api/tse/:id', async (req, res) => {
-  const { id } = req.params;
+// --- Constants & Config ---
+const TSETMC_URL = 'http://cdn.tsetmc.com/api/Instrument/GetInstrumentHistory';
+const TSETMC_INFO_URL = 'http://cdn.tsetmc.com/api/Instrument/GetInstrumentInfo';
+const TSETMC_OB_URL = 'http://cdn.tsetmc.com/api/BestLimits/';
+
+const SYMBOL_MAP = {
+  'SAF-NGN-FUT': '63934444535316315',
+  'SAF-NGN-SPOT': '35425587644337450',
+  'GOLD-FUT': '2400322364771558',
+  'GOLD-FUND': '65883838195688438',
+  'STEEL-SPOT': '2400322364771558',
+};
+
+// --- Helpers ---
+
+// Helper to fetch data with retries
+async function fetchWithRetry(url, params = {}, retries = 2) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await axios.get(url, {
+          params,
+          timeout: 5000,
+          headers: {
+              'User-Agent': 'Mozilla/5.0'
+          }
+      });
+      return response.data;
+    } catch (error) {
+      if (i === retries - 1) throw error;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+}
+
+function parseTseDate(dateInt) {
+  const str = dateInt.toString();
+  const year = parseInt(str.substring(0, 4));
+  const month = parseInt(str.substring(4, 6)) - 1;
+  const day = parseInt(str.substring(6, 8));
+  return new Date(year, month, day).getTime();
+}
+
+// --- Endpoints ---
+
+// 1. Status Check
+app.get('/api/status', (req, res) => {
+  res.json({ status: 'Online', service: 'Robot Trader Intelligence Core', version: '2.6.0' });
+});
+
+// 2. NLP News Analysis
+app.get('/api/news', (req, res) => {
   try {
-    const today = new Date();
-    // Assuming a simple way to format date as YYYYMMDD
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const dEven = parseInt(`${yyyy}${mm}${dd}`);
-
-    const data = await DayDetails.getPriceData({ insId: id, dEven: dEven });
-
-    // Transform tsetmc-client data into our MarketCandle format
-    // Real TSETMC client might not return historical intraday candles perfectly,
-    // so we will simulate generating the candles based on real daily data
-
-    const priceChange = data.priceChange || 0;
-    const openPrice = data.lastPrice - priceChange; // Approximation
-
-    const candle = {
-        timestamp: Date.now(),
-        open: openPrice,
-        high: data.high || data.lastPrice,
-        low: data.low || data.lastPrice,
-        close: data.lastPrice,
-        volume: data.tradeVolume || 0,
-        openInterest: 0,
-        basis: 0,
-        warehouseVolume: 0
-    };
-
-    // Construct array of candles for analysis (normally you would fetch history)
-    // Here we generate a mock history to feed the analyzer, anchored to the real last price.
-    const candles = generateHistory(candle);
-
-    res.json({ success: true, data: candles });
+    const news = generateNews(5);
+    const aggregateScore = news.reduce((acc, curr) => acc + curr.sentimentScore, 0) / news.length;
+    res.json({
+      sentiment: {
+        score: aggregateScore,
+        label: aggregateScore > 0.1 ? 'GREED' : aggregateScore < -0.1 ? 'FEAR' : 'NEUTRAL',
+        news
+      }
+    });
   } catch (error) {
-    console.error('Real API Error:', error.message);
-    res.status(500).json({ success: false, error: 'Failed to fetch from real API. Check ID or network.' });
+    console.error('Error in /api/news:', error);
+    res.status(500).json({ error: 'Failed to generate news' });
   }
 });
 
 // 3. TSETMC History (with Fallback)
 app.get('/api/tse/history/:symbolId', async (req, res) => {
-  const symbolId = String(req.params.symbolId);
-  const insCode = Object.prototype.hasOwnProperty.call(SYMBOL_MAP, symbolId) ? SYMBOL_MAP[symbolId] : null;
+  const { symbolId } = req.params;
+  const insCode = SYMBOL_MAP[symbolId];
 
   // If not in map or unavailable, fallback to centralized simulation
   if (!insCode) {
@@ -63,29 +95,39 @@ app.get('/api/tse/history/:symbolId', async (req, res) => {
     return res.json(generateSimulationData(symbolId));
   }
 
-  // 1. Analyze Market (Direction & Confidence)
-  const analysis = analyzeMarketMTF({
-      '1m': [],
-      '15m': [],
-      '1h': historyData,
-      '1d': historyData
-  }, 'UNKNOWN');
+  const cacheKey = `history_${symbolId}`;
+  const cachedData = cache.get(cacheKey);
+  if (cachedData) return res.json(cachedData);
 
-  // 2. Volatility Analysis (Regime)
-  const atr = calculateATR(historyData);
-  const regime = detectMarketRegime(historyData, atr);
+  try {
+    const data = await fetchWithRetry(`${TSETMC_URL}/${insCode}/0`);
 
-  // 3. Value at Risk (Historical Simulation 95% Confidence)
-  const returns = [];
-  for(let i=1; i<historyData.length; i++){
-      returns.push((historyData[i].close - historyData[i-1].close) / historyData[i-1].close);
+    if (!data || !data.instrumentHistory) throw new Error('Invalid TSETMC response');
+
+    const candles = data.instrumentHistory.map(item => ({
+      timestamp: parseTseDate(item.dEven),
+      open: item.priceFirst,
+      high: item.priceMax,
+      low: item.priceMin,
+      close: item.priceClosing,
+      volume: item.qTotTran5J,
+      openInterest: 0, // TSETMC history API often lacks OI in this endpoint
+    })).reverse();
+
+    cache.set(cacheKey, candles);
+    res.json(candles);
+  } catch (error) {
+    console.error(`Error fetching history for ${symbolId}:`, error.message);
+    // Fallback to Simulation
+    const simData = generateSimulationData(symbolId);
+    res.json(simData);
   }
 });
 
 // 4. Real-Time Info (Last Price, Best Limits)
 app.get('/api/tse/info/:symbolId', async (req, res) => {
-  const symbolId = String(req.params.symbolId);
-  const insCode = Object.prototype.hasOwnProperty.call(SYMBOL_MAP, symbolId) ? SYMBOL_MAP[symbolId] : null;
+  const { symbolId } = req.params;
+  const insCode = SYMBOL_MAP[symbolId];
 
   if (!insCode) return res.status(404).json({ error: 'Symbol not found' });
 
@@ -113,60 +155,33 @@ app.get('/api/tse/info/:symbolId', async (req, res) => {
       timestamp: Date.now()
     });
 
-  res.json(advancedMetrics);
+  } catch (error) {
+    console.error(`Error fetching info for ${symbolId}:`, error.message);
+    res.status(500).json({ error: 'Failed to fetch info', details: error.message });
+  }
 });
 
 // 5. Deep Training (Strategy Optimization)
 app.post('/api/train', (req, res) => {
-  let symbol = req.body.symbol || 'SAF1403';
-
-  if (typeof symbol !== 'string' || !/^[A-Z0-9-]+$/.test(symbol)) {
-    return res.status(400).json({ error: 'Invalid symbol format' });
-  }
-
+  const symbol = req.body.symbol || 'SAF1403';
   console.log(`Starting deep training for ${symbol}...`);
 
-// Helper to generate fake history anchored to real price
-function generateHistory(currentCandle) {
-    const candles = [];
-    const count = 100;
-    let lastClose = currentCandle.close * 0.95; // start 5% lower to create a trend
-    const tfMs = 60 * 60 * 1000;
-    const now = currentCandle.timestamp;
-
-    for (let i = 0; i < count - 1; i++) {
-        const change = lastClose * (Math.random() * 0.02 - 0.01);
-        const close = lastClose + change;
-        candles.push({
-            timestamp: now - (count - i) * tfMs,
-            open: lastClose,
-            high: Math.max(lastClose, close) * 1.01,
-            low: Math.min(lastClose, close) * 0.99,
-            close: close,
-            volume: Math.floor(Math.random() * 50000),
-            openInterest: 5000,
-            basis: 0,
-            warehouseVolume: 10000
-        });
-        lastClose = close;
-    }
-    // Push the real current candle last
-    candles.push(currentCandle);
-    return candles;
-}
+  try {
+    const result = optimizeStrategy(symbol);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in /api/train:', error);
+    res.status(500).json({ error: 'Training failed' });
+  }
+});
 
 // 6. Generic Market Mock (Legacy support)
 app.get('/api/market/history', (req, res) => {
-  const symbol = String(req.query.symbol || 'SAF1403');
-
-  if (!/^[A-Z0-9-]+$/.test(symbol)) {
-    return res.status(400).json({ error: 'Invalid symbol format' });
-  }
-
+  const symbol = req.query.symbol || 'SAF1403';
   const data = generateHistoricalData(symbol);
   res.json(data);
 });
 
 app.listen(port, () => {
-  console.log(`Smart Analysis Backend listening on port ${port}`);
+  console.log(`Robot Trader Unified Server running on http://localhost:${port}`);
 });

@@ -1,4 +1,4 @@
-const { generateHistoricalData } = require('./dataFactory');
+import { generateHistoricalData } from './dataFactory.js';
 
 // --- Indicator Helpers ---
 const calculateRSI = (prices, period = 14) => {
@@ -86,7 +86,7 @@ const evaluateStrategy = (candles, weights) => {
   return { winRate, profitFactor, totalProfit, trades: trades.length, capital };
 };
 
-const optimizeStrategy = (symbolId = 'SAF1403') => {
+export const optimizeStrategy = (symbolId = 'SAF1403') => {
   console.log('Generating 3 years of data...');
   const candles = generateHistoricalData(symbolId, 3);
   console.log(`Data generated: ${candles.length} candles.`);
@@ -118,5 +118,3 @@ const optimizeStrategy = (symbolId = 'SAF1403') => {
     dataPoints: candles.length
   };
 };
-
-module.exports = { optimizeStrategy };
