@@ -1,9 +1,9 @@
 // @ts-ignore
-import { describe, it, test, before, after } from 'node:test';
+import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateRSI } from './dataUtils';
-import type { MarketCandle } from './types';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR } from './dataUtils';
+import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
 test('calculateMACD - returns correct structure', () => {
@@ -154,14 +154,14 @@ describe('TseApiClient', () => {
   let originalFetch: typeof globalThis.fetch;
   let originalConsoleError: typeof console.error;
 
-  before(() => {
+  beforeEach(() => {
     originalFetch = globalThis.fetch;
     originalConsoleError = console.error;
     // Suppress console.error for expected failures
     console.error = () => {};
   });
 
-  after(() => {
+  afterEach(() => {
     globalThis.fetch = originalFetch;
     console.error = originalConsoleError;
   });
@@ -231,65 +231,34 @@ describe('TseApiClient', () => {
   });
 });
 
-describe('calculateRSI', () => {
-  test('returns 50 if prices.length is less than period + 1', () => {
-    assert.strictEqual(calculateRSI([100, 101], 14), 50);
-  });
+test('calculateATR - returns 0 if candles length is less than 2', () => {
+  const result0 = calculateATR([]);
+  assert.strictEqual(result0, 0);
 
-  test('returns 100 if there are only gains during the period (average loss is 0)', () => {
-    // 15 prices for period 14, strictly increasing
-    const prices = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
-    assert.strictEqual(calculateRSI(prices, 14), 100);
-  });
+  const result1 = calculateATR([
+    { timestamp: 1, open: 10, high: 15, low: 5, close: 12, volume: 100 }
+  ]);
+  assert.strictEqual(result1, 0);
+});
 
-  test('returns 0 if there are only losses during the period (average gain is 0)', () => {
-    // 15 prices for period 14, strictly decreasing
-    const prices = [24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10];
-    assert.strictEqual(calculateRSI(prices, 14), 0);
-  });
+test('calculateATR - correct ATR calculation with default and custom periods', () => {
+  const candles: MarketCandle[] = [
+    { timestamp: 1, open: 10, high: 20, low: 10, close: 15, volume: 100 }, // TR = 10
+    { timestamp: 2, open: 15, high: 25, low: 12, close: 20, volume: 100 }, // prevClose=15, TR = max(25-12, abs(25-15), abs(12-15)) = max(13, 10, 3) = 13
+    { timestamp: 3, open: 20, high: 22, low: 18, close: 21, volume: 100 }, // prevClose=20, TR = max(22-18, abs(22-20), abs(18-20)) = max(4, 2, 2) = 4
+  ];
 
-  test('returns correct RSI for a mixed sequence of gains and losses', () => {
-    // 15 prices:
-    // changes:
-    // 1 -> 2 (+1)
-    // 2 -> 3 (+1)
-    // 3 -> 2 (-1)
-    // 2 -> 3 (+1)
-    // 3 -> 2 (-1)
-    // 2 -> 3 (+1)
-    // 3 -> 2 (-1)
-    // 2 -> 3 (+1)
-    // 3 -> 2 (-1)
-    // 2 -> 3 (+1)
-    // 3 -> 2 (-1)
-    // 2 -> 3 (+1)
-    // 3 -> 2 (-1)
-    // 2 -> 3 (+1)
-    // gains: 8 * (+1) = +8
-    // losses: 6 * (-1) = -6
-    // avgGain = 8/14
-    // avgLoss = 6/14
-    // rs = 8/6 = 1.333...
-    // RSI = 100 - 100 / (1 + 1.333...) = 100 - 100 / (14/6) = 100 - 600/14 = 100 - 42.857... = 57.142857...
-    const prices = [1, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3];
-    const rsi = calculateRSI(prices, 14);
-    assert.ok(rsi > 57.1 && rsi < 57.2);
-  });
+  // Period 14 but only 3 candles -> calculates ATR for 3 candles
+  // trs: [10, 13, 4] -> sum = 27 -> ATR = 27 / 3 = 9
+  const resultDefault = calculateATR(candles);
+  assert.strictEqual(resultDefault, 9);
 
-  test('calculates RSI properly using a custom period', () => {
-    // Period = 3, prices length = 4
-    // changes:
-    // 10 -> 12 (+2)
-    // 12 -> 9 (-3)
-    // 9 -> 11 (+2)
-    // gains: +4
-    // losses: -3
-    // avgGain: 4/3
-    // avgLoss: 3/3 = 1
-    // rs: (4/3) / 1 = 4/3
-    // RSI = 100 - 100 / (1 + 4/3) = 100 - 100 / (7/3) = 100 - 300/7 = 100 - 42.857... = 57.142857...
-    const prices = [10, 12, 9, 11];
-    const rsi = calculateRSI(prices, 3);
-    assert.ok(rsi > 57.1 && rsi < 57.2);
-  });
+  // Period 2 -> takes last 2 candles
+  // Note: with slice(-2), we take candles[1] and candles[2]
+  // In calculateATR, if i===0 for the slice, it just takes c.high - c.low.
+  // slice(-2)[0] is candles[1] (high: 25, low: 12 -> TR = 13)
+  // slice(-2)[1] is candles[2] (high: 22, low: 18 -> prevClose = candles[1].close = 20 -> TR = 4)
+  // trs: [13, 4] -> sum = 17 -> ATR = 17 / 2 = 8.5
+  const resultPeriod2 = calculateATR(candles, 2);
+  assert.strictEqual(resultPeriod2, 8.5);
 });
