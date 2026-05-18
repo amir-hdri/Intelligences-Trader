@@ -1,5 +1,5 @@
 
-export const generateHistoricalData = (symbolId, years = 3) => {
+const generateHistoricalData = (symbolId, years = 3) => {
   const candles = [];
   const now = Date.now();
   const hoursPerYear = 365 * 24;
@@ -35,12 +35,7 @@ export const generateHistoricalData = (symbolId, years = 3) => {
     const diffusion = sigma * epsilon * Math.sqrt(dt);
 
     const changePct = drift + diffusion;
-
-    // IME Limit Up/Down logic (simulated roughly at 5%)
-    const maxChange = 0.05;
-    let finalChange = Math.max(Math.min(changePct, maxChange), -maxChange);
-
-    price = price * (1 + finalChange);
+    price = price * (1 + changePct);
 
     // Ensure price doesn't go negative
     if (price < 1000) price = 1000;
@@ -67,44 +62,4 @@ export const generateHistoricalData = (symbolId, years = 3) => {
   return candles;
 };
 
-// New Helper for short-term simulation used by fallback
-export const generateSimulationData = (symbolId, days = 100) => {
-    console.log(`Generating fallback simulation for ${symbolId}`);
-    const now = Date.now();
-    const data = [];
-    let price = symbolId.includes('GOLD') ? 35000000 : 1200000;
-    let openInterest = 5000;
-
-    for (let i = 0; i < days; i++) {
-        const date = now - (days - i) * 24 * 60 * 60 * 1000;
-
-        // Saf Hamle (Limit Up/Down) Simulation
-        const isLimitUp = Math.random() > 0.95;
-        const isLimitDown = Math.random() > 0.95;
-
-        let change = (Math.random() - 0.5) * 0.02; // Normal volatility
-        if (isLimitUp) change = 0.05;
-        else if (isLimitDown) change = -0.05;
-
-        const close = Math.floor(price * (1 + change));
-        const open = Math.floor(price * (1 + (Math.random() - 0.5) * 0.005));
-        const high = Math.max(open, close, Math.floor(price * (1 + Math.abs(change) + 0.005)));
-        const low = Math.min(open, close, Math.floor(price * (1 - Math.abs(change) - 0.005)));
-        const volume = Math.floor(Math.random() * 100000) + 5000;
-
-        openInterest += Math.floor((Math.random() - 0.4) * 500);
-
-        data.push({
-          timestamp: date,
-          open,
-          high,
-          low,
-          close,
-          volume,
-          openInterest: Math.max(0, openInterest),
-          basis: symbolId.includes('FUT') ? close - (close * (0.98 + Math.random() * 0.04)) : 0
-        });
-        price = close;
-    }
-    return data;
-}
+module.exports = { generateHistoricalData };

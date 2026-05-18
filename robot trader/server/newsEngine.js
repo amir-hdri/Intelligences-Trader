@@ -1,5 +1,4 @@
-import Sentiment from 'sentiment';
-import crypto from 'crypto';
+const Sentiment = require('sentiment');
 const sentiment = new Sentiment();
 
 // Mock News Database
@@ -24,7 +23,7 @@ const HEADLINES = [
   "Market sentiment turns bearish ahead of holiday season"
 ];
 
-export const generateNews = (count = 5) => {
+const generateNews = (count = 5) => {
   const news = [];
   const now = Date.now();
 
@@ -48,7 +47,7 @@ export const generateNews = (count = 5) => {
     }
 
     news.push({
-      id: crypto.randomUUID(),
+      id: Math.random().toString(36).substring(7),
       title: randomHeadline,
       source: randomSource,
       timestamp: now - timeOffset,
@@ -66,3 +65,5 @@ export const generateNews = (count = 5) => {
   // Sort by newest
   return news.sort((a, b) => b.timestamp - a.timestamp);
 };
+
+module.exports = { generateNews };
