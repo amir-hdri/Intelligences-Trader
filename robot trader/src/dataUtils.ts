@@ -492,6 +492,16 @@ export const DEFAULT_WEIGHTS: StrategyWeights = {
 
 let optimizedWeights: StrategyWeights = { ...DEFAULT_WEIGHTS };
 
+export interface PrecalculatedIndicators {
+  dIchimoku: { tenkan: number; kijun: number; senkouA: number; senkouB: number; chikou?: number };
+  rsi: number;
+  macd: { value: number; signal: number; histogram: number };
+  atr: number;
+  bb: { upper: number; mid?: number; middle?: number; lower: number; bandwidth?: number };
+  ichimoku: { tenkan: number; kijun: number; senkouA: number; senkouB: number; chikou?: number };
+  regime: MarketRegime;
+}
+
 export const analyzeMarketMTF = (
   mtfData: Record<TimeFrame, MarketCandle[]>, 
   symbolId: string = '',
@@ -500,7 +510,8 @@ export const analyzeMarketMTF = (
     correlation: CorrelationMetrics | null;
     sentiment: SentimentData | null;
   },
-  weights: StrategyWeights = optimizedWeights
+  weights: StrategyWeights = optimizedWeights,
+  precalc?: PrecalculatedIndicators
 ): ExpertForecast => {
   const dailyCandles = mtfData['1d'] || [];
   const hourlyCandles = mtfData['1h'] || dailyCandles;
@@ -518,17 +529,17 @@ export const analyzeMarketMTF = (
   const lastCandle = hourlyCandles[hourlyCandles.length - 1];
   const sentimentScore = externalMetrics?.sentiment?.score || 0;
 
-  const dIchimoku = calculateIchimoku(dailyCandles);
+  const hPrices = precalc ? [] : hourlyCandles.map(c => c.close);
+  const dIchimoku = precalc ? precalc.dIchimoku : calculateIchimoku(dailyCandles);
   const dailyTrend = lastCandle.close > dIchimoku.senkouA && lastCandle.close > dIchimoku.senkouB ? 'BULLISH' : 
                      lastCandle.close < dIchimoku.senkouA && lastCandle.close < dIchimoku.senkouB ? 'BEARISH' : 'NEUTRAL';
 
-  const hPrices = hourlyCandles.map(c => c.close);
-  const rsi = calculateRSI(hPrices);
-  const macd = calculateMACD(hPrices);
-  const atr = calculateATR(hourlyCandles);
-  const bb = calculateBollingerBands(hPrices);
-  const ichimoku = calculateIchimoku(hourlyCandles);
-  const regime = detectMarketRegime(hourlyCandles, atr);
+  const rsi = precalc ? precalc.rsi : calculateRSI(hPrices);
+  const macd = precalc ? precalc.macd : calculateMACD(hPrices);
+  const atr = precalc ? precalc.atr : calculateATR(hourlyCandles);
+  const bb: any = precalc ? precalc.bb : calculateBollingerBands(hPrices);
+  const ichimoku = precalc ? precalc.ichimoku : calculateIchimoku(hourlyCandles);
+  const regime = precalc ? precalc.regime : detectMarketRegime(hourlyCandles, atr);
 
   let score = 0;
   const reasons: string[] = [];
@@ -747,8 +758,20 @@ export const optimizeStrategyWeights = (candles: MarketCandle[]): { weights: Str
       '15m': []
     };
 
+    const hPrices = currentSlice.map(c => c.close);
+    const atrVal = calculateATR(currentSlice);
+    const precalc: PrecalculatedIndicators = {
+      dIchimoku: calculateIchimoku(currentSlice),
+      rsi: calculateRSI(hPrices),
+      macd: calculateMACD(hPrices),
+      atr: atrVal,
+      bb: calculateBollingerBands(hPrices),
+      ichimoku: calculateIchimoku(currentSlice),
+      regime: detectMarketRegime(currentSlice, atrVal)
+    };
+
     for (let i = 0; i < 15; i++) {
-      const forecast = analyzeMarketMTF(mtfData, '', undefined, candidates[i]);
+      const forecast = analyzeMarketMTF(mtfData, '', undefined, candidates[i], precalc);
       if (forecast.action !== 'HOLD') {
         const profit = forecast.action === 'BUY'
           ? candles[j + 1].close - candles[j].close
