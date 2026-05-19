@@ -803,7 +803,6 @@ export const trainModelEpoch = async (candles: MarketCandle[], symbolId: string)
 
     if (response.ok) {
       const result = await response.json();
-      console.log('Deep Learning Result:', result);
       // Update local weights with server-optimized ones if necessary
       // optimizedWeights = result.optimizedWeights;
       return result.performance.winRate;
