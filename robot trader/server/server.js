@@ -55,7 +55,6 @@ app.get('/api/market/history', (req, res) => {
 // 4. Deep Training (Strategy Optimization)
 app.post('/api/train', (req, res) => {
   const symbol = req.body.symbol || 'SAF1403';
-  console.log(`Starting deep training for ${symbol}...`);
 
   try {
     const result = optimizeStrategy(symbol);
@@ -67,5 +66,4 @@ app.post('/api/train', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
 });

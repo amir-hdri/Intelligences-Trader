@@ -38,7 +38,7 @@ const generateSimulationData = (symbolId) => {
 const app = express();
 const port = 3000;
 
-app.use(cors());
+app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
 
 // Proxy for Real API (TSETMC)
@@ -181,7 +181,6 @@ app.post('/api/train', (req, res) => {
     return res.status(400).json({ error: 'Invalid symbol format' });
   }
 
-  console.log(`Starting deep training for ${symbol}...`);
 
 // Helper to generate fake history anchored to real price
 function generateHistory(currentCandle) {
@@ -211,6 +210,10 @@ function generateHistory(currentCandle) {
     candles.push(currentCandle);
     return candles;
 }
+
+  // Return a mock successful training response
+  res.json({ success: true, message: `Training started for ${symbol}` });
+});
 
 // 6. Generic Market Mock (Legacy support)
 app.get('/api/market/history', (req, res) => {
