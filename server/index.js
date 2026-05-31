@@ -94,6 +94,8 @@ app.get('/api/market/:symbol', async (req, res) => {
   res.json({ source: 'PROFESSIONAL_SIM', data });
 });
 
+});
+
 app.get('/api/orderbook/:symbol', (req, res) => {
   // Simulate Level 2 Data (Market Depth)
   const { symbol } = req.params;
