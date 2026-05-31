@@ -51,7 +51,6 @@ app.get('/api/market/:symbol', async (req, res) => {
   }
 
   // 2. Fallback to "Professional Simulation" if API is unreachable (Sandbox environment)
-  console.log(`Using Professional Simulation for ${symbol}`);
 
   const now = new Date();
   const data = [];
@@ -93,7 +92,6 @@ app.get('/api/market/:symbol', async (req, res) => {
   }
 
   res.json({ source: 'PROFESSIONAL_SIM', data });
-});
 
 app.get('/api/orderbook/:symbol', (req, res) => {
   // Simulate Level 2 Data (Market Depth)
@@ -114,8 +112,5 @@ app.get('/api/orderbook/:symbol', (req, res) => {
      asks,
      isSpoofing: Math.random() > 0.98 // Occasional spoofing detection
   });
-});
 
-app.listen(PORT, () => {
-  console.log(`Professional IME Data Proxy running on http://localhost:${PORT}`);
-});
+app.listen(PORT);
