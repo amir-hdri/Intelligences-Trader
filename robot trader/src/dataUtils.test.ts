@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, trainModelEpoch } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -215,7 +215,42 @@ describe('TseApiClient', () => {
     assert.strictEqual(data.length, 0); // Should return empty array when useDigitalTwin is false
   });
 
-  test('fetchMarketData falls back to Digital Twin when no proxy URL configured', async () => {
+
+  test('fetchAdvancedMetrics handles fetch error and returns null', async () => {
+    // Mock fetch failure
+    globalThis.fetch = async () => {
+      throw new Error('Network Error');
+    };
+
+    let errorLogged = false;
+    console.error = () => {
+      errorLogged = true;
+    };
+
+    const config = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config as any);
+    const mockHistoryData = [{
+      timestamp: 12345,
+      open: 100,
+      high: 110,
+      low: 90,
+      close: 105,
+      volume: 1000
+    }];
+
+    const data = await client.fetchAdvancedMetrics(mockHistoryData);
+
+    assert.strictEqual(data, null);
+    assert.strictEqual(errorLogged, true, 'console.error should have been called');
+  });
+
+test('fetchMarketData falls back to Digital Twin when no proxy URL configured', async () => {
     const config: ApiConfig = {
       proxyUrl: undefined as any,
       apiKey: 'key',
@@ -261,4 +296,72 @@ test('calculateATR - correct ATR calculation with default and custom periods', (
   // trs: [13, 4] -> sum = 17 -> ATR = 17 / 2 = 8.5
   const resultPeriod2 = calculateATR(candles, 2);
   assert.strictEqual(resultPeriod2, 8.5);
+});
+
+// ========================================
+// Test Suite: trainModelEpoch
+// ========================================
+describe('trainModelEpoch', () => {
+  let originalFetch: typeof globalThis.fetch;
+  let originalConsoleError: typeof console.error;
+  let originalConsoleLog: typeof console.log;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    originalConsoleError = console.error;
+    originalConsoleLog = console.log;
+    // Suppress console.error and log for expected output
+    console.error = () => {};
+    console.log = () => {};
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    console.error = originalConsoleError;
+    console.log = originalConsoleLog;
+  });
+
+  test('falls back to local optimization on fetch error', async () => {
+    // Mock fetch failure
+    globalThis.fetch = async () => {
+      throw new Error('Network Error');
+    };
+
+    const candles = createCandles(50, 'FLAT');
+
+    const accuracy = await trainModelEpoch(candles, 'TEST_SYMBOL');
+
+    assert.strictEqual(typeof accuracy, 'number');
+    assert.ok(!isNaN(accuracy));
+  });
+
+  test('falls back to local optimization when response is not ok', async () => {
+    // Mock fetch returning not ok
+    globalThis.fetch = async () => ({
+      ok: false,
+      status: 500
+    } as any);
+
+    const candles = createCandles(50, 'FLAT');
+    const accuracy = await trainModelEpoch(candles, 'TEST_SYMBOL');
+
+    assert.strictEqual(typeof accuracy, 'number');
+    assert.ok(!isNaN(accuracy));
+  });
+
+  test('returns server accuracy on successful fetch', async () => {
+    // Mock fetch returning ok
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        performance: { winRate: 0.85 },
+        optimizedWeights: {}
+      })
+    } as any);
+
+    const candles = createCandles(10, 'FLAT');
+    const accuracy = await trainModelEpoch(candles, 'TEST_SYMBOL');
+
+    assert.strictEqual(accuracy, 0.85);
+  });
 });

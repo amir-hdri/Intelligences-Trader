@@ -6,6 +6,8 @@ import { analyzeMarketMTF, detectMarketRegime, calculateATR } from './analyzer.j
 import { generateHistoricalData } from './dataFactory.js';
 import crypto from 'crypto';
 
+const ALLOWED_INS_CODES = ['SAF1403', 'GOLD1403', 'SAFSPOT', 'GOLDFUND', 'STEELSPOT'];
+
 const SYMBOL_MAP = {
   'SAF-NGN-FUT': 'SAF1403',
   'GOLD-FUT': 'GOLD1403',
@@ -38,7 +40,7 @@ const generateSimulationData = (symbolId) => {
 const app = express();
 const port = 3000;
 
-app.use(cors());
+app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
 
 // Proxy for Real API (TSETMC)
@@ -141,6 +143,7 @@ app.get('/api/tse/info/:symbolId', async (req, res) => {
   const insCode = Object.prototype.hasOwnProperty.call(SYMBOL_MAP, symbolId) ? SYMBOL_MAP[symbolId] : null;
 
   if (!insCode) return res.status(404).json({ error: 'Symbol not found' });
+  if (!ALLOWED_INS_CODES.includes(insCode)) return res.status(400).json({ error: 'Invalid instrument code' });
 
   try {
     const [infoData, obData] = await Promise.all([
@@ -181,7 +184,6 @@ app.post('/api/train', (req, res) => {
     return res.status(400).json({ error: 'Invalid symbol format' });
   }
 
-  console.log(`Starting deep training for ${symbol}...`);
 
 // Helper to generate fake history anchored to real price
 function generateHistory(currentCandle) {
@@ -211,6 +213,10 @@ function generateHistory(currentCandle) {
     candles.push(currentCandle);
     return candles;
 }
+
+  // Return a mock successful training response
+  res.json({ success: true, message: `Training started for ${symbol}` });
+});
 
 // 6. Generic Market Mock (Legacy support)
 app.get('/api/market/history', (req, res) => {
