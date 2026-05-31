@@ -108,9 +108,7 @@ export const evaluateStrategy = (candles, weights) => {
 };
 
 const optimizeStrategy = (symbolId = 'SAF1403') => {
-  console.log('Generating 3 years of data...');
   const candles = generateHistoricalData(symbolId, 3);
-  console.log(`Data generated: ${candles.length} candles.`);
 
   let bestMetrics = { winRate: 0, profitFactor: 0 };
   let bestWeights = { rsi: 2, macd: 1, sentiment: 2 };
