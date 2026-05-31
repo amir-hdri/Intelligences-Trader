@@ -90,6 +90,29 @@ const createCandles = (count, trend) => {
 // ========================================
 // Test Suite: Market Regime Detection
 // ========================================
+(0, node_test_1.describe)('dataUtils - analyzeMarket', () => {
+    (0, node_test_1.it)('should correctly wrap analyzeMarketMTF', () => {
+        const candles = createCandles(35, 'UP');
+        const result = analyzeMarket(candles);
+        node_assert_1.default.ok(result, 'Result should be defined');
+        node_assert_1.default.strictEqual(typeof result.action, 'string', 'Action should be a string');
+        node_assert_1.default.strictEqual(typeof result.entryPrice, 'number', 'entryPrice should be a number');
+        node_assert_1.default.strictEqual(typeof result.confidence, 'number', 'confidence should be a number');
+        node_assert_1.default.ok(['BUY', 'SELL', 'HOLD'].includes(result.action), 'Action should be BUY, SELL, or HOLD');
+        node_assert_1.default.ok(result.reason, 'Reason should be populated');
+    });
+    (0, node_test_1.it)('should handle empty candle arrays', () => {
+        const result = analyzeMarket([]);
+        node_assert_1.default.strictEqual(result.action, 'HOLD');
+        node_assert_1.default.strictEqual(result.reason, 'Insufficient Data');
+    });
+    (0, node_test_1.it)('should handle small candle arrays (insufficient data)', () => {
+        const candles = createCandles(15, 'FLAT');
+        const result = analyzeMarket(candles);
+        node_assert_1.default.strictEqual(result.action, 'HOLD');
+        node_assert_1.default.strictEqual(result.reason, 'Insufficient Data');
+    });
+});
 (0, node_test_1.describe)('dataUtils - Market Regime Detection', () => {
     (0, node_test_1.it)('should detect TRENDING_UP regime indirectly via analyzeMarketMTF', () => {
         const candles = createCandles(100, 'UP');
@@ -186,6 +209,34 @@ const createCandles = (count, trend) => {
         node_assert_1.default.ok(Array.isArray(data));
         node_assert_1.default.strictEqual(data.length, 0); // Should return empty array when useDigitalTwin is false
     });
+    (0, node_test_1.test)('fetchAdvancedMetrics handles fetch error and returns null', async () => {
+        // Mock fetch failure
+        globalThis.fetch = async () => {
+            throw new Error('Network Error');
+        };
+        let errorLogged = false;
+        console.error = () => {
+            errorLogged = true;
+        };
+        const config = {
+            proxyUrl: 'http://proxy.com',
+            apiKey: 'key',
+            isConnected: true,
+            useDigitalTwin: false,
+        };
+        const client = new dataUtils_1.TseApiClient(config);
+        const mockHistoryData = [{
+                timestamp: 12345,
+                open: 100,
+                high: 110,
+                low: 90,
+                close: 105,
+                volume: 1000
+            }];
+        const data = await client.fetchAdvancedMetrics(mockHistoryData);
+        node_assert_1.default.strictEqual(data, null);
+        node_assert_1.default.strictEqual(errorLogged, true, 'console.error should have been called');
+    });
     (0, node_test_1.test)('fetchMarketData falls back to Digital Twin when no proxy URL configured', async () => {
         const config = {
             proxyUrl: undefined,
@@ -225,4 +276,77 @@ const createCandles = (count, trend) => {
     // trs: [13, 4] -> sum = 17 -> ATR = 17 / 2 = 8.5
     const resultPeriod2 = (0, dataUtils_1.calculateATR)(candles, 2);
     node_assert_1.default.strictEqual(resultPeriod2, 8.5);
+});
+(0, node_test_1.describe)('calculateIchimoku', () => {
+    const createCandles = (count, startPrice = 100) => {
+        return Array.from({ length: count }, (_, i) => ({
+            open: startPrice + i,
+            high: startPrice + i + 5,
+            low: startPrice + i - 5,
+            close: startPrice + i + 2,
+            volume: 1000,
+            timestamp: new Date().getTime() - (count - i) * 60000
+        }));
+    };
+    (0, node_test_1.test)('handles fewer than 9 candles (defaults to last close for indicators needing more data)', () => {
+        const candles = createCandles(5); // 100 to 104 open, closes are 102 to 106
+        const lastClose = 106;
+        const result = (0, dataUtils_1.calculateIchimoku)(candles);
+        // With < 9 candles, tenkan, kijun, senkouB default to last close
+        node_assert_1.default.strictEqual(result.tenkan, lastClose);
+        node_assert_1.default.strictEqual(result.kijun, lastClose);
+        node_assert_1.default.strictEqual(result.senkouB, lastClose);
+        // senkouA is average of tenkan and kijun
+        node_assert_1.default.strictEqual(result.senkouA, lastClose);
+    });
+    (0, node_test_1.test)('calculates correct values for exactly 9 candles (Tenkan-sen calculation)', () => {
+        const candles = createCandles(9);
+        const lastClose = candles[8].close; // 100+8+2 = 110
+        // Tenkan is highest high and lowest low of last 9 periods / 2
+        // highest high = 108 + 5 = 113
+        // lowest low = 100 - 5 = 95
+        // mid = (113 + 95) / 2 = 104
+        const result = (0, dataUtils_1.calculateIchimoku)(candles);
+        node_assert_1.default.strictEqual(result.tenkan, 104);
+        node_assert_1.default.strictEqual(result.kijun, lastClose); // < 26 candles, defaults to close
+        node_assert_1.default.strictEqual(result.senkouB, lastClose); // < 52 candles, defaults to close
+        node_assert_1.default.strictEqual(result.senkouA, (104 + lastClose) / 2);
+    });
+    (0, node_test_1.test)('calculates correct values for exactly 26 candles (Kijun-sen calculation)', () => {
+        const candles = createCandles(26);
+        const lastClose = candles[25].close; // 100+25+2 = 127
+        // Tenkan (last 9 periods: index 17 to 25)
+        // highest high = 100+25+5 = 130
+        // lowest low = 100+17-5 = 112
+        // tenkan = (130 + 112) / 2 = 121
+        // Kijun (last 26 periods: index 0 to 25)
+        // highest high = 130
+        // lowest low = 95
+        // kijun = (130 + 95) / 2 = 112.5
+        const result = (0, dataUtils_1.calculateIchimoku)(candles);
+        node_assert_1.default.strictEqual(result.tenkan, 121);
+        node_assert_1.default.strictEqual(result.kijun, 112.5);
+        node_assert_1.default.strictEqual(result.senkouB, lastClose); // < 52 candles
+        node_assert_1.default.strictEqual(result.senkouA, (121 + 112.5) / 2);
+    });
+    (0, node_test_1.test)('calculates correct values for 52 or more candles (Senkou Span B calculation)', () => {
+        const candles = createCandles(60); // 100 to 159 open
+        // Tenkan (last 9 periods: 51 to 59)
+        // highest high = 100+59+5 = 164
+        // lowest low = 100+51-5 = 146
+        // tenkan = (164 + 146) / 2 = 155
+        // Kijun (last 26 periods: 34 to 59)
+        // highest high = 164
+        // lowest low = 100+34-5 = 129
+        // kijun = (164 + 129) / 2 = 146.5
+        // SenkouB (last 52 periods: 8 to 59)
+        // highest high = 164
+        // lowest low = 100+8-5 = 103
+        // senkouB = (164 + 103) / 2 = 133.5
+        const result = (0, dataUtils_1.calculateIchimoku)(candles);
+        node_assert_1.default.strictEqual(result.tenkan, 155);
+        node_assert_1.default.strictEqual(result.kijun, 146.5);
+        node_assert_1.default.strictEqual(result.senkouB, 133.5);
+        node_assert_1.default.strictEqual(result.senkouA, (155 + 146.5) / 2);
+    });
 });
