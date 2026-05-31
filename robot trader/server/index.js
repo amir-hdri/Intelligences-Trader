@@ -221,10 +221,6 @@ function generateHistory(currentCandle) {
     return candles;
 }
 
-  // Return a mock successful training response
-  res.json({ success: true, message: `Training started for ${symbol}` });
-});
-
 // 6. Generic Market Mock (Legacy support)
 app.get('/api/market/history', (req, res) => {
   const symbol = String(req.query.symbol || 'SAF1403');
@@ -235,6 +231,11 @@ app.get('/api/market/history', (req, res) => {
 
   const data = generateHistoricalData(symbol);
   res.json(data);
+});
+
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Internal Server Error' });
 });
 
 app.listen(port, () => {
