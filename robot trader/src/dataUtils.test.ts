@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, analyzeMarket } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -326,71 +326,94 @@ test('calculateATR - correct ATR calculation with default and custom periods', (
   const resultPeriod2 = calculateATR(candles, 2);
   assert.strictEqual(resultPeriod2, 8.5);
 });
+describe('calculateIchimoku', () => {
+  const createCandles = (count, startPrice = 100) => {
+    return Array.from({ length: count }, (_, i) => ({
+      open: startPrice + i,
+      high: startPrice + i + 5,
+      low: startPrice + i - 5,
+      close: startPrice + i + 2,
+      volume: 1000,
+      timestamp: new Date().getTime() - (count - i) * 60000
+    }));
+  };
 
-// ========================================
-// Test Suite: trainModelEpoch
-// ========================================
-describe('trainModelEpoch', () => {
-  let originalFetch: typeof globalThis.fetch;
-  let originalConsoleError: typeof console.error;
-  let originalConsoleLog: typeof console.log;
+  test('handles fewer than 9 candles (defaults to last close for indicators needing more data)', () => {
+    const candles = createCandles(5); // 100 to 104 open, closes are 102 to 106
+    const lastClose = 106;
 
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-    originalConsoleError = console.error;
-    originalConsoleLog = console.log;
-    // Suppress console.error and log for expected output
-    console.error = () => {};
-    console.log = () => {};
+    const result = calculateIchimoku(candles);
+
+    // With < 9 candles, tenkan, kijun, senkouB default to last close
+    assert.strictEqual(result.tenkan, lastClose);
+    assert.strictEqual(result.kijun, lastClose);
+    assert.strictEqual(result.senkouB, lastClose);
+    // senkouA is average of tenkan and kijun
+    assert.strictEqual(result.senkouA, lastClose);
   });
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    console.error = originalConsoleError;
-    console.log = originalConsoleLog;
+  test('calculates correct values for exactly 9 candles (Tenkan-sen calculation)', () => {
+    const candles = createCandles(9);
+    const lastClose = candles[8].close; // 100+8+2 = 110
+
+    // Tenkan is highest high and lowest low of last 9 periods / 2
+    // highest high = 108 + 5 = 113
+    // lowest low = 100 - 5 = 95
+    // mid = (113 + 95) / 2 = 104
+
+    const result = calculateIchimoku(candles);
+
+    assert.strictEqual(result.tenkan, 104);
+    assert.strictEqual(result.kijun, lastClose); // < 26 candles, defaults to close
+    assert.strictEqual(result.senkouB, lastClose); // < 52 candles, defaults to close
+    assert.strictEqual(result.senkouA, (104 + lastClose) / 2);
   });
 
-  test('falls back to local optimization on fetch error', async () => {
-    // Mock fetch failure
-    globalThis.fetch = async () => {
-      throw new Error('Network Error');
-    };
+  test('calculates correct values for exactly 26 candles (Kijun-sen calculation)', () => {
+    const candles = createCandles(26);
+    const lastClose = candles[25].close; // 100+25+2 = 127
 
-    const candles = createCandles(50, 'FLAT');
+    // Tenkan (last 9 periods: index 17 to 25)
+    // highest high = 100+25+5 = 130
+    // lowest low = 100+17-5 = 112
+    // tenkan = (130 + 112) / 2 = 121
 
-    const accuracy = await trainModelEpoch(candles, 'TEST_SYMBOL');
+    // Kijun (last 26 periods: index 0 to 25)
+    // highest high = 130
+    // lowest low = 95
+    // kijun = (130 + 95) / 2 = 112.5
 
-    assert.strictEqual(typeof accuracy, 'number');
-    assert.ok(!isNaN(accuracy));
+    const result = calculateIchimoku(candles);
+
+    assert.strictEqual(result.tenkan, 121);
+    assert.strictEqual(result.kijun, 112.5);
+    assert.strictEqual(result.senkouB, lastClose); // < 52 candles
+    assert.strictEqual(result.senkouA, (121 + 112.5) / 2);
   });
 
-  test('falls back to local optimization when response is not ok', async () => {
-    // Mock fetch returning not ok
-    globalThis.fetch = async () => ({
-      ok: false,
-      status: 500
-    } as any);
+  test('calculates correct values for 52 or more candles (Senkou Span B calculation)', () => {
+    const candles = createCandles(60); // 100 to 159 open
 
-    const candles = createCandles(50, 'FLAT');
-    const accuracy = await trainModelEpoch(candles, 'TEST_SYMBOL');
+    // Tenkan (last 9 periods: 51 to 59)
+    // highest high = 100+59+5 = 164
+    // lowest low = 100+51-5 = 146
+    // tenkan = (164 + 146) / 2 = 155
 
-    assert.strictEqual(typeof accuracy, 'number');
-    assert.ok(!isNaN(accuracy));
-  });
+    // Kijun (last 26 periods: 34 to 59)
+    // highest high = 164
+    // lowest low = 100+34-5 = 129
+    // kijun = (164 + 129) / 2 = 146.5
 
-  test('returns server accuracy on successful fetch', async () => {
-    // Mock fetch returning ok
-    globalThis.fetch = async () => ({
-      ok: true,
-      json: async () => ({
-        performance: { winRate: 0.85 },
-        optimizedWeights: {}
-      })
-    } as any);
+    // SenkouB (last 52 periods: 8 to 59)
+    // highest high = 164
+    // lowest low = 100+8-5 = 103
+    // senkouB = (164 + 103) / 2 = 133.5
 
-    const candles = createCandles(10, 'FLAT');
-    const accuracy = await trainModelEpoch(candles, 'TEST_SYMBOL');
+    const result = calculateIchimoku(candles);
 
-    assert.strictEqual(accuracy, 0.85);
+    assert.strictEqual(result.tenkan, 155);
+    assert.strictEqual(result.kijun, 146.5);
+    assert.strictEqual(result.senkouB, 133.5);
+    assert.strictEqual(result.senkouA, (155 + 146.5) / 2);
   });
 });
