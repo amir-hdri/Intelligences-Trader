@@ -45,7 +45,11 @@ app.use(express.json());
 
 // Proxy for Real API (TSETMC)
 app.get('/api/tse/:id', async (req, res) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
+  if (!/^[A-Z0-9-]+$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid symbol format' });
+  }
+
   try {
     const today = new Date();
     // Assuming a simple way to format date as YYYYMMDD
@@ -184,6 +188,9 @@ app.post('/api/train', (req, res) => {
     return res.status(400).json({ error: 'Invalid symbol format' });
   }
 
+  console.log(`Starting deep training for ${symbol}...`);
+  res.json({ success: true, message: `Training started for ${symbol}` });
+});
 
 // Helper to generate fake history anchored to real price
 function generateHistory(currentCandle) {
