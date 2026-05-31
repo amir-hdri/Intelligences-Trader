@@ -5,27 +5,27 @@ import { ExpertForecast, MarketRegime, RiskLimits, TradeAction } from './types';
 
 // Helper to mock global Date
 let originalDate: typeof Date;
+let fixedDate: Date | null = null;
 
-function mockDate(isoDateString: string) {
-  originalDate = globalThis.Date;
-  const fixedDate = new originalDate(isoDateString);
-
-  // Create a mock Date class
-  class MockDate extends originalDate {
-    constructor(...args: any[]) {
-      if (args.length === 0) {
-        super(fixedDate.getTime());
-      } else {
-        // @ts-ignore
-        super(...args);
-      }
-    }
-
-    static now() {
-      return fixedDate.getTime();
+// Extracted MockDate class to avoid deep nesting
+class MockDate extends Date {
+  constructor(...args: any[]) {
+    if (args.length === 0 && fixedDate) {
+      super(fixedDate.getTime());
+    } else {
+      // @ts-ignore
+      super(...args);
     }
   }
 
+  static now() {
+    return fixedDate ? fixedDate.getTime() : Date.now();
+  }
+}
+
+function mockDate(isoDateString: string) {
+  originalDate = globalThis.Date;
+  fixedDate = new originalDate(isoDateString);
   // @ts-ignore
   globalThis.Date = MockDate;
 }
@@ -34,6 +34,7 @@ function restoreDate() {
   if (originalDate) {
     globalThis.Date = originalDate;
   }
+  fixedDate = null;
 }
 
 describe('RiskEngine - validateTrade (Weekend Risk)', () => {

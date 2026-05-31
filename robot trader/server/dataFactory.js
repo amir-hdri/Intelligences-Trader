@@ -62,4 +62,4 @@ const generateHistoricalData = (symbolId, years = 3) => {
   return candles;
 };
 
-module.exports = { generateHistoricalData };
+export { generateHistoricalData };
