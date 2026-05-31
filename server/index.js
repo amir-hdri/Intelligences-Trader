@@ -92,6 +92,7 @@ app.get('/api/market/:symbol', async (req, res) => {
   }
 
   res.json({ source: 'PROFESSIONAL_SIM', data });
+});
 
 });
 
@@ -114,7 +115,13 @@ app.get('/api/orderbook/:symbol', (req, res) => {
      asks,
      isSpoofing: Math.random() > 0.98 // Occasional spoofing detection
   });
-
 });
 
-app.listen(PORT);
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Internal Server Error' });
+});
+
+app.listen(PORT, () => {
+  console.log(`Proxy Backend listening on port ${PORT}`);
+});
