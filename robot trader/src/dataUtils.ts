@@ -578,6 +578,16 @@ export const DEFAULT_WEIGHTS: StrategyWeights = {
 
 let optimizedWeights: StrategyWeights = { ...DEFAULT_WEIGHTS };
 
+export interface PrecalculatedIndicators {
+  dIchimoku: { tenkan: number; kijun: number; senkouA: number; senkouB: number; chikou?: number };
+  rsi: number;
+  macd: { value: number; signal: number; histogram: number };
+  atr: number;
+  bb: { upper: number; mid?: number; middle?: number; lower: number; bandwidth?: number };
+  ichimoku: { tenkan: number; kijun: number; senkouA: number; senkouB: number; chikou?: number };
+  regime: MarketRegime;
+}
+
 export const analyzeMarketMTF = (
   mtfData: Record<TimeFrame, MarketCandle[]>,
   symbolId: string = "",
@@ -908,6 +918,18 @@ export const optimizeStrategyWeights = (
       "1d": currentSlice,
       "1m": [],
       "15m": [],
+    };
+
+    const hPrices = currentSlice.map(c => c.close);
+    const atrVal = calculateATR(currentSlice);
+    const precalc: PrecalculatedIndicators = {
+      dIchimoku: calculateIchimoku(currentSlice),
+      rsi: calculateRSI(hPrices),
+      macd: calculateMACD(hPrices),
+      atr: atrVal,
+      bb: calculateBollingerBands(hPrices),
+      ichimoku: calculateIchimoku(currentSlice),
+      regime: detectMarketRegime(currentSlice, atrVal)
     };
 
     for (let i = 0; i < 15; i++) {
