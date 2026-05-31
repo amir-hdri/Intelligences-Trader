@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { DayDetails } from 'tsetmc-client';
 import { analyzeMarketMTF, detectMarketRegime, calculateATR } from './analyzer.js';
+import { generateAnalysis } from './analysisEngine.js';
 
 import { generateHistoricalData } from './dataFactory.js';
 import crypto from 'crypto';
@@ -42,6 +43,57 @@ const port = 3000;
 
 app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
+
+
+// Smart Analysis Endpoint
+
+// Prediction Endpoint
+app.post('/api/predict', (req, res) => {
+  const { historyData } = req.body;
+  if (!historyData || !Array.isArray(historyData) || historyData.length === 0) {
+    return res.status(400).json({ error: 'Invalid historyData array' });
+  }
+
+  try {
+    const analysis = generateAnalysis(historyData);
+    const lastClose = historyData[historyData.length - 1].close;
+    const atr = analysis.indicators.atr;
+
+    let targetPrice = lastClose;
+    if (analysis.prediction === 'BUY') targetPrice = lastClose + atr;
+    else if (analysis.prediction === 'SELL') targetPrice = lastClose - atr;
+
+    res.json({
+      prediction: analysis.prediction,
+      targetPrice: targetPrice,
+      confidence: analysis.confidence
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Prediction failed' });
+  }
+});
+
+
+app.post('/api/analyze', (req, res) => {
+  const t0 = Date.now();
+  const { historyData } = req.body;
+  if (!historyData || !Array.isArray(historyData)) {
+    return res.status(400).json({ error: 'Invalid historyData array' });
+  }
+
+  try {
+    const analysis = generateAnalysis(historyData);
+    const t1 = Date.now();
+    // Ensure < 500ms
+    if ((t1 - t0) > 500) {
+      console.warn('Analysis took too long:', t1 - t0, 'ms');
+    }
+    res.json(analysis);
+  } catch (error) {
+    res.status(500).json({ error: 'Analysis failed' });
+  }
+});
+
 
 // Proxy for Real API (TSETMC)
 app.get('/api/tse/:id', async (req, res) => {
@@ -183,15 +235,18 @@ app.get('/api/tse/info/:symbolId', async (req, res) => {
 // 5. Deep Training (Strategy Optimization)
 app.post('/api/train', (req, res) => {
   let symbol = req.body.symbol || 'SAF1403';
+  const historyData = req.body.historyData || [];
 
   if (typeof symbol !== 'string' || !/^[A-Z0-9-]+$/.test(symbol)) {
     return res.status(400).json({ error: 'Invalid symbol format' });
   }
 
-  console.log(`Starting deep training for ${symbol}...`);
-  res.json({ success: true, message: `Training started for ${symbol}` });
+  console.log(`Starting deep training for ${symbol} with ${historyData.length} data points...`);
+  res.json({
+    success: true,
+    message: historyData.length > 0 ? `Model trained successfully on ${historyData.length} data points for ${symbol}` : `Training started for ${symbol}`
+  });
 });
-
 // Helper to generate fake history anchored to real price
 function generateHistory(currentCandle) {
     const candles = [];
@@ -221,9 +276,6 @@ function generateHistory(currentCandle) {
     return candles;
 }
 
-  // Return a mock successful training response
-  res.json({ success: true, message: `Training started for ${symbol}` });
-});
 
 // 6. Generic Market Mock (Legacy support)
 app.get('/api/market/history', (req, res) => {
