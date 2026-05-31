@@ -45,7 +45,7 @@ exports.IME_SYMBOLS = [
 ];
 exports.DEFAULT_API_CONFIG = {
     proxyUrl: 'http://localhost:3001',
-    apiKey: 'demo-key', // Placeholder for professional auth
+    apiKey: (typeof process !== 'undefined' ? process.env : {}).VITE_API_KEY || '',
     isConnected: true, // Default to connected for real data mode
     useDigitalTwin: false, // Disable simulation by default
 };
