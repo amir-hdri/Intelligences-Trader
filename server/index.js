@@ -114,4 +114,3 @@ app.get('/api/orderbook/:symbol', (req, res) => {
   });
 
 app.listen(PORT);
-  console.log(`Professional IME Data Proxy running on http://localhost:${PORT}`);
