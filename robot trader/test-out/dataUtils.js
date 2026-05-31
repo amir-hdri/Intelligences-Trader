@@ -15,20 +15,20 @@ class TseApiClient {
     }
     async fetchMarketData(symbolId) {
         // 1. Prioritize real API on localhost proxy
-        const apiUrl = this.config.proxyUrl || 'http://localhost:3000';
+        const apiUrl = this.config.proxyUrl || "http://localhost:3000";
         try {
             const response = await fetch(`${apiUrl}/api/tse/${symbolId}`);
             if (!response.ok)
-                throw new Error('Network response was not ok');
+                throw new Error("Network response was not ok");
             const json = await response.json();
             // Relax success check for test compatibility if json.data exists
             if (json.data) {
                 return json.data;
             }
-            throw new Error('Invalid real data format');
+            throw new Error("Invalid real data format");
         }
         catch (error) {
-            console.error('Failed to fetch from Real API proxy', error);
+            console.error("Failed to fetch from Real API proxy", error);
             if (this.config.useDigitalTwin === false) {
                 return [];
             }
@@ -36,19 +36,19 @@ class TseApiClient {
         }
     }
     async fetchAdvancedMetrics(historyData) {
-        const apiUrl = this.config.proxyUrl || 'http://localhost:3000';
+        const apiUrl = this.config.proxyUrl || "http://localhost:3000";
         try {
             const response = await fetch(`${apiUrl}/api/analyze`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ historyData })
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ historyData }),
             });
             if (!response.ok)
-                throw new Error('Network response was not ok');
+                throw new Error("Network response was not ok");
             return await response.json();
         }
         catch (error) {
-            console.error('Failed to fetch advanced metrics from API:', error);
+            console.error("Failed to fetch advanced metrics from API:", error);
             return null; // Graceful fallback if backend analysis fails
         }
     }
@@ -62,12 +62,20 @@ class TseApiClient {
         const spread = lastPrice * 0.0005;
         const centerPrice = lastPrice;
         for (let i = 0; i < 5; i++) {
-            const bidPrice = Math.floor(centerPrice - spread / 2 - (i * spread / 2));
-            const askPrice = Math.floor(centerPrice + spread / 2 + (i * spread / 2));
+            const bidPrice = Math.floor(centerPrice - spread / 2 - (i * spread) / 2);
+            const askPrice = Math.floor(centerPrice + spread / 2 + (i * spread) / 2);
             const bidQty = Math.floor(Math.random() * 50000) + 1000;
             const askQty = Math.floor(Math.random() * 50000) + 1000;
-            bids.push({ price: bidPrice, quantity: bidQty, count: Math.floor(bidQty / 1000) + 1 });
-            asks.push({ price: askPrice, quantity: askQty, count: Math.floor(askQty / 1000) + 1 });
+            bids.push({
+                price: bidPrice,
+                quantity: bidQty,
+                count: Math.floor(bidQty / 1000) + 1,
+            });
+            asks.push({
+                price: askPrice,
+                quantity: askQty,
+                count: Math.floor(askQty / 1000) + 1,
+            });
             buyVolume += bidQty;
             sellVolume += askQty;
         }
@@ -101,8 +109,8 @@ class TseApiClient {
                 totalVolume,
                 buyRatio,
                 isHerdingDetected,
-                momentumMultiplier
-            }
+                momentumMultiplier,
+            },
         };
     }
     async fetchMarketCorrelation() {
@@ -114,87 +122,88 @@ class TseApiClient {
             globalCopper: 8500 + Math.random() * 100 - 50, // LME Copper Price
             globalBrent: 85 + Math.random() * 2 - 1,
             correlations: {
-                'USD_IME': 0.88 + Math.random() * 0.02,
-                'GOLD_IME': 0.92 + Math.random() * 0.01,
-                'COPPER_IME': 0.85 + Math.random() * 0.03,
-                'BRENT_PETRO': 0.75 + Math.random() * 0.03
-            }
+                USD_IME: 0.88 + Math.random() * 0.02,
+                GOLD_IME: 0.92 + Math.random() * 0.01,
+                COPPER_IME: 0.85 + Math.random() * 0.03,
+                BRENT_PETRO: 0.75 + Math.random() * 0.03,
+            },
         };
     }
     async fetchSentiment() {
         try {
-            const response = await fetch('/api/news');
+            const response = await fetch("/api/news");
             if (response.ok) {
                 const data = await response.json();
                 return data.sentiment;
             }
         }
         catch (error) {
-            console.warn('Failed to fetch NLP news from server, falling back to simulation.');
+            console.warn("Failed to fetch NLP news from server, falling back to simulation.");
         }
         // Phase 1: Political Risk Indexer (Simulated ParsBERT NLP Engine)
         // We parse simulated news using real NLP sentiment analysis
         const news = [
             {
-                id: '1',
-                title: 'Central Bank announces new strict limits on currency allocation',
-                nerTags: ['Central Bank', 'Currency Allocation'],
-                impactEffect: 'DOLLAR_BULLISH',
-                source: 'Fars News',
-                timestamp: Date.now() - 3600000
+                id: "1",
+                title: "Central Bank announces new strict limits on currency allocation",
+                nerTags: ["Central Bank", "Currency Allocation"],
+                impactEffect: "DOLLAR_BULLISH",
+                source: "Fars News",
+                timestamp: Date.now() - 3600000,
             },
             {
-                id: '2',
-                title: 'Talks stall regarding international trade agreements',
-                nerTags: ['Sanctions', 'Trade', 'International'],
-                impactEffect: 'DOLLAR_BULLISH',
-                source: 'Bloomberg Persian',
-                timestamp: Date.now() - 7200000
+                id: "2",
+                title: "Talks stall regarding international trade agreements",
+                nerTags: ["Sanctions", "Trade", "International"],
+                impactEffect: "DOLLAR_BULLISH",
+                source: "Bloomberg Persian",
+                timestamp: Date.now() - 7200000,
             },
             {
-                id: '3',
-                title: 'Ministry of Industry increases export duties on metals',
-                nerTags: ['Ministry', 'Export', 'Metals'],
-                impactEffect: 'NEUTRAL',
-                source: 'ISNA',
-                timestamp: Date.now() - 12000000
-            }
+                id: "3",
+                title: "Ministry of Industry increases export duties on metals",
+                nerTags: ["Ministry", "Export", "Metals"],
+                impactEffect: "NEUTRAL",
+                source: "ISNA",
+                timestamp: Date.now() - 12000000,
+            },
         ];
         // Real NLP implementation
-        news.forEach(item => {
+        news.forEach((item) => {
             const result = sentiment.analyze(item.title);
             item.sentimentScore = result.comparative;
         });
-        const score = news.reduce((acc, curr) => acc + curr.sentimentScore, 0) / (news.length || 1);
-        const label = score > 0.1 ? 'GREED' : score < -0.1 ? 'FEAR' : 'NEUTRAL';
+        const score = news.reduce((acc, curr) => acc + curr.sentimentScore, 0) /
+            (news.length || 1);
+        const label = score > 0.1 ? "GREED" : score < -0.1 ? "FEAR" : "NEUTRAL";
         // Calculate dynamic Political Risk Index (0-100) based on news impact
-        let bullishCount = news.filter(n => n.impactEffect === 'DOLLAR_BULLISH').length;
-        let bearishCount = news.filter(n => n.impactEffect === 'DOLLAR_BEARISH').length;
+        let bullishCount = news.filter((n) => n.impactEffect === "DOLLAR_BULLISH").length;
+        let bearishCount = news.filter((n) => n.impactEffect === "DOLLAR_BEARISH").length;
         // Base risk of 50. Increase if bullish for dollar (meaning high political tension/inflation).
-        let politicalRiskIndex = 50 + (bullishCount * 15) - (bearishCount * 15) + (Math.random() * 10 - 5);
+        let politicalRiskIndex = 50 + bullishCount * 15 - bearishCount * 15 + (Math.random() * 10 - 5);
         politicalRiskIndex = Math.max(0, Math.min(100, politicalRiskIndex));
         return {
             politicalRiskIndex,
             score,
             label,
-            news
+            news,
         };
     }
     async fetchMultiTimeframeData(symbolId) {
-        const timeframes = ['1m', '15m', '1h', '1d'];
+        const timeframes = ["1m", "15m", "1h", "1d"];
         const result = {};
         // If API is connected, fetch daily from API and simulate intraday frames
         if (this.config.proxyUrl && this.config.isConnected) {
             try {
                 const daily = await this.fetchMarketData(symbolId);
-                result['1d'] = daily;
-                result['1h'] = this.generateDigitalTwinData(symbolId, '1h');
-                result['15m'] = this.generateDigitalTwinData(symbolId, '15m');
-                result['1m'] = this.generateDigitalTwinData(symbolId, '1m');
+                result["1d"] = daily;
+                result["1h"] = this.generateDigitalTwinData(symbolId, "1h");
+                result["15m"] = this.generateDigitalTwinData(symbolId, "15m");
+                result["1m"] = this.generateDigitalTwinData(symbolId, "1m");
                 return result;
             }
             catch (e) {
-                console.warn('API fetch failed, using full simulation for all timeframes');
+                console.warn("API fetch failed, using full simulation for all timeframes");
             }
         }
         // Full simulation fallback
@@ -204,30 +213,30 @@ class TseApiClient {
         return result;
     }
     async getLastPrice(symbolId) {
-        const data = this.generateDigitalTwinData(symbolId, '1m');
+        const data = this.generateDigitalTwinData(symbolId, "1m");
         return data[data.length - 1].close;
     }
-    generateDigitalTwinData(symbolId, timeframe = '1d') {
+    generateDigitalTwinData(symbolId, timeframe = "1d") {
         // Initialize storage for this symbol if needed
         if (!SIMULATION_STATE[symbolId]) {
             SIMULATION_STATE[symbolId] = {};
         }
         const tfMs = {
-            '1m': 60 * 1000,
-            '15m': 15 * 60 * 1000,
-            '1h': 60 * 60 * 1000,
-            '1d': 24 * 60 * 60 * 1000,
+            "1m": 60 * 1000,
+            "15m": 15 * 60 * 1000,
+            "1h": 60 * 60 * 1000,
+            "1d": 24 * 60 * 60 * 1000,
         };
-        const count = timeframe === '1m' ? 300 : 100;
+        const count = timeframe === "1m" ? 300 : 100;
         const now = Date.now();
         const currentSlot = Math.floor(now / tfMs[timeframe]) * tfMs[timeframe];
         let candles = SIMULATION_STATE[symbolId][timeframe] || [];
         // If no history, generate initial history
         if (candles.length === 0) {
-            let lastClose = symbolId.includes('SAF') ? 850000 : 150000;
-            const startTime = currentSlot - (count * tfMs[timeframe]);
+            let lastClose = symbolId.includes("SAF") ? 850000 : 150000;
+            const startTime = currentSlot - count * tfMs[timeframe];
             for (let i = 0; i < count; i++) {
-                const timestamp = startTime + (i * tfMs[timeframe]);
+                const timestamp = startTime + i * tfMs[timeframe];
                 const candle = this.generateSingleCandle(lastClose, timestamp, timeframe);
                 candles.push(candle);
                 lastClose = candle.close;
@@ -256,13 +265,19 @@ class TseApiClient {
     }
     generateSingleCandle(prevClose, timestamp, timeframe) {
         const tfMs = {
-            '1m': 60 * 1000,
-            '15m': 15 * 60 * 1000,
-            '1h': 60 * 60 * 1000,
-            '1d': 24 * 60 * 60 * 1000,
+            "1m": 60 * 1000,
+            "15m": 15 * 60 * 1000,
+            "1h": 60 * 60 * 1000,
+            "1d": 24 * 60 * 60 * 1000,
         };
         const mu = 0.00005;
-        const sigma = timeframe === '1m' ? 0.005 : timeframe === '15m' ? 0.01 : timeframe === '1h' ? 0.015 : 0.025;
+        const sigma = timeframe === "1m"
+            ? 0.005
+            : timeframe === "15m"
+                ? 0.01
+                : timeframe === "1h"
+                    ? 0.015
+                    : 0.025;
         const dt = 1;
         // Add a simple trend component based on sine wave to simulate market cycles
         const trendComponent = Math.sin(timestamp / (1000 * 60 * 60 * 24 * 7)) * 0.001;
@@ -272,7 +287,7 @@ class TseApiClient {
         const high = Math.max(prevClose, close) * (1 + Math.random() * (sigma / 2));
         const low = Math.min(prevClose, close) * (1 - Math.random() * (sigma / 2));
         const open = prevClose;
-        const volume = Math.floor(Math.random() * 1000000 * (tfMs[timeframe] / tfMs['1m']));
+        const volume = Math.floor(Math.random() * 1000000 * (tfMs[timeframe] / tfMs["1m"]));
         const openInterest = 5000 + Math.floor(Math.random() * 10000);
         const basis = close * (0.02 + Math.random() * 0.08);
         const warehouseVolume = 10000 + Math.floor(Math.random() * 50000);
@@ -348,21 +363,27 @@ const calculateIchimoku = (candles) => {
     const getHighLowMid = (slice) => {
         if (slice.length === 0)
             return 0;
-        const highs = slice.map(c => c.high);
-        const lows = slice.map(c => c.low);
+        const highs = slice.map((c) => c.high);
+        const lows = slice.map((c) => c.low);
         return (Math.max(...highs) + Math.min(...lows)) / 2;
     };
-    const tenkan = candles.length >= 9 ? getHighLowMid(candles.slice(-9)) : candles[candles.length - 1].close;
-    const kijun = candles.length >= 26 ? getHighLowMid(candles.slice(-26)) : candles[candles.length - 1].close;
+    const tenkan = candles.length >= 9
+        ? getHighLowMid(candles.slice(-9))
+        : candles[candles.length - 1].close;
+    const kijun = candles.length >= 26
+        ? getHighLowMid(candles.slice(-26))
+        : candles[candles.length - 1].close;
     const senkouA = (tenkan + kijun) / 2;
-    const senkouB = candles.length >= 52 ? getHighLowMid(candles.slice(-52)) : candles[candles.length - 1].close;
+    const senkouB = candles.length >= 52
+        ? getHighLowMid(candles.slice(-52))
+        : candles[candles.length - 1].close;
     return { tenkan, kijun, senkouA, senkouB };
 };
 exports.calculateIchimoku = calculateIchimoku;
 const calculateBollingerBands = (prices, period = 20, stdDev = 2) => {
     const slice = prices.slice(-period);
     const avg = slice.reduce((a, b) => a + b, 0) / period;
-    const squareDiffs = slice.map(p => Math.pow(p - avg, 2));
+    const squareDiffs = slice.map((p) => Math.pow(p - avg, 2));
     const variance = squareDiffs.reduce((a, b) => a + b, 0) / period;
     const std = Math.sqrt(variance);
     return {
@@ -374,8 +395,8 @@ const calculateBollingerBands = (prices, period = 20, stdDev = 2) => {
 exports.calculateBollingerBands = calculateBollingerBands;
 // Intelligence Core Functions
 const calculateFairValue = (symbolId, currentPrice, correlation) => {
-    if (symbolId.includes('GOLD')) {
-        return (correlation.globalGold * correlation.usdFree / 31.1035) * 0.976 * 1.05;
+    if (symbolId.includes("GOLD")) {
+        return (((correlation.globalGold * correlation.usdFree) / 31.1035) * 0.976 * 1.05);
     }
     return currentPrice;
 };
@@ -387,16 +408,16 @@ const detectArbitrageOpportunity = (symbolId, lastCandle) => {
     const monthlyInterest = 0.025;
     if (basisPct > monthlyInterest * 2) {
         return {
-            type: 'CASH_AND_CARRY',
+            type: "CASH_AND_CARRY",
             profitPercentage: (basisPct - monthlyInterest) * 100,
-            details: 'Risk-free arbitrage: Buy Spot, Sell Future. Basis exceeds cost of carry.'
+            details: "Risk-free arbitrage: Buy Spot, Sell Future. Basis exceeds cost of carry.",
         };
     }
     if (basisPct < -0.01) {
         return {
-            type: 'BASIS',
+            type: "BASIS",
             profitPercentage: Math.abs(basisPct) * 100,
-            details: 'Backwardation: Spot > Future. Bullish signal or shortage.'
+            details: "Backwardation: Spot > Future. Bullish signal or shortage.",
         };
     }
     return undefined;
@@ -404,7 +425,7 @@ const detectArbitrageOpportunity = (symbolId, lastCandle) => {
 exports.detectArbitrageOpportunity = detectArbitrageOpportunity;
 const calculateSeasonalityFactor = (symbolId) => {
     const month = new Date().getMonth();
-    if (symbolId.includes('SAF')) {
+    if (symbolId.includes("SAF")) {
         if (month === 9 || month === 10)
             return 1.25;
         if (month === 2 || month === 3)
@@ -415,19 +436,19 @@ const calculateSeasonalityFactor = (symbolId) => {
 exports.calculateSeasonalityFactor = calculateSeasonalityFactor;
 const detectMarketRegime = (candles, atr) => {
     if (candles.length < 50)
-        return 'RANGING';
-    const prices = candles.map(c => c.close);
+        return "RANGING";
+    const prices = candles.map((c) => c.close);
     const ema20 = (0, exports.calculateEMA)(prices, 20);
     const ema50 = (0, exports.calculateEMA)(prices, 50);
     const lastPrice = prices[prices.length - 1];
     const volatility = atr / lastPrice;
     if (volatility > 0.03)
-        return 'HIGH_VOLATILITY';
+        return "HIGH_VOLATILITY";
     if (lastPrice > ema20 && ema20 > ema50)
-        return 'TRENDING_UP';
+        return "TRENDING_UP";
     if (lastPrice < ema20 && ema20 < ema50)
-        return 'TRENDING_DOWN';
-    return 'RANGING';
+        return "TRENDING_DOWN";
+    return "RANGING";
 };
 exports.detectMarketRegime = detectMarketRegime;
 exports.DEFAULT_WEIGHTS = {
@@ -438,28 +459,45 @@ exports.DEFAULT_WEIGHTS = {
     sentiment: 1,
     orderBook: 2,
     correlation: 2,
-    openInterest: 2.5
+    openInterest: 2.5,
 };
 let optimizedWeights = { ...exports.DEFAULT_WEIGHTS };
-const analyzeMarketMTF = (mtfData, symbolId = '', externalMetrics, weights = optimizedWeights) => {
+const analyzeMarketMTF = (mtfData, symbolId = "", externalMetrics, weights = optimizedWeights) => {
     var _a, _b, _c, _d, _e, _f, _g;
-    const dailyCandles = mtfData['1d'] || [];
-    const hourlyCandles = mtfData['1h'] || dailyCandles;
+    const dailyCandles = mtfData["1d"] || [];
+    const hourlyCandles = mtfData["1h"] || dailyCandles;
     if (dailyCandles.length < 30) {
         return {
-            action: 'HOLD',
-            entryPrice: 0, targetPrice: 0, stopLoss: 0, confidence: 0, regime: 'RANGING',
-            sentimentScore: 0, basisOpportunity: 0, orderBookPressure: 0,
-            timeframeAnalysis: {}, indicators: { rsi: 50, macd: { value: 0, signal: 0, histogram: 0 }, atr: 0, bollinger: { upper: 0, mid: 0, lower: 0 }, ichimoku: { tenkan: 0, kijun: 0, senkouA: 0, senkouB: 0 } },
-            reason: 'Insufficient Data'
+            action: "HOLD",
+            entryPrice: 0,
+            targetPrice: 0,
+            stopLoss: 0,
+            confidence: 0,
+            regime: "RANGING",
+            sentimentScore: 0,
+            basisOpportunity: 0,
+            orderBookPressure: 0,
+            timeframeAnalysis: {},
+            indicators: {
+                rsi: 50,
+                macd: { value: 0, signal: 0, histogram: 0 },
+                atr: 0,
+                bollinger: { upper: 0, mid: 0, lower: 0 },
+                ichimoku: { tenkan: 0, kijun: 0, senkouA: 0, senkouB: 0 },
+            },
+            reason: "Insufficient Data",
         };
     }
     const lastCandle = hourlyCandles[hourlyCandles.length - 1];
     const sentimentScore = ((_a = externalMetrics === null || externalMetrics === void 0 ? void 0 : externalMetrics.sentiment) === null || _a === void 0 ? void 0 : _a.score) || 0;
     const dIchimoku = (0, exports.calculateIchimoku)(dailyCandles);
-    const dailyTrend = lastCandle.close > dIchimoku.senkouA && lastCandle.close > dIchimoku.senkouB ? 'BULLISH' :
-        lastCandle.close < dIchimoku.senkouA && lastCandle.close < dIchimoku.senkouB ? 'BEARISH' : 'NEUTRAL';
-    const hPrices = hourlyCandles.map(c => c.close);
+    const dailyTrend = lastCandle.close > dIchimoku.senkouA && lastCandle.close > dIchimoku.senkouB
+        ? "BULLISH"
+        : lastCandle.close < dIchimoku.senkouA &&
+            lastCandle.close < dIchimoku.senkouB
+            ? "BEARISH"
+            : "NEUTRAL";
+    const hPrices = hourlyCandles.map((c) => c.close);
     const rsi = (0, exports.calculateRSI)(hPrices);
     const macd = (0, exports.calculateMACD)(hPrices);
     const atr = (0, exports.calculateATR)(hourlyCandles);
@@ -469,9 +507,9 @@ const analyzeMarketMTF = (mtfData, symbolId = '', externalMetrics, weights = opt
     let score = 0;
     const reasons = [];
     // 1. Trend Analysis
-    if (dailyTrend === 'BULLISH')
+    if (dailyTrend === "BULLISH")
         score += 1;
-    if (dailyTrend === 'BEARISH')
+    if (dailyTrend === "BEARISH")
         score -= 1;
     // 2. Open Interest Analysis
     if (lastCandle.openInterest && dailyCandles.length > 1) {
@@ -480,14 +518,14 @@ const analyzeMarketMTF = (mtfData, symbolId = '', externalMetrics, weights = opt
         const priceChange = lastCandle.close - dailyCandles[dailyCandles.length - 2].close;
         if (priceChange > 0 && oiChange > 0) {
             score += weights.openInterest;
-            reasons.push('Bullish: Price rising with increasing Open Interest (New Money)');
+            reasons.push("Bullish: Price rising with increasing Open Interest (New Money)");
         }
         else if (priceChange > 0 && oiChange < 0) {
-            reasons.push('Weak Bullish: Short Covering detected');
+            reasons.push("Weak Bullish: Short Covering detected");
         }
         else if (priceChange < 0 && oiChange > 0) {
             score -= weights.openInterest;
-            reasons.push('Bearish: Price falling with increasing Open Interest (Aggressive Shorting)');
+            reasons.push("Bearish: Price falling with increasing Open Interest (Aggressive Shorting)");
         }
     }
     // 3. Basis Analysis
@@ -495,18 +533,18 @@ const analyzeMarketMTF = (mtfData, symbolId = '', externalMetrics, weights = opt
         const basisPct = lastCandle.basis / lastCandle.close;
         if (basisPct < -0.01) {
             score += weights.basis;
-            reasons.push('Backwardation (Bullish Supply Shortage)');
+            reasons.push("Backwardation (Bullish Supply Shortage)");
         }
     }
     // 4. Order Book Analysis
     if (externalMetrics === null || externalMetrics === void 0 ? void 0 : externalMetrics.orderBook) {
         if (externalMetrics.orderBook.pressure > 0.25) {
             score += weights.orderBook;
-            reasons.push('Order Book Imbalance: Buyers Dominating');
+            reasons.push("Order Book Imbalance: Buyers Dominating");
         }
         else if (externalMetrics.orderBook.pressure < -0.25) {
             score -= weights.orderBook;
-            reasons.push('Order Book Imbalance: Sellers Dominating');
+            reasons.push("Order Book Imbalance: Sellers Dominating");
         }
     }
     // 5. Technicals
@@ -514,17 +552,18 @@ const analyzeMarketMTF = (mtfData, symbolId = '', externalMetrics, weights = opt
         score += weights.ichimoku;
     if (rsi < 30) {
         score += weights.rsi;
-        reasons.push('RSI Oversold');
+        reasons.push("RSI Oversold");
     }
     if (rsi > 70) {
         score -= weights.rsi;
-        reasons.push('RSI Overbought');
+        reasons.push("RSI Overbought");
     }
-    if (macd.histogram > 0 && macd.histogram > (macd.signal * 0.1))
+    if (macd.histogram > 0 && macd.histogram > macd.signal * 0.1)
         score += weights.macd;
     const arbitrage = (0, exports.detectArbitrageOpportunity)(symbolId, lastCandle);
     if (arbitrage) {
-        score += arbitrage.type === 'CASH_AND_CARRY' ? weights.basis : -weights.basis;
+        score +=
+            arbitrage.type === "CASH_AND_CARRY" ? weights.basis : -weights.basis;
         reasons.push(`Arbitrage Opportunity: ${arbitrage.details}`);
     }
     // 6. Macro & Political Engineering (Hedge Fund Fusion Layer)
@@ -535,11 +574,11 @@ const analyzeMarketMTF = (mtfData, symbolId = '', externalMetrics, weights = opt
         // Determine dynamic fair value based on global macro covariates
         let pGlobal = 1;
         let usdRate = externalMetrics.correlation.usdNima;
-        if (symbolId.includes('SAF') || symbolId.includes('GOLD')) {
+        if (symbolId.includes("SAF") || symbolId.includes("GOLD")) {
             pGlobal = externalMetrics.correlation.globalGold / 31.1035; // per gram approx
             usdRate = externalMetrics.correlation.usdFree;
         }
-        else if (symbolId.includes('COPPER')) {
+        else if (symbolId.includes("COPPER")) {
             pGlobal = externalMetrics.correlation.globalCopper / 1000; // per kg
             usdRate = externalMetrics.correlation.usdNima;
         }
@@ -552,64 +591,90 @@ const analyzeMarketMTF = (mtfData, symbolId = '', externalMetrics, weights = opt
         }
         else if (bubbleGap < -0.1) {
             score += 2;
-            reasons.push('Undervalued relative to Global/USD Covariates.');
+            reasons.push("Undervalued relative to Global/USD Covariates.");
         }
     }
     // Apply Political Risk Tensor
     if (politicalRiskIndex > 70) {
         score += 4; // High tension = Dollar Bullish = Commodity Bullish
-        reasons.push('High Political Risk Index -> Expecting USD/Commodity inflation leap.');
+        reasons.push("High Political Risk Index -> Expecting USD/Commodity inflation leap.");
     }
     else if (politicalRiskIndex < 30) {
         score -= 3;
-        reasons.push('Low Political Risk Index -> Bearish for USD-pegged assets.');
+        reasons.push("Low Political Risk Index -> Bearish for USD-pegged assets.");
     }
     // Apply Queue Dynamics Momentum (Herding behavior overrides technicals)
     if ((_f = (_e = externalMetrics === null || externalMetrics === void 0 ? void 0 : externalMetrics.orderBook) === null || _e === void 0 ? void 0 : _e.queueDynamics) === null || _f === void 0 ? void 0 : _f.isHerdingDetected) {
         score *= externalMetrics.orderBook.queueDynamics.momentumMultiplier;
-        reasons.push('Queue Dynamics: Herding behavior detected. Momentum multiplier applied.');
+        reasons.push("Queue Dynamics: Herding behavior detected. Momentum multiplier applied.");
     }
     // Scoring Logic
-    const action = score >= 5 ? 'BUY' : score <= -5 ? 'SELL' : 'HOLD';
+    const action = score >= 5 ? "BUY" : score <= -5 ? "SELL" : "HOLD";
     const confidence = Math.min(Math.abs(score) / 15, 0.99); // Normalized based on new max potential score
     return {
         action,
         entryPrice: lastCandle.close,
-        targetPrice: action === 'BUY' ? lastCandle.close + 3 * atr : lastCandle.close - 3 * atr,
-        stopLoss: action === 'BUY' ? lastCandle.close - 1.5 * atr : lastCandle.close + 1.5 * atr,
+        targetPrice: action === "BUY"
+            ? lastCandle.close + 3 * atr
+            : lastCandle.close - 3 * atr,
+        stopLoss: action === "BUY"
+            ? lastCandle.close - 1.5 * atr
+            : lastCandle.close + 1.5 * atr,
         confidence,
         regime,
         sentimentScore,
         basisOpportunity: lastCandle.basis || 0,
-        fairValue: (externalMetrics === null || externalMetrics === void 0 ? void 0 : externalMetrics.correlation) ? (0, exports.calculateFairValue)(symbolId, lastCandle.close, externalMetrics.correlation) : undefined,
+        fairValue: (externalMetrics === null || externalMetrics === void 0 ? void 0 : externalMetrics.correlation)
+            ? (0, exports.calculateFairValue)(symbolId, lastCandle.close, externalMetrics.correlation)
+            : undefined,
         bubbleGap,
         arbitrage,
         orderBookPressure: ((_g = externalMetrics === null || externalMetrics === void 0 ? void 0 : externalMetrics.orderBook) === null || _g === void 0 ? void 0 : _g.pressure) || 0,
         politicalRiskIndex,
         queueDynamicsRatio,
         timeframeAnalysis: {
-            '1d': { trend: dailyTrend, signal: 'Trend Context' },
-            '1h': { trend: score > 0 ? 'BULLISH' : 'BEARISH', signal: action },
+            "1d": { trend: dailyTrend, signal: "Trend Context" },
+            "1h": { trend: score > 0 ? "BULLISH" : "BEARISH", signal: action },
         },
         indicators: { rsi, macd, atr, bollinger: bb, ichimoku },
-        reason: reasons.join('. ') || 'Market consolidating.',
+        reason: reasons.join(". ") || "Market consolidating.",
     };
 };
 exports.analyzeMarketMTF = analyzeMarketMTF;
 const analyzeMarket = (candles) => {
-    return (0, exports.analyzeMarketMTF)({ '1h': candles, '1d': candles, '1m': [], '15m': [] }, 'UNKNOWN');
+    return (0, exports.analyzeMarketMTF)({ "1h": candles, "1d": candles, "1m": [], "15m": [] }, "UNKNOWN");
 };
 exports.analyzeMarket = analyzeMarket;
 const calculateStrategyMetrics = (trades) => {
-    const wins = trades.filter(t => t.profit > 0);
+    const wins = trades.filter((t) => t.profit > 0);
     const winRate = trades.length > 0 ? wins.length / trades.length : 0;
     const totalGain = wins.reduce((sum, t) => sum + t.profit, 0);
-    const totalLoss = Math.abs(trades.filter(t => t.profit <= 0).reduce((sum, t) => sum + t.profit, 0));
+    const totalLoss = Math.abs(trades.filter((t) => t.profit <= 0).reduce((sum, t) => sum + t.profit, 0));
     const profitFactor = totalLoss > 0 ? totalGain / totalLoss : 10;
     return { winRate, profitFactor };
 };
 exports.calculateStrategyMetrics = calculateStrategyMetrics;
 // Professional Walk-Forward Backtesting Engine
+const simulateForwardStep = (candles, startIndex, stepSize, currentWindow) => {
+    let windowProfit = 0;
+    const trades = [];
+    for (let j = 0; j < stepSize; j++) {
+        const forecast = (0, exports.analyzeMarket)(currentWindow);
+        const testCandle = candles[startIndex + j];
+        if (forecast.action !== "HOLD") {
+            const entryPrice = testCandle.close;
+            const exitIndex = startIndex + Math.min(j + 1, stepSize - 1);
+            const exitPrice = candles[exitIndex].close;
+            const profit = forecast.action === "BUY"
+                ? exitPrice - entryPrice
+                : entryPrice - exitPrice;
+            windowProfit += profit;
+            trades.push({ profit });
+        }
+        currentWindow.push(testCandle);
+    }
+    return { windowProfit, trades };
+};
 const performWalkForwardBacktest = (candles) => {
     if (candles.length < 50)
         return [];
@@ -618,27 +683,13 @@ const performWalkForwardBacktest = (candles) => {
     const results = [];
     const currentWindow = candles.slice(0, windowSize);
     for (let i = windowSize; i < candles.length - stepSize; i += stepSize) {
-        let windowProfit = 0;
-        const trades = [];
-        for (let j = 0; j < stepSize; j++) {
-            const forecast = (0, exports.analyzeMarket)(currentWindow);
-            const testCandle = candles[i + j];
-            if (forecast.action !== 'HOLD') {
-                const entryPrice = testCandle.close;
-                const exitIndex = i + Math.min(j + 1, stepSize - 1);
-                const exitPrice = candles[exitIndex].close;
-                const profit = forecast.action === 'BUY' ? exitPrice - entryPrice : entryPrice - exitPrice;
-                windowProfit += profit;
-                trades.push({ profit });
-            }
-            currentWindow.push(testCandle);
-        }
+        const { windowProfit, trades } = simulateForwardStep(candles, i, stepSize, currentWindow);
         const { winRate, profitFactor } = (0, exports.calculateStrategyMetrics)(trades);
         results.push({
             period: new Date(candles[i].timestamp).toLocaleDateString(),
             winRate,
             profitFactor,
-            profit: windowProfit
+            profit: windowProfit,
         });
         currentWindow.splice(0, stepSize);
     }
@@ -660,7 +711,7 @@ const optimizeStrategyWeights = (candles) => {
             sentiment: Math.random() * 4,
             orderBook: Math.random() * 4,
             correlation: Math.random() * 4,
-            openInterest: Math.random() * 4
+            openInterest: Math.random() * 4,
         });
         tradesList.push([]);
     }
@@ -668,15 +719,26 @@ const optimizeStrategyWeights = (candles) => {
     const currentSlice = candles.slice(0, 50);
     for (let j = 50; j < candles.length - 1; j++) {
         const mtfData = {
-            '1h': currentSlice,
-            '1d': currentSlice,
-            '1m': [],
-            '15m': []
+            "1h": currentSlice,
+            "1d": currentSlice,
+            "1m": [],
+            "15m": [],
+        };
+        const hPrices = currentSlice.map(c => c.close);
+        const atrVal = (0, exports.calculateATR)(currentSlice);
+        const precalc = {
+            dIchimoku: (0, exports.calculateIchimoku)(currentSlice),
+            rsi: (0, exports.calculateRSI)(hPrices),
+            macd: (0, exports.calculateMACD)(hPrices),
+            atr: atrVal,
+            bb: (0, exports.calculateBollingerBands)(hPrices),
+            ichimoku: (0, exports.calculateIchimoku)(currentSlice),
+            regime: (0, exports.detectMarketRegime)(currentSlice, atrVal)
         };
         for (let i = 0; i < 15; i++) {
-            const forecast = (0, exports.analyzeMarketMTF)(mtfData, '', undefined, candidates[i]);
-            if (forecast.action !== 'HOLD') {
-                const profit = forecast.action === 'BUY'
+            const forecast = (0, exports.analyzeMarketMTF)(mtfData, "", undefined, candidates[i]);
+            if (forecast.action !== "HOLD") {
+                const profit = forecast.action === "BUY"
                     ? candles[j + 1].close - candles[j].close
                     : candles[j].close - candles[j + 1].close;
                 tradesList[i].push({ profit });
@@ -698,21 +760,21 @@ const optimizeStrategyWeights = (candles) => {
 exports.optimizeStrategyWeights = optimizeStrategyWeights;
 const trainModelEpoch = async (candles, symbolId) => {
     try {
-        const response = await fetch('/api/train', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbol: symbolId })
+        const response = await fetch("/api/train", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbol: symbolId }),
         });
         if (response.ok) {
             const result = await response.json();
-            console.log('Deep Learning Result:', result);
+            console.log("Deep Learning Result:", result);
             // Update local weights with server-optimized ones if necessary
             // optimizedWeights = result.optimizedWeights;
             return result.performance.winRate;
         }
     }
     catch (error) {
-        console.error('Deep training failed, falling back to local optimization', error);
+        console.error("Deep training failed, falling back to local optimization", error);
     }
     const { accuracy } = (0, exports.optimizeStrategyWeights)(candles);
     return accuracy;
