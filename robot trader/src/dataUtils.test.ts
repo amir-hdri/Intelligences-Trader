@@ -100,6 +100,35 @@ const createCandles = (count: number, trend: 'UP' | 'DOWN' | 'FLAT' | 'VOLATILE'
 // ========================================
 // Test Suite: Market Regime Detection
 // ========================================
+describe('dataUtils - analyzeMarket', () => {
+    it('should correctly wrap analyzeMarketMTF', () => {
+        const candles = createCandles(35, 'UP');
+        const result = analyzeMarket(candles);
+
+        assert.ok(result, 'Result should be defined');
+        assert.strictEqual(typeof result.action, 'string', 'Action should be a string');
+        assert.strictEqual(typeof result.entryPrice, 'number', 'entryPrice should be a number');
+        assert.strictEqual(typeof result.confidence, 'number', 'confidence should be a number');
+        assert.ok(['BUY', 'SELL', 'HOLD'].includes(result.action), 'Action should be BUY, SELL, or HOLD');
+        assert.ok(result.reason, 'Reason should be populated');
+    });
+
+    it('should handle empty candle arrays', () => {
+        const result = analyzeMarket([]);
+
+        assert.strictEqual(result.action, 'HOLD');
+        assert.strictEqual(result.reason, 'Insufficient Data');
+    });
+
+    it('should handle small candle arrays (insufficient data)', () => {
+        const candles = createCandles(15, 'FLAT');
+        const result = analyzeMarket(candles);
+
+        assert.strictEqual(result.action, 'HOLD');
+        assert.strictEqual(result.reason, 'Insufficient Data');
+    });
+});
+
 describe('dataUtils - Market Regime Detection', () => {
     it('should detect TRENDING_UP regime indirectly via analyzeMarketMTF', () => {
         const candles = createCandles(100, 'UP');
@@ -215,7 +244,42 @@ describe('TseApiClient', () => {
     assert.strictEqual(data.length, 0); // Should return empty array when useDigitalTwin is false
   });
 
-  test('fetchMarketData falls back to Digital Twin when no proxy URL configured', async () => {
+
+  test('fetchAdvancedMetrics handles fetch error and returns null', async () => {
+    // Mock fetch failure
+    globalThis.fetch = async () => {
+      throw new Error('Network Error');
+    };
+
+    let errorLogged = false;
+    console.error = () => {
+      errorLogged = true;
+    };
+
+    const config = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config as any);
+    const mockHistoryData = [{
+      timestamp: 12345,
+      open: 100,
+      high: 110,
+      low: 90,
+      close: 105,
+      volume: 1000
+    }];
+
+    const data = await client.fetchAdvancedMetrics(mockHistoryData);
+
+    assert.strictEqual(data, null);
+    assert.strictEqual(errorLogged, true, 'console.error should have been called');
+  });
+
+test('fetchMarketData falls back to Digital Twin when no proxy URL configured', async () => {
     const config: ApiConfig = {
       proxyUrl: undefined as any,
       apiKey: 'key',
