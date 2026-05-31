@@ -289,6 +289,11 @@ app.get('/api/market/history', (req, res) => {
   res.json(data);
 });
 
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Internal Server Error' });
+});
+
 app.listen(port, () => {
   console.log(`Smart Analysis Backend listening on port ${port}`);
 });

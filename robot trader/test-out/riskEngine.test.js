@@ -41,24 +41,25 @@ const node_assert_1 = __importDefault(require("node:assert"));
 const riskEngine_1 = require("./riskEngine");
 // Helper to mock global Date
 let originalDate;
-function mockDate(isoDateString) {
-    originalDate = globalThis.Date;
-    const fixedDate = new originalDate(isoDateString);
-    // Create a mock Date class
-    class MockDate extends originalDate {
-        constructor(...args) {
-            if (args.length === 0) {
-                super(fixedDate.getTime());
-            }
-            else {
-                // @ts-ignore
-                super(...args);
-            }
+let fixedDate = null;
+// Extracted MockDate class to avoid deep nesting
+class MockDate extends Date {
+    constructor(...args) {
+        if (args.length === 0 && fixedDate) {
+            super(fixedDate.getTime());
         }
-        static now() {
-            return fixedDate.getTime();
+        else {
+            // @ts-ignore
+            super(...args);
         }
     }
+    static now() {
+        return fixedDate ? fixedDate.getTime() : Date.now();
+    }
+}
+function mockDate(isoDateString) {
+    originalDate = globalThis.Date;
+    fixedDate = new originalDate(isoDateString);
     // @ts-ignore
     globalThis.Date = MockDate;
 }
@@ -66,6 +67,7 @@ function restoreDate() {
     if (originalDate) {
         globalThis.Date = originalDate;
     }
+    fixedDate = null;
 }
 (0, node_test_1.describe)('RiskEngine - validateTrade (Weekend Risk)', () => {
     let riskEngine;
