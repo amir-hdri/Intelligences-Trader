@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -327,7 +327,7 @@ test('calculateATR - correct ATR calculation with default and custom periods', (
   assert.strictEqual(resultPeriod2, 8.5);
 });
 describe('calculateIchimoku', () => {
-  const createCandles = (count, startPrice = 100) => {
+  const createCandles = (count: number, startPrice = 100) => {
     return Array.from({ length: count }, (_, i) => ({
       open: startPrice + i,
       high: startPrice + i + 5,
