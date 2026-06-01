@@ -3,6 +3,13 @@ import cors from 'cors';
 import { DayDetails } from 'tsetmc-client';
 import { analyzeMarketMTF, detectMarketRegime, calculateATR } from './analyzer.js';
 import { generateAnalysis } from './analysisEngine.js';
+import { ModelManager } from './modelManager.js';
+import path from 'path';
+
+const modelManager = new ModelManager();
+// Initialize model on startup
+modelManager.loadModel(path.join(process.cwd(), 'models', 'market_model.onnx'), '1.0.0').catch(err => console.error('Initial model load failed', err));
+
 
 import { generateHistoricalData } from './dataFactory.js';
 import crypto from 'crypto';
@@ -48,30 +55,7 @@ app.use(express.json());
 // Smart Analysis Endpoint
 
 // Prediction Endpoint
-app.post('/api/predict', (req, res) => {
-  const { historyData } = req.body;
-  if (!historyData || !Array.isArray(historyData) || historyData.length === 0) {
-    return res.status(400).json({ error: 'Invalid historyData array' });
-  }
 
-  try {
-    const analysis = generateAnalysis(historyData);
-    const lastClose = historyData[historyData.length - 1].close;
-    const atr = analysis.indicators.atr;
-
-    let targetPrice = lastClose;
-    if (analysis.prediction === 'BUY') targetPrice = lastClose + atr;
-    else if (analysis.prediction === 'SELL') targetPrice = lastClose - atr;
-
-    res.json({
-      prediction: analysis.prediction,
-      targetPrice: targetPrice,
-      confidence: analysis.confidence
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Prediction failed' });
-  }
-});
 
 
 app.post('/api/analyze', (req, res) => {
@@ -287,6 +271,45 @@ app.get('/api/market/history', (req, res) => {
 
   const data = generateHistoricalData(symbol);
   res.json(data);
+});
+
+// AI Prediction endpoint using ONNX runtime
+app.post('/api/predict', async (req, res) => {
+  try {
+    const { inputData } = req.body; // Expecting [batch_size, 30, 10] array
+    if (!inputData || !Array.isArray(inputData)) {
+        return res.status(400).json({ error: 'Invalid inputData. Must be an array.' });
+    }
+
+    const start = Date.now();
+    const predictions = await modelManager.predict(inputData);
+    const end = Date.now();
+    const inferenceTimeMs = end - start;
+
+    const driftStatus = modelManager.monitorDrift(inputData, predictions);
+
+    if (driftStatus.detected && !modelManager.isRetraining && modelManager.getVersion() === '1.0.0') {
+        // Fire and forget auto-retrain
+        modelManager.triggerAutoRetrain().then(() => {
+            // Simulate hot reloading the newly trained model
+            modelManager.hotReload(path.join(process.cwd(), 'models', 'market_model.onnx'), '1.0.1');
+        });
+    }
+
+    const memoryUsage = process.memoryUsage();
+
+    res.json({
+        predictions,
+        metadata: {
+            version: modelManager.getVersion(),
+            inferenceTimeMs,
+            driftScore: driftStatus.score,
+            memoryMB: Math.round((memoryUsage.heapUsed / 1024 / 1024) * 100) / 100
+        }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Prediction error' });
+  }
 });
 
 app.use((err, req, res, next) => {
