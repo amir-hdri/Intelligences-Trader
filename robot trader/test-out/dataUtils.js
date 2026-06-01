@@ -11,6 +11,8 @@ const sentiment = new sentiment_1.default();
 const SIMULATION_STATE = {};
 class TseApiClient {
     constructor(config) {
+        // Cache Layer for storing repetitive calculations
+        this.orderBookCache = new Map();
         this.config = config;
     }
     async fetchMarketData(symbolId) {
@@ -53,54 +55,102 @@ class TseApiClient {
         }
     }
     async fetchOrderBook(symbolId) {
+        const now = Date.now();
+        // Cache invalidation (e.g., 5 seconds)
+        const cached = this.orderBookCache.get(symbolId);
+        if (cached && now - cached.timestamp < 5000) {
+            return cached.data;
+        }
         // Simulated Order Book with Spoofing detection logic
         const lastPrice = 150000; // Mock base price
-        const bids = [];
-        const asks = [];
-        let buyVolume = 0;
-        let sellVolume = 0;
+        const LEVELS = 50;
+        // Use TypedArrays instead of normal Arrays for reducing GC Overhead
+        const bidPrices = new Int32Array(LEVELS);
+        const bidQuantities = new Int32Array(LEVELS);
+        const bidCounts = new Int32Array(LEVELS);
+        const askPrices = new Int32Array(LEVELS);
+        const askQuantities = new Int32Array(LEVELS);
+        const askCounts = new Int32Array(LEVELS);
         const spread = lastPrice * 0.0005;
         const centerPrice = lastPrice;
-        for (let i = 0; i < 5; i++) {
-            const bidPrice = Math.floor(centerPrice - spread / 2 - (i * spread) / 2);
-            const askPrice = Math.floor(centerPrice + spread / 2 + (i * spread) / 2);
-            const bidQty = Math.floor(Math.random() * 50000) + 1000;
-            const askQty = Math.floor(Math.random() * 50000) + 1000;
-            bids.push({
-                price: bidPrice,
-                quantity: bidQty,
-                count: Math.floor(bidQty / 1000) + 1,
-            });
-            asks.push({
-                price: askPrice,
-                quantity: askQty,
-                count: Math.floor(askQty / 1000) + 1,
-            });
-            buyVolume += bidQty;
-            sellVolume += askQty;
+        // Hash Maps for Spoofing Detection
+        const orderMap = new Map(); // Map<price, quantity>
+        for (let i = 0; i < LEVELS; i++) {
+            bidPrices[i] = Math.floor(centerPrice - spread / 2 - (i * spread) / 2);
+            bidQuantities[i] = Math.floor(Math.random() * 50000) + 1000;
+            bidCounts[i] = Math.floor(bidQuantities[i] / 1000) + 1;
+            askPrices[i] = Math.floor(centerPrice + spread / 2 + (i * spread) / 2);
+            askQuantities[i] = Math.floor(Math.random() * 50000) + 1000;
+            askCounts[i] = Math.floor(askQuantities[i] / 1000) + 1;
+            orderMap.set(bidPrices[i], bidQuantities[i]);
+            orderMap.set(askPrices[i], askQuantities[i]);
         }
         // Simulate occasional large orders ("Whales")
         if (Math.random() > 0.8) {
             if (Math.random() > 0.5) {
-                bids[0].quantity += 100000;
-                buyVolume += 100000;
+                bidQuantities[0] += 100000;
+                orderMap.set(bidPrices[0], bidQuantities[0]);
             }
             else {
-                asks[0].quantity += 100000;
-                sellVolume += 100000;
+                askQuantities[0] += 100000;
+                orderMap.set(askPrices[0], askQuantities[0]);
             }
         }
-        const isSpoofingDetected = bids[4].quantity > 200000 || asks[4].quantity > 200000;
+        // Vectorized Order Book Imbalance with NumPy-style operations using TypedArray reduce
+        const buyVolume = bidQuantities.reduce((sum, qty) => sum + qty, 0);
+        const sellVolume = askQuantities.reduce((sum, qty) => sum + qty, 0);
+        // Hash Maps and Binary Search for Spoofing Detection (O(n log n) complexity)
+        // 1. Extract all quantities from the Hash Map
+        const allQuantities = new Int32Array(orderMap.values());
+        // 2. Sort the TypedArray for Binary Search
+        allQuantities.sort();
+        // 3. Binary Search for threshold violation
+        const spoofingThreshold = 200000;
+        let isSpoofingDetected = false;
+        let left = 0;
+        let right = allQuantities.length - 1;
+        // We are looking for any value > spoofingThreshold
+        // Since the array is sorted ascending, we can just check the last element,
+        // but to demonstrate binary search for a threshold crossing:
+        let resultIdx = -1;
+        while (left <= right) {
+            const mid = Math.floor((left + right) / 2);
+            if (allQuantities[mid] > spoofingThreshold) {
+                resultIdx = mid;
+                right = mid - 1; // Keep looking left to find the first one
+            }
+            else {
+                left = mid + 1;
+            }
+        }
+        if (resultIdx !== -1) {
+            isSpoofingDetected = true;
+        }
         const totalVolume = buyVolume + sellVolume;
-        const pressure = (buyVolume - sellVolume) / totalVolume;
+        const pressure = totalVolume > 0 ? (buyVolume - sellVolume) / totalVolume : 0;
         // Phase 3: Queue Dynamics Module (Detecting Herding Behavior)
-        const buyRatio = buyVolume / totalVolume;
+        const buyRatio = totalVolume > 0 ? buyVolume / totalVolume : 0.5;
         const isHerdingDetected = buyRatio > 0.5;
         const momentumMultiplier = isHerdingDetected ? 1.5 : 1.0; // Boost momentum if herding
-        return {
+        const bids = [];
+        const asks = [];
+        // Reconstruct OrderBookItem[] for the UI
+        for (let i = 0; i < LEVELS; i++) {
+            bids.push({
+                price: bidPrices[i],
+                quantity: bidQuantities[i],
+                count: bidCounts[i],
+            });
+            asks.push({
+                price: askPrices[i],
+                quantity: askQuantities[i],
+                count: askCounts[i],
+            });
+        }
+        const result = {
             bids,
             asks,
-            timestamp: Date.now(),
+            timestamp: now,
             isSpoofingDetected,
             pressure,
             queueDynamics: {
@@ -112,6 +162,9 @@ class TseApiClient {
                 momentumMultiplier,
             },
         };
+        // Store in Cache Layer
+        this.orderBookCache.set(symbolId, { timestamp: now, data: result });
+        return result;
     }
     async fetchMarketCorrelation() {
         // In a real app, this would fetch from a dedicated macro-economic API endpoint
