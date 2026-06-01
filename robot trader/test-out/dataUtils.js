@@ -816,7 +816,7 @@ const trainModelEpoch = async (candles, symbolId) => {
         const response = await fetch("/api/train", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ symbol: symbolId }),
+            body: JSON.stringify({ symbol: symbolId, historyData: candles }),
         });
         if (response.ok) {
             const result = await response.json();
