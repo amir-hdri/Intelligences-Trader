@@ -1030,7 +1030,7 @@ export const trainModelEpoch = async (
     const response = await fetch("/api/train", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ symbol: symbolId }),
+      body: JSON.stringify({ symbol: symbolId, historyData: candles }),
     });
 
     if (response.ok) {
