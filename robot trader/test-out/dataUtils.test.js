@@ -93,7 +93,7 @@ const createCandles = (count, trend) => {
 (0, node_test_1.describe)('dataUtils - analyzeMarket', () => {
     (0, node_test_1.it)('should correctly wrap analyzeMarketMTF', () => {
         const candles = createCandles(35, 'UP');
-        const result = analyzeMarket(candles);
+        const result = (0, dataUtils_1.analyzeMarket)(candles);
         node_assert_1.default.ok(result, 'Result should be defined');
         node_assert_1.default.strictEqual(typeof result.action, 'string', 'Action should be a string');
         node_assert_1.default.strictEqual(typeof result.entryPrice, 'number', 'entryPrice should be a number');
@@ -102,13 +102,13 @@ const createCandles = (count, trend) => {
         node_assert_1.default.ok(result.reason, 'Reason should be populated');
     });
     (0, node_test_1.it)('should handle empty candle arrays', () => {
-        const result = analyzeMarket([]);
+        const result = (0, dataUtils_1.analyzeMarket)([]);
         node_assert_1.default.strictEqual(result.action, 'HOLD');
         node_assert_1.default.strictEqual(result.reason, 'Insufficient Data');
     });
     (0, node_test_1.it)('should handle small candle arrays (insufficient data)', () => {
         const candles = createCandles(15, 'FLAT');
-        const result = analyzeMarket(candles);
+        const result = (0, dataUtils_1.analyzeMarket)(candles);
         node_assert_1.default.strictEqual(result.action, 'HOLD');
         node_assert_1.default.strictEqual(result.reason, 'Insufficient Data');
     });
