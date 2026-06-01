@@ -179,13 +179,56 @@ app.get('/api/tse/history/:symbolId', async (req, res) => {
   returns.sort((a,b) => a-b);
   const var95 = returns[Math.floor(returns.length * 0.05)] || 0;
 
+
+  // Integrate PPO Agent for Position Sizing
+  let suggestedRiskCapital = 0.1; // fallback
+  try {
+    // Dynamic import to avoid breaking top-level if tfjs fails
+    const { PPOAgent } = await import('./rl/PPOAgent.js');
+    const agent = new PPOAgent(5, 1);
+
+    // Check if models exist
+    const fsNode = await import('fs');
+    const pathNode = await import('path');
+    const modelsPath = pathNode.join(process.cwd(), 'rl', 'models', 'actor', 'model.json');
+
+    if (fsNode.existsSync(modelsPath)) {
+        await agent.actor.loadLayersModel(`file://${modelsPath}`);
+    }
+
+    // Construct State: [Volatility Regime, Drawdown, Market Direction, Time to Expiry, Correlation Metric]
+    const currentPrice = candles[candles.length - 1].close;
+    const prevPrice = candles.length > 1 ? candles[candles.length - 2].close : currentPrice;
+
+    // Basic heuristics for state features
+    const volatilityRegime = regime.includes('VOLATILITY') ? 1 : 0;
+    const marketDirection = currentPrice >= prevPrice ? 1 : -1;
+    const timeToExpiry = 0.5; // Stub, can be enhanced
+    const correlation = 0.0; // Stub
+    const drawdown = 0.0; // Assume 0 drawdown for backend isolated request
+
+    const state = [volatilityRegime, drawdown, marketDirection, timeToExpiry, correlation];
+
+    // We only want inference here, no exploration noise
+    const tf = await import('@tensorflow/tfjs-node');
+    const mu = tf.tidy(() => {
+        const stateTensor = tf.tensor2d([state]);
+        return agent.actor.predict(stateTensor);
+    });
+
+    suggestedRiskCapital = mu.arraySync()[0][0]; // Extract continuous action [0, 1]
+    tf.dispose(mu);
+  } catch (e) {
+    console.warn("Failed to load or run RL agent, falling back to static Kelly", e.message);
+  }
+
   res.json({
     prediction: analysis.action,
     confidence: analysis.confidence,
     regime: regime,
     risk: {
       valueAtRisk95: var95,
-      suggestedRiskCapital: 0.1 // 10% base
+      suggestedRiskCapital: suggestedRiskCapital
     }
   });
 });
