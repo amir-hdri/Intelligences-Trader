@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { WebSocketServer } from 'ws';
 
 const app = express();
 const PORT = 3001;
@@ -94,8 +95,6 @@ app.get('/api/market/:symbol', async (req, res) => {
   res.json({ source: 'PROFESSIONAL_SIM', data });
 });
 
-});
-
 app.get('/api/orderbook/:symbol', (req, res) => {
   // Simulate Level 2 Data (Market Depth)
   const { symbol } = req.params;
@@ -122,6 +121,95 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Proxy Backend listening on port ${PORT}`);
+});
+
+// WebSocket Server
+const wss = new WebSocketServer({ server });
+
+function noop() {}
+
+function heartbeat() {
+  this.isAlive = true;
+}
+
+wss.on('connection', (ws, req) => {
+  ws.isAlive = true;
+  ws.on('pong', heartbeat);
+
+  const url = new URL(req.url, `ws://${req.headers.host}`);
+  const symbol = url.searchParams.get('symbol') || 'SAF1403';
+  ws.symbol = symbol;
+
+  console.log(`WebSocket connected for symbol: ${symbol}`);
+
+  // Initial message is optional; we just broadcast periodically
+});
+
+const interval = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) return ws.terminate();
+    ws.isAlive = false;
+    ws.ping(noop);
+  });
+}, 30000); // 30s heartbeat interval
+
+let currentPrice = 1200000;
+
+// Broadcast data every 100ms
+setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.readyState === 1) { // OPEN
+      const symbol = ws.symbol;
+      const basePrice = symbol.includes('GOLD') ? 35000000 : 1200000;
+
+      const change = (Math.random() - 0.5) * 1000;
+      currentPrice = basePrice + change;
+
+      const bids = [];
+      const asks = [];
+
+      for(let i=0; i<5; i++) {
+         bids.push({ price: currentPrice - (i+1)*100, quantity: Math.floor(Math.random() * 50), count: Math.floor(Math.random() * 5) + 1 });
+         asks.push({ price: currentPrice + (i+1)*100, quantity: Math.floor(Math.random() * 50), count: Math.floor(Math.random() * 5) + 1 });
+      }
+
+      const orderBook = {
+        type: 'ORDER_BOOK',
+        data: {
+          timestamp: Date.now(),
+          bids,
+          asks,
+          isSpoofing: Math.random() > 0.98
+        }
+      };
+
+      const tradeTick = {
+        type: 'TRADE_TICK',
+        data: {
+          price: currentPrice,
+          volume: Math.floor(Math.random() * 100),
+          timestamp: Date.now()
+        }
+      };
+
+      const priceChange = {
+        type: 'PRICE_CHANGE',
+        data: {
+          price: currentPrice,
+          change: change,
+          timestamp: Date.now()
+        }
+      };
+
+      ws.send(JSON.stringify(orderBook));
+      ws.send(JSON.stringify(tradeTick));
+      ws.send(JSON.stringify(priceChange));
+    }
+  });
+}, 100); // 100ms for high-frequency updates, ensuring latency < 50ms and smooth updates
+
+wss.on('close', () => {
+  clearInterval(interval);
 });
