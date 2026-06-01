@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import MetricCard from './components/MetricCard';
 import WalkForwardChart from './components/charts/WalkForwardChart';
@@ -69,7 +69,13 @@ const App: React.FC = () => {
   // Persisted States
   const [selectedSymbolId, setSelectedSymbolId] = usePersistedState<string>('selectedSymbolId', IME_SYMBOLS[0].id);
   const [apiConfig, setApiConfig] = usePersistedState<ApiConfig>('apiConfig', DEFAULT_API_CONFIG);
+
   const [metrics, setMetrics] = usePersistedState<SystemMetrics>('metrics', INITIAL_METRICS);
+  const [connectionState, setConnectionState] = useState<'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING'>('DISCONNECTED');
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const reconnectAttemptsRef = useRef(0);
+
   const [riskLimits, setRiskLimits] = usePersistedState<RiskLimits>('riskLimits', DEFAULT_RISK_LIMITS);
   const [tradeLogs, setTradeLogs] = usePersistedState<TradeLogEntry[]>('tradeLogs', []);
 
@@ -104,15 +110,14 @@ const App: React.FC = () => {
     try {
       // Parallel Fetching with individual error handling handled inside client if needed,
       // but here we want to ensure critical data loads.
-      const [data, ob, corr, sent] = await Promise.all([
+      const [data, corr, sent] = await Promise.all([
           apiClient.fetchMultiTimeframeData(selectedSymbol.id),
-          apiClient.fetchOrderBook(selectedSymbol.id),
           apiClient.fetchMarketCorrelation(),
           apiClient.fetchSentiment()
       ]);
 
       setMtfData(data);
-      setOrderBook(ob);
+      // setOrderBook is handled by WebSocket now
       setCorrelation(corr);
       setSentiment(sent);
 
@@ -297,6 +302,70 @@ const App: React.FC = () => {
       }
   }
 
+
+  const connectWebSocket = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    setConnectionState('RECONNECTING');
+    const ws = new WebSocket(`ws://localhost:3001/?symbol=${selectedSymbol.id}`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setConnectionState('CONNECTED');
+      reconnectAttemptsRef.current = 0;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === 'ORDER_BOOK') {
+          setOrderBook(message.data);
+        } else if (message.type === 'TRADE_TICK') {
+           setMetrics(prev => ({
+             ...prev,
+             lastPrice: message.data.price
+           }));
+        } else if (message.type === 'PRICE_CHANGE') {
+           // Placeholder for future chart updates
+        }
+      } catch (e) {
+        console.error('Error parsing WS message', e);
+      }
+    };
+
+    ws.onclose = () => {
+      if (wsRef.current !== ws) return;
+      setConnectionState('DISCONNECTED');
+      // Exponential backoff
+      const attempts = reconnectAttemptsRef.current;
+      const backoffDelay = Math.min(1000 * Math.pow(2, attempts), 5000); // max 5s
+      reconnectAttemptsRef.current++;
+
+      reconnectTimeoutRef.current = setTimeout(() => {
+        connectWebSocket();
+      }, backoffDelay);
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+  }, [selectedSymbol.id]);
+
+  useEffect(() => {
+    connectWebSocket();
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+    };
+  }, [connectWebSocket]);
+
   useEffect(() => {
     loadData();
     const interval = setInterval(() => {
@@ -350,6 +419,9 @@ const App: React.FC = () => {
                 </div>
             )}
             <div className="flex items-center gap-2">
+              <span className={`text-xs font-bold px-2 py-1 rounded ${connectionState === 'CONNECTED' ? 'bg-emerald-500/20 text-emerald-400' : connectionState === 'RECONNECTING' ? 'bg-amber-500/20 text-amber-400 animate-pulse' : 'bg-rose-500/20 text-rose-400'}`}>
+                {connectionState}
+              </span>
               <span className={`w-2 h-2 rounded-full animate-pulse ${errorState ? 'bg-amber-500' : 'bg-emerald-500'}`} />
               <span className="text-sm font-mono text-slate-400">{metrics.uptime}</span>
             </div>
