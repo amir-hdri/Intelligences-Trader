@@ -13,7 +13,8 @@ import {
   TradeLogEntry, RiskLimits, RiskStatus, OrderBook as OrderBookType, 
   CorrelationMetrics, SentimentData 
 } from './types';
-import { TseApiClient, analyzeMarketMTF, performWalkForwardBacktest, trainModelEpoch, StrategyWeights, DEFAULT_WEIGHTS } from './dataUtils';
+import { TseApiClient, StrategyWeights, DEFAULT_WEIGHTS } from './dataUtils';
+import { WorkerPool } from './workers/workerPool';
 import { predictionService } from './services/PredictionHistoryService';
 import { learningEngine } from './services/LearningEngine';
 import { RiskEngine } from './riskEngine';
@@ -22,6 +23,14 @@ import {
   BrainCircuit, Settings, Database, ShieldAlert, History, ShieldCheck, Zap, 
   Layers, BarChart3, Globe, MessageSquare, ArrowRightLeft, Trash2
 } from 'lucide-react';
+
+// Helper for local storage
+
+// Initialize worker pool
+const marketAnalyzerPool = new WorkerPool(
+  new URL('./workers/marketAnalyzer.worker.ts', import.meta.url),
+  navigator.hardwareConcurrency || 4
+);
 
 // Helper for local storage
 const usePersistedState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
@@ -135,16 +144,20 @@ const App: React.FC = () => {
         (analysis as any).backendRisk = advancedRiskData;
       } else {
         // Fallback to local analysis
-        analysis = analyzeMarketMTF(data, selectedSymbol.id, {
-          orderBook: ob,
-          correlation: corr,
-          sentiment: sent
+        analysis = await marketAnalyzerPool.executeTask<ExpertForecast>('analyzeMarketMTF', {
+          data,
+          symbolId: selectedSymbol.id,
+          context: {
+            orderBook: ob,
+            correlation: corr,
+            sentiment: sent
+          }
         });
       }
 
       setForecast(analysis);
       
-      const wfResults = performWalkForwardBacktest(data['1h']);
+      const wfResults = await marketAnalyzerPool.executeTask<any>('performWalkForwardBacktest', { candles: data['1h'] });
       setWalkForwardResults(wfResults);
       
       setLastUpdateTime(Date.now());
@@ -170,7 +183,7 @@ const App: React.FC = () => {
     }
     try {
       const data = mtfData['1h'].length > 0 ? mtfData['1h'] : await apiClient.fetchMarketData(selectedSymbol.id);
-      const accuracy = await trainModelEpoch(data, selectedSymbol.id);
+      const accuracy = await marketAnalyzerPool.executeTask<number>('trainModelEpoch', { candles: data, symbolId: selectedSymbol.id });
       setMetrics(prev => ({ ...prev, accuracy, winRate: accuracy }));
       riskEngine.updatePerformanceMetrics(accuracy, metrics.profitFactor);
     } catch (e) {
