@@ -1,4 +1,4 @@
-const { generateHistoricalData } = require('./dataFactory');
+import { generateHistoricalData } from './dataFactory.js';
 
 // --- Indicator Helpers (Optimized) ---
 const calculateRSISeries = (prices, period = 14) => {
@@ -138,4 +138,6 @@ const optimizeStrategy = (symbolId = 'SAF1403') => {
   };
 };
 
-module.exports = { optimizeStrategy };
+
+
+export { optimizeStrategy };
