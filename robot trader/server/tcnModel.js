@@ -1,4 +1,4 @@
-import * as tf from '@tensorflow/tfjs';
+import * as tf from '@tensorflow/tfjs-node';
 
 // Focal Loss implementation
 export function focalLoss(alpha = 0.25, gamma = 2.0) {
