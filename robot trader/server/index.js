@@ -1,5 +1,5 @@
 import { buildTCN, fractionalDiff, purgedKFold, calculateMaxDrawdown, calculateSharpeRatio, calculateCalibrationError } from './tcnModel.js';
-import * as tf from '@tensorflow/tfjs';
+import * as tf from '@tensorflow/tfjs-node';
 import express from 'express';
 import cors from 'cors';
 import { DayDetails } from 'tsetmc-client';
@@ -11,7 +11,6 @@ import path from 'path';
 const modelManager = new ModelManager();
 // Initialize model on startup
 modelManager.loadModel(path.join(process.cwd(), 'models', 'market_model.onnx'), '1.0.0').catch(err => console.error('Initial model load failed', err));
-
 
 import { generateHistoricalData } from './dataFactory.js';
 import crypto from 'crypto';
@@ -80,6 +79,32 @@ app.post('/api/analyze', (req, res) => {
   }
 });
 
+
+
+// 1. Status Check
+app.get('/api/status', (req, res) => {
+  res.json({ status: 'Online', service: 'Robot Trader Intelligence Core', version: '2.5.0' });
+});
+
+// 2. NLP News Analysis
+import { generateNews } from './newsEngine.js';
+app.get('/api/news', (req, res) => {
+  try {
+    const news = generateNews(5);
+    // Calculate aggregate sentiment
+    const aggregateScore = news.reduce((acc, curr) => acc + curr.sentimentScore, 0) / news.length;
+    res.json({
+      sentiment: {
+        score: aggregateScore,
+        label: aggregateScore > 0.1 ? 'GREED' : aggregateScore < -0.1 ? 'FEAR' : 'NEUTRAL',
+        news
+      }
+    });
+  } catch (error) {
+    console.error('Error in /api/news:', error);
+    res.status(500).json({ error: 'Failed to generate news' });
+  }
+});
 
 // Proxy for Real API (TSETMC)
 app.get('/api/tse/:id', async (req, res) => {
@@ -437,16 +462,22 @@ function generateHistory(currentCandle) {
 }
 
 
-// 6. Generic Market Mock (Legacy support)
+// 3. Historical Data
 app.get('/api/market/history', (req, res) => {
   const symbol = String(req.query.symbol || 'SAF1403');
+  const years = parseInt(req.query.years) || 3;
 
   if (!/^[A-Z0-9-]+$/.test(symbol)) {
     return res.status(400).json({ error: 'Invalid symbol format' });
   }
 
-  const data = generateHistoricalData(symbol);
-  res.json(data);
+  try {
+    const data = generateHistoricalData(symbol, years);
+    res.json(data);
+  } catch (error) {
+    console.error('Error in /api/market/history:', error);
+    res.status(500).json({ error: 'Failed to generate historical data' });
+  }
 });
 
 // AI Prediction endpoint using ONNX runtime
