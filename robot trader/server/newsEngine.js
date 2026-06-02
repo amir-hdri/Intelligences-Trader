@@ -1,4 +1,4 @@
-const Sentiment = require('sentiment');
+import Sentiment from 'sentiment';
 const sentiment = new Sentiment();
 
 // Mock News Database
@@ -66,4 +66,4 @@ const generateNews = (count = 5) => {
   return news.sort((a, b) => b.timestamp - a.timestamp);
 };
 
-module.exports = { generateNews };
+export { generateNews };

@@ -9,6 +9,7 @@
     "dev": "nodemon index.js"
   },
   "dependencies": {
+    "@tensorflow/tfjs-node": "^4.22.0",
     "axios": "^1.16.1",
     "cors": "^2.8.5",
     "express": "^4.22.1",
