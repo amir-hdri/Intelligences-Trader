@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-ml
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend-ml
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: backend-ml
+    spec:
+      containers:
+      - name: backend-ml
+        image: kalaybot-ml:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+        envFrom:
+        - secretRef:
+            name: kalaybot-secrets
+        volumeMounts:
+        - name: model-checkpoints
+          mountPath: /app/models
+        livenessProbe:
+          httpGet:
+            path: /api/status
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/status
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+      volumes:
+      - name: model-checkpoints
+        persistentVolumeClaim:
+          claimName: model-pvc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-proxy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend-proxy
+  template:
+    metadata:
+      labels:
+        app: backend-proxy
+    spec:
+      containers:
+      - name: backend-proxy
+        image: kalaybot-proxy:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3001
+        envFrom:
+        - secretRef:
+            name: kalaybot-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: kalaybot-frontend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
