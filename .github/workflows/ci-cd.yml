@@ -39,6 +39,17 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '22'
+
+    - name: Regenerate lock files
+      run: |
+        cd "robot trader/server"
+        rm -f package-lock.json
+        npm install
+
     - name: Build Frontend Image
       run: docker build -t kalaybot-frontend:latest -f "robot trader/Dockerfile.frontend" "robot trader"
 
