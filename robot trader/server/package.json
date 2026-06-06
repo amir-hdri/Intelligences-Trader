@@ -12,7 +12,10 @@
     "@tensorflow/tfjs-node": "^4.22.0",
     "axios": "^1.16.1",
     "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
     "express": "^4.22.1",
+    "express-rate-limit": "^8.5.2",
+    "jsonwebtoken": "^9.0.3",
     "onnxruntime-node": "^1.26.0",
     "tsetmc-client": "^1.0.8"
   }

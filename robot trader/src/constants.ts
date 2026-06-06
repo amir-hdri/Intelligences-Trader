@@ -45,7 +45,7 @@ export const IME_SYMBOLS: SymbolInfo[] = [
 
 export const DEFAULT_API_CONFIG: ApiConfig = {
   proxyUrl: 'http://localhost:3001',
-  apiKey: ((typeof process !== 'undefined' ? process.env : {}) as any).VITE_API_KEY || '',
+  apiKey: (typeof process !== 'undefined' && process.env ? process.env.VITE_API_KEY : '') || '',
   isConnected: true,  // Default to connected for real data mode
   useDigitalTwin: false, // Disable simulation by default
 };
