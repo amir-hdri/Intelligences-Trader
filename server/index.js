@@ -1,3 +1,6 @@
+
+import logger from './logger.js';
+const apiMetrics = () => (req, res, next) => next();
 import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
@@ -10,6 +13,7 @@ import jwt from 'jsonwebtoken';
 
 
 const app = express();
+app.use(apiMetrics());
 const PORT = 3001;
 
 app.use(cors({ origin: 'http://localhost:5173' }));
@@ -49,7 +53,7 @@ const getRealMarketData = async (symbolId) => {
     });
     return response.data;
   } catch (error) {
-    console.error(`Failed to fetch real data for ${symbolId}:`, error.message);
+    logger.error(`Failed to fetch real data for ${symbolId}:`, error.message);
     return null;
   }
 };
@@ -139,12 +143,12 @@ app.get('/api/orderbook/:symbol', (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.error(err.stack);
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`Proxy Backend listening on port ${PORT}`);
+  logger.info(`Proxy Backend listening on port ${PORT}`);
 });
 
 // WebSocket Server
@@ -164,7 +168,7 @@ wss.on('connection', (ws, req) => {
   const symbol = url.searchParams.get('symbol') || 'SAF1403';
   ws.symbol = symbol;
 
-  console.log(`WebSocket connected for symbol: ${symbol}`);
+  logger.info(`WebSocket connected for symbol: ${symbol}`);
 
   // Initial message is optional; we just broadcast periodically
 });

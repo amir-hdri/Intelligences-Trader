@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "tsc -p tsconfig.test.json && echo '{\"type\":\"commonjs\"}' > test-out/package.json && node test-out/dataUtils.test.js && node test-out/riskEngine.test.js && node test-out/historicalData.test.js"
+    "test": "tsc -p tsconfig.test.json && echo '{\"type\":\"commonjs\"}' > test-out/package.json && node test-out/dataUtils.test.js && node test-out/riskEngine.test.js && node test-out/historicalData.test.js",
+    "test:mutation": "stryker run"
   },
   "repository": {
     "type": "git",
@@ -17,6 +18,9 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/typescript-checker": "^9.6.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@tailwindcss/vite": "^4.1.18",
     "@types/jalaali-js": "^1.2.0",
@@ -26,20 +30,34 @@
     "@types/sentiment": "^5.0.4",
     "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.24",
+    "c8": "^11.0.0",
+    "playwright": "^1.60.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"
   },
   "dependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/auto-instrumentations-node": "^0.76.0",
+    "@opentelemetry/sdk-node": "^0.218.0",
+    "@types/jest": "^30.0.0",
+    "@types/supertest": "^7.2.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "fast-check": "^4.8.0",
     "jalaali-js": "^1.2.8",
+    "jest": "^30.4.2",
     "lucide-react": "^0.574.0",
+    "pino": "^10.3.1",
+    "prometheus-api-metrics": "^4.0.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "recharts": "^3.7.0",
     "sentiment": "^5.0.2",
-    "tailwind-merge": "^3.4.1"
+    "supertest": "^7.2.2",
+    "tailwind-merge": "^3.4.1",
+    "ts-jest": "^29.4.11",
+    "winston": "^3.19.0"
   }
 }
