@@ -1,6 +1,21 @@
 import { buildTCN, fractionalDiff, purgedKFold, calculateMaxDrawdown, calculateSharpeRatio, calculateCalibrationError } from './tcnModel.js';
 import * as tf from '@tensorflow/tfjs-node';
 
+import { EnsembleEngine } from './ensembleEngine.js';
+import { AltDataEngine } from './altDataEngine.js';
+import { PortfolioOptimizer } from './portfolioOptimizer.js';
+import { XAIEngine } from './xaiEngine.js';
+import { FederatedEngine } from './federatedEngine.js';
+import { HPOEngine } from './hpoEngine.js';
+
+// Instantiate Advanced Engines
+const ensembleEngine = new EnsembleEngine();
+const altDataEngine = new AltDataEngine();
+const portfolioOptimizer = new PortfolioOptimizer();
+const xaiEngine = new XAIEngine();
+const federatedEngine = new FederatedEngine();
+const hpoEngine = new HPOEngine();
+
 import logger from './logger.js';
 const apiMetrics = () => (req, res, next) => next();
 import express from 'express';
@@ -599,6 +614,100 @@ app.post('/api/predict', async (req, res) => {
 app.use((err, req, res, next) => {
   logger.error(err.stack);
   res.status(500).json({ error: 'Internal Server Error' });
+});
+
+
+// ==========================================
+// Advanced Feature Endpoints (Phase 6)
+// ==========================================
+
+app.post('/api/advanced/ensemble', async (req, res) => {
+    try {
+        const { features } = req.body;
+        const result = ensembleEngine.predictEnsemble(features || {});
+
+        // Simulate online learning if outcome is provided
+        if (req.body.actualOutcome !== undefined) {
+            ensembleEngine.updateWeights(req.body.actualOutcome);
+        }
+
+        res.json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        logger.error('Error in Ensemble prediction:', error);
+        res.status(500).json({ error: 'Internal server error processing ensemble prediction' });
+    }
+});
+
+app.get('/api/advanced/altdata/:symbol', async (req, res) => {
+    try {
+        const symbol = req.params.symbol;
+        const result = altDataEngine.fuseData(symbol);
+        res.json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        logger.error('Error in Alt Data processing:', error);
+        res.status(500).json({ error: 'Internal server error processing alternative data' });
+    }
+});
+
+app.post('/api/advanced/portfolio', async (req, res) => {
+    try {
+        const { method } = req.body; // MVO_BL, RISK_PARITY, HRP
+        const result = portfolioOptimizer.optimizePortfolio(method);
+        res.json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        logger.error('Error in Portfolio Optimization:', error);
+        res.status(500).json({ error: 'Internal server error optimizing portfolio' });
+    }
+});
+
+app.post('/api/advanced/xai', async (req, res) => {
+    try {
+        const { prediction, features } = req.body;
+        const result = xaiEngine.explainPrediction(prediction || 0.5, features || {});
+        res.json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        logger.error('Error in XAI generation:', error);
+        res.status(500).json({ error: 'Internal server error generating explanation' });
+    }
+});
+
+app.post('/api/advanced/federated/round', async (req, res) => {
+    try {
+        const result = federatedEngine.performRound();
+        res.json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        logger.error('Error in Federated Learning round:', error);
+        res.status(500).json({ error: 'Internal server error during federated learning round' });
+    }
+});
+
+app.post('/api/advanced/hpo/optimize', async (req, res) => {
+    try {
+        const { nTrials } = req.body;
+        const result = hpoEngine.runOptimization(nTrials || 10);
+        res.json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        logger.error('Error in Hyperparameter Optimization:', error);
+        res.status(500).json({ error: 'Internal server error during HPO' });
+    }
 });
 
 app.listen(port, () => {
