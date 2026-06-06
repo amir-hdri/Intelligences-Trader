@@ -1,0 +1,49 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '22'
+
+    - name: Install Dependencies
+      run: |
+        npm install
+        cd "robot trader/server" && npm install
+        cd ../../server && npm install
+
+    - name: Run Tests
+      run: npm test
+
+    - name: Security Scan (npm audit)
+      run: |
+        npm audit --audit-level=high || true
+        cd "robot trader/server" && npm audit --audit-level=high || true
+        cd ../../server && npm audit --audit-level=high || true
+
+  docker-build:
+    needs: test-and-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build Frontend Image
+      run: docker build -t kalaybot-frontend:latest -f "robot trader/Dockerfile.frontend" "robot trader"
+
+    - name: Build ML Backend Image
+      run: docker build -t kalaybot-ml:latest -f "robot trader/server/Dockerfile.backend-ml" "robot trader/server"
+
+    - name: Build Proxy Backend Image
+      run: docker build -t kalaybot-proxy:latest -f "server/Dockerfile.backend-proxy" "server"

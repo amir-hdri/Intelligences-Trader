@@ -2,6 +2,13 @@ import { buildTCN, fractionalDiff, purgedKFold, calculateMaxDrawdown, calculateS
 import * as tf from '@tensorflow/tfjs-node';
 import express from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
+dotenv.config();
+import rateLimit from 'express-rate-limit';
+import jwt from 'jsonwebtoken';
+import { auditLogger } from './AuditLogger.js';
+import { secretManager } from './SecretManager.js';
+
 import { DayDetails } from 'tsetmc-client';
 import { analyzeMarketMTF, detectMarketRegime, calculateATR } from './analyzer.js';
 import { generateAnalysis } from './analysisEngine.js';
@@ -13,7 +20,7 @@ const modelManager = new ModelManager();
 modelManager.loadModel(path.join(process.cwd(), 'models', 'market_model.onnx'), '1.0.0').catch(err => console.error('Initial model load failed', err));
 
 import { generateHistoricalData } from './dataFactory.js';
-import crypto from 'crypto';
+
 
 const ALLOWED_INS_CODES = ['SAF1403', 'GOLD1403', 'SAFSPOT', 'GOLDFUND', 'STEELSPOT'];
 
@@ -51,6 +58,72 @@ const port = 3000;
 
 app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
+
+const JWT_SECRET = process.env.JWT_SECRET || 'default-dev-secret';
+const REFRESH_SECRET = process.env.REFRESH_SECRET || 'default-dev-refresh-secret';
+
+// Rate limiter: max 100 requests per minute
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again after a minute',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiter to all API routes
+app.use('/api/', apiLimiter);
+
+// JWT Middleware
+const authenticateToken = (req, res, next) => {
+  // Allow /api/status without auth
+  if (req.path === '/status' || req.path === '/auth/login' || req.path === '/auth/refresh') {
+    return next();
+  }
+
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (token == null) return res.sendStatus(401);
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+};
+
+// Apply auth middleware to API routes (disabled for now to avoid breaking existing frontend if it doesn't send token)
+// app.use('/api/', authenticateToken);
+
+// Auth endpoints
+app.post('/api/auth/login', (req, res) => {
+  // Dummy authentication for demonstration
+  const { username, password } = req.body;
+  if (username === 'admin' && password === 'admin') {
+    const user = { name: username };
+    const accessToken = jwt.sign(user, JWT_SECRET, { expiresIn: '15m' });
+    const refreshToken = jwt.sign(user, REFRESH_SECRET, { expiresIn: '1h' });
+
+    auditLogger.log('LOGIN_SUCCESS', req.ip, username);
+    res.json({ accessToken, refreshToken });
+  } else {
+    auditLogger.log('LOGIN_FAILED', req.ip, username);
+    res.status(401).json({ error: 'Invalid credentials' });
+  }
+});
+
+app.post('/api/auth/refresh', (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.sendStatus(401);
+
+  jwt.verify(token, REFRESH_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    const accessToken = jwt.sign({ name: user.name }, JWT_SECRET, { expiresIn: '15m' });
+    res.json({ accessToken });
+  });
+});
+
 
 
 // Smart Analysis Endpoint

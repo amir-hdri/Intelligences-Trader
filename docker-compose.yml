@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./robot trader
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend-ml
+      - backend-proxy
+
+  backend-ml:
+    build:
+      context: ./robot trader/server
+      dockerfile: Dockerfile.backend-ml
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - MASTER_ENCRYPTION_KEY=dev-master-key-replace-in-prod
+      - JWT_SECRET=dev-jwt-secret-replace-in-prod
+      - REFRESH_SECRET=dev-refresh-secret-replace-in-prod
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+
+  backend-proxy:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.backend-proxy
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=dev-jwt-secret-replace-in-prod
