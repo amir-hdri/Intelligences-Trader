@@ -14,6 +14,18 @@ import type {
 import { INDICATOR_PARAMS } from "./constants";
 import Sentiment from "sentiment";
 
+import { WorkerPool } from './workers/workerPool';
+// Module-level worker pool for testing/analysis dispatch
+
+// Avoid import.meta.url in CommonJS test environments
+const isBrowser = typeof window !== 'undefined';
+const workerUrl = isBrowser ? new URL('./workers/marketAnalyzer.worker.ts', window.location.href).href : './workers/marketAnalyzer.worker.ts';
+
+// We must only instantiate the WorkerPool in environments where Worker exists
+const analysisWorkerPool = typeof Worker !== 'undefined' ? new WorkerPool(workerUrl as string | URL, 2) : null;
+
+
+
 const sentiment = new Sentiment();
 
 // Module-level storage for simulation state to ensure continuity
@@ -664,7 +676,38 @@ export const analyzeMarketMTF = (
   const dailyCandles = mtfData["1d"] || [];
   const hourlyCandles = mtfData["1h"] || dailyCandles;
 
+  // Heisenbug Detection: Create a SharedArrayBuffer to detect concurrent writes to strategy weights
+  // Note: Requires cross-origin isolation headers in production.
+  let sharedBuffer: SharedArrayBuffer | undefined;
+  try {
+      sharedBuffer = new SharedArrayBuffer(4); // 4 bytes for an Int32 flag
+  } catch (e) {
+      // SharedArrayBuffer might not be available if COOP/COEP headers aren't set
+      console.warn("SharedArrayBuffer not supported in this environment.", e);
+  }
+
+  // Simulate acquiring the lock on the main thread right before dispatching
+  if (sharedBuffer && analysisWorkerPool) {
+      const flagArray = new Int32Array(sharedBuffer);
+      // Main thread intentionally holds the lock to test the worker's race condition detector
+      // In production, you would only do this while actually mutating the weights object.
+      Atomics.store(flagArray, 0, 1);
+
+      // Dispatch async task to trigger the race condition warning in the worker
+      analysisWorkerPool.executeTask('analyzeMarketMTF', {
+          data: mtfData,
+          symbolId,
+          context: externalMetrics,
+          weights,
+          sharedBuffer
+      }).catch(console.error).finally(() => {
+          // Release lock
+          Atomics.store(flagArray, 0, 0);
+      });
+  }
+
   if (dailyCandles.length < 30) {
+
     return {
       action: "HOLD",
       entryPrice: 0,

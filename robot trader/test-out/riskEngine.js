@@ -6,9 +6,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RiskEngine = void 0;
 const jalaali_js_1 = __importDefault(require("jalaali-js"));
 class RiskEngine {
+    limits;
+    status;
+    initialEquity;
+    currentEquity;
+    dailyStartingEquity;
+    winRate = 0.55; // Historical base
+    profitFactor = 1.8;
     constructor(limits, initialEquity) {
-        this.winRate = 0.55; // Historical base
-        this.profitFactor = 1.8;
         this.limits = limits;
         this.initialEquity = initialEquity;
         this.currentEquity = initialEquity;

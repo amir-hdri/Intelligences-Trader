@@ -6,13 +6,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.trainModelEpoch = exports.optimizeStrategyWeights = exports.performWalkForwardBacktest = exports.calculateStrategyMetrics = exports.analyzeMarket = exports.analyzeMarketMTF = exports.DEFAULT_WEIGHTS = exports.detectMarketRegime = exports.calculateSeasonalityFactor = exports.detectArbitrageOpportunity = exports.calculateFairValue = exports.calculateBollingerBands = exports.calculateIchimoku = exports.calculateATR = exports.calculateMACD = exports.calculateEMA = exports.calculateRSI = exports.TseApiClient = void 0;
 const constants_1 = require("./constants");
 const sentiment_1 = __importDefault(require("sentiment"));
+const workerPool_1 = require("./workers/workerPool");
+// Module-level worker pool for testing/analysis dispatch
+// Avoid import.meta.url in CommonJS test environments
+const isBrowser = typeof window !== 'undefined';
+const workerUrl = isBrowser ? new URL('./workers/marketAnalyzer.worker.ts', window.location.href).href : './workers/marketAnalyzer.worker.ts';
+// We must only instantiate the WorkerPool in environments where Worker exists
+const analysisWorkerPool = typeof Worker !== 'undefined' ? new workerPool_1.WorkerPool(workerUrl, 2) : null;
 const sentiment = new sentiment_1.default();
 // Module-level storage for simulation state to ensure continuity
 const SIMULATION_STATE = {};
 class TseApiClient {
+    config;
     constructor(config) {
-        // Cache Layer for storing repetitive calculations
-        this.orderBookCache = new Map();
         this.config = config;
     }
     async fetchMarketData(symbolId) {
@@ -54,6 +60,8 @@ class TseApiClient {
             return null; // Graceful fallback if backend analysis fails
         }
     }
+    // Cache Layer for storing repetitive calculations
+    orderBookCache = new Map();
     async fetchOrderBook(symbolId) {
         const now = Date.now();
         // Cache invalidation (e.g., 5 seconds)
@@ -516,9 +524,36 @@ exports.DEFAULT_WEIGHTS = {
 };
 let optimizedWeights = { ...exports.DEFAULT_WEIGHTS };
 const analyzeMarketMTF = (mtfData, symbolId = "", externalMetrics, weights = optimizedWeights) => {
-    var _a, _b, _c, _d, _e, _f, _g;
     const dailyCandles = mtfData["1d"] || [];
     const hourlyCandles = mtfData["1h"] || dailyCandles;
+    // Heisenbug Detection: Create a SharedArrayBuffer to detect concurrent writes to strategy weights
+    // Note: Requires cross-origin isolation headers in production.
+    let sharedBuffer;
+    try {
+        sharedBuffer = new SharedArrayBuffer(4); // 4 bytes for an Int32 flag
+    }
+    catch (e) {
+        // SharedArrayBuffer might not be available if COOP/COEP headers aren't set
+        console.warn("SharedArrayBuffer not supported in this environment.", e);
+    }
+    // Simulate acquiring the lock on the main thread right before dispatching
+    if (sharedBuffer && analysisWorkerPool) {
+        const flagArray = new Int32Array(sharedBuffer);
+        // Main thread intentionally holds the lock to test the worker's race condition detector
+        // In production, you would only do this while actually mutating the weights object.
+        Atomics.store(flagArray, 0, 1);
+        // Dispatch async task to trigger the race condition warning in the worker
+        analysisWorkerPool.executeTask('analyzeMarketMTF', {
+            data: mtfData,
+            symbolId,
+            context: externalMetrics,
+            weights,
+            sharedBuffer
+        }).catch(console.error).finally(() => {
+            // Release lock
+            Atomics.store(flagArray, 0, 0);
+        });
+    }
     if (dailyCandles.length < 30) {
         return {
             action: "HOLD",
@@ -542,7 +577,7 @@ const analyzeMarketMTF = (mtfData, symbolId = "", externalMetrics, weights = opt
         };
     }
     const lastCandle = hourlyCandles[hourlyCandles.length - 1];
-    const sentimentScore = ((_a = externalMetrics === null || externalMetrics === void 0 ? void 0 : externalMetrics.sentiment) === null || _a === void 0 ? void 0 : _a.score) || 0;
+    const sentimentScore = externalMetrics?.sentiment?.score || 0;
     const dIchimoku = (0, exports.calculateIchimoku)(dailyCandles);
     const dailyTrend = lastCandle.close > dIchimoku.senkouA && lastCandle.close > dIchimoku.senkouB
         ? "BULLISH"
@@ -590,7 +625,7 @@ const analyzeMarketMTF = (mtfData, symbolId = "", externalMetrics, weights = opt
         }
     }
     // 4. Order Book Analysis
-    if (externalMetrics === null || externalMetrics === void 0 ? void 0 : externalMetrics.orderBook) {
+    if (externalMetrics?.orderBook) {
         if (externalMetrics.orderBook.pressure > 0.25) {
             score += weights.orderBook;
             reasons.push("Order Book Imbalance: Buyers Dominating");
@@ -621,9 +656,9 @@ const analyzeMarketMTF = (mtfData, symbolId = "", externalMetrics, weights = opt
     }
     // 6. Macro & Political Engineering (Hedge Fund Fusion Layer)
     let bubbleGap = 0;
-    let politicalRiskIndex = ((_b = externalMetrics === null || externalMetrics === void 0 ? void 0 : externalMetrics.sentiment) === null || _b === void 0 ? void 0 : _b.politicalRiskIndex) || 50;
-    let queueDynamicsRatio = ((_d = (_c = externalMetrics === null || externalMetrics === void 0 ? void 0 : externalMetrics.orderBook) === null || _c === void 0 ? void 0 : _c.queueDynamics) === null || _d === void 0 ? void 0 : _d.buyRatio) || 0.5;
-    if (externalMetrics === null || externalMetrics === void 0 ? void 0 : externalMetrics.correlation) {
+    let politicalRiskIndex = externalMetrics?.sentiment?.politicalRiskIndex || 50;
+    let queueDynamicsRatio = externalMetrics?.orderBook?.queueDynamics?.buyRatio || 0.5;
+    if (externalMetrics?.correlation) {
         // Determine dynamic fair value based on global macro covariates
         let pGlobal = 1;
         let usdRate = externalMetrics.correlation.usdNima;
@@ -657,7 +692,7 @@ const analyzeMarketMTF = (mtfData, symbolId = "", externalMetrics, weights = opt
         reasons.push("Low Political Risk Index -> Bearish for USD-pegged assets.");
     }
     // Apply Queue Dynamics Momentum (Herding behavior overrides technicals)
-    if ((_f = (_e = externalMetrics === null || externalMetrics === void 0 ? void 0 : externalMetrics.orderBook) === null || _e === void 0 ? void 0 : _e.queueDynamics) === null || _f === void 0 ? void 0 : _f.isHerdingDetected) {
+    if (externalMetrics?.orderBook?.queueDynamics?.isHerdingDetected) {
         score *= externalMetrics.orderBook.queueDynamics.momentumMultiplier;
         reasons.push("Queue Dynamics: Herding behavior detected. Momentum multiplier applied.");
     }
@@ -677,12 +712,12 @@ const analyzeMarketMTF = (mtfData, symbolId = "", externalMetrics, weights = opt
         regime,
         sentimentScore,
         basisOpportunity: lastCandle.basis || 0,
-        fairValue: (externalMetrics === null || externalMetrics === void 0 ? void 0 : externalMetrics.correlation)
+        fairValue: externalMetrics?.correlation
             ? (0, exports.calculateFairValue)(symbolId, lastCandle.close, externalMetrics.correlation)
             : undefined,
         bubbleGap,
         arbitrage,
-        orderBookPressure: ((_g = externalMetrics === null || externalMetrics === void 0 ? void 0 : externalMetrics.orderBook) === null || _g === void 0 ? void 0 : _g.pressure) || 0,
+        orderBookPressure: externalMetrics?.orderBook?.pressure || 0,
         politicalRiskIndex,
         queueDynamicsRatio,
         timeframeAnalysis: {

@@ -18,6 +18,9 @@ const hpoEngine = new HPOEngine();
 
 import logger from './logger.js';
 const apiMetrics = () => (req, res, next) => next();
+
+import { pinoLogger, sampleLogger } from './pinoLogger.js';
+import crypto from 'crypto';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -77,6 +80,13 @@ const port = 3000;
 
 app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
+
+app.use((req, res, next) => {
+  req.correlationId = req.headers['x-correlation-id'] || crypto.randomUUID();
+  res.setHeader('x-correlation-id', req.correlationId);
+  next();
+});
+
 
 const JWT_SECRET = process.env.JWT_SECRET || 'default-dev-secret';
 const REFRESH_SECRET = process.env.REFRESH_SECRET || 'default-dev-refresh-secret';
@@ -151,6 +161,7 @@ app.post('/api/auth/refresh', (req, res) => {
 
 
 
+
 app.post('/api/analyze', (req, res) => {
   const t0 = Date.now();
   const { historyData } = req.body;
@@ -159,17 +170,73 @@ app.post('/api/analyze', (req, res) => {
   }
 
   try {
+    const correlationId = req.correlationId;
+    pinoLogger.info({ correlationId, event: 'analyze_request' }, 'Starting rule-based analysis');
+
+    // Rule-Based Strategy (Primary) - executes synchronously
     const analysis = generateAnalysis(historyData);
     const t1 = Date.now();
-    // Ensure < 500ms
+
+    // Shadow Mode Protocol: Execute TCN Model concurrently
+    // We run it asynchronously so it doesn't block the rule-based response
+    setTimeout(async () => {
+        try {
+            // Transform historyData for the model (simplified mock format conversion)
+            // Model expects [batch_size, 30, 10]
+            if (historyData.length >= 30) {
+               // Pad or truncate to exact shape needed for shadow test
+               const recentData = historyData.slice(-30).map(c => [
+                   c.open, c.high, c.low, c.close, c.volume,
+                   0, 0, 0, 0, 0 // mock indicators
+               ]);
+
+               const tcnStart = Date.now();
+               const tcnPredictions = await modelManager.predict([recentData], correlationId);
+               const tcnPrediction = tcnPredictions[0].prediction;
+
+               // Compare Rule-based vs TCN Model (Shadow Mode)
+               const ruleBasedAction = analysis.action; // e.g., 'BUY', 'SELL', 'HOLD'
+
+               // Calculate confidence deviation if actions match, or 100% deviation if they differ
+               let deviation = 0;
+               if (ruleBasedAction !== tcnPrediction) {
+                   deviation = 100; // Complete disagreement
+               } else {
+                   // Compare confidence (TCN probability vs Rule-based confidence)
+                   const tcnConf = Math.max(...tcnPredictions[0].probabilities) * 100;
+                   const ruleConf = analysis.confidence || 0;
+                   deviation = Math.abs(tcnConf - ruleConf);
+               }
+
+               if (deviation > 5) {
+                   pinoLogger.warn({
+                       correlationId,
+                       event: 'shadow_mode_deviation',
+                       deviationPercent: deviation,
+                       ruleBasedAction,
+                       tcnPrediction,
+                       tcnInferenceTime: Date.now() - tcnStart
+                   }, 'Shadow Mode detected significant deviation between Rule-Based and TCN Model outputs');
+               }
+            }
+        } catch (shadowError) {
+            pinoLogger.error({ correlationId, event: 'shadow_mode_error', error: shadowError.message }, 'TCN Shadow execution failed');
+        }
+    }, 0);
+
+    // Ensure < 500ms for Rule-Based
     if ((t1 - t0) > 500) {
-      logger.warn('Analysis took too long:', t1 - t0, 'ms');
+      pinoLogger.warn({ correlationId, durationMs: t1 - t0 }, 'Analysis took too long');
     }
+
+    // Always return rule-based to ensure kill-switch and standard logic applies
     res.json(analysis);
   } catch (error) {
+    pinoLogger.error({ correlationId, event: 'analyze_error', error: error.message }, 'Analysis failed');
     res.status(500).json({ error: 'Analysis failed' });
   }
 });
+
 
 
 
@@ -573,6 +640,7 @@ app.get('/api/market/history', (req, res) => {
 });
 
 // AI Prediction endpoint using ONNX runtime
+
 app.post('/api/predict', async (req, res) => {
   try {
     const { inputData } = req.body; // Expecting [batch_size, 30, 10] array
@@ -581,9 +649,15 @@ app.post('/api/predict', async (req, res) => {
     }
 
     const start = Date.now();
-    const predictions = await modelManager.predict(inputData);
+    const correlationId = req.correlationId;
+    pinoLogger.info({ correlationId, event: 'predict_request' }, 'Starting model prediction');
+
+    const predictions = await modelManager.predict(inputData, correlationId);
+
     const end = Date.now();
     const inferenceTimeMs = end - start;
+    pinoLogger.info({ correlationId, inferenceTimeMs, event: 'predict_success' }, 'Model prediction completed');
+
 
     const driftStatus = modelManager.monitorDrift(inputData, predictions);
 
