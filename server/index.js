@@ -3,12 +3,34 @@ import cors from 'cors';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { WebSocketServer } from 'ws';
+import dotenv from 'dotenv';
+dotenv.config();
+import rateLimit from 'express-rate-limit';
+import jwt from 'jsonwebtoken';
+
 
 const app = express();
 const PORT = 3001;
 
 app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
+
+const JWT_SECRET = process.env.JWT_SECRET || 'default-dev-secret';
+
+// Rate limiter: max 100 requests per minute
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again after a minute',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiter
+app.use('/api/', apiLimiter);
+
+// Optional: JWT verification middleware could be added here
+
 
 // Market Data Cache
 const marketCache = {};

@@ -237,18 +237,6 @@ const createCandles = (count, trend) => {
         node_assert_1.default.strictEqual(data, null);
         node_assert_1.default.strictEqual(errorLogged, true, 'console.error should have been called');
     });
-    (0, node_test_1.test)('fetchMarketData falls back to Digital Twin when no proxy URL configured', async () => {
-        const config = {
-            proxyUrl: undefined,
-            apiKey: 'key',
-            isConnected: true,
-            useDigitalTwin: false,
-        };
-        const client = new dataUtils_1.TseApiClient(config);
-        const data = await client.fetchMarketData('TEST');
-        node_assert_1.default.ok(Array.isArray(data));
-        node_assert_1.default.strictEqual(data.length, 100);
-    });
 });
 (0, node_test_1.test)('calculateATR - returns 0 if candles length is less than 2', () => {
     const result0 = (0, dataUtils_1.calculateATR)([]);

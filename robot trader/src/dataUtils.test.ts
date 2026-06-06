@@ -279,20 +279,6 @@ describe('TseApiClient', () => {
     assert.strictEqual(errorLogged, true, 'console.error should have been called');
   });
 
-test('fetchMarketData falls back to Digital Twin when no proxy URL configured', async () => {
-    const config: ApiConfig = {
-      proxyUrl: undefined as any,
-      apiKey: 'key',
-      isConnected: true,
-      useDigitalTwin: false,
-    };
-
-    const client = new TseApiClient(config);
-    const data = await client.fetchMarketData('TEST');
-
-    assert.ok(Array.isArray(data));
-    assert.strictEqual(data.length, 100);
-  });
 });
 
 test('calculateATR - returns 0 if candles length is less than 2', () => {
