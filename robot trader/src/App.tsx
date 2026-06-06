@@ -73,7 +73,7 @@ const App: React.FC = () => {
   const [metrics, setMetrics] = usePersistedState<SystemMetrics>('metrics', INITIAL_METRICS);
   const [connectionState, setConnectionState] = useState<'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING'>('DISCONNECTED');
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const reconnectAttemptsRef = useRef(0);
 
   const [riskLimits, setRiskLimits] = usePersistedState<RiskLimits>('riskLimits', DEFAULT_RISK_LIMITS);
@@ -137,7 +137,7 @@ const App: React.FC = () => {
             indicators: advancedData.indicators,
             sentimentScore: sent.score,
             basisOpportunity: 0,
-            orderBookPressure: ob.pressure
+            orderBookPressure: orderBook ? orderBook.pressure : 0
         } as ExpertForecast;
 
         advancedRiskData = {
@@ -153,7 +153,7 @@ const App: React.FC = () => {
           data,
           symbolId: selectedSymbol.id,
           context: {
-            orderBook: ob,
+            orderBook: orderBook,
             correlation: corr,
             sentiment: sent
           }
