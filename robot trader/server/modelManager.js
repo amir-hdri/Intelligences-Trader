@@ -1,3 +1,4 @@
+import { pinoLogger } from './pinoLogger.js';
 import ort from 'onnxruntime-node';
 import fs from 'fs/promises';
 import path from 'path';
@@ -30,7 +31,7 @@ export class ModelManager {
     }
   }
 
-  async predict(inputData) {
+  async predict(inputData, correlationId = 'unknown') {
     if (!this.session) {
         throw new Error('Model not loaded');
     }
@@ -40,8 +41,16 @@ export class ModelManager {
         const batchSize = flatData.length / (30 * 10);
         const tensor = new ort.Tensor('float32', Float32Array.from(flatData), [batchSize, 30, 10]);
 
+
         const feeds = { input: tensor };
-        const results = await this.session.run(feeds);
+        const runOptions = {
+            logId: correlationId,
+            logSeverityLevel: 0 // 0 = Verbose, 1 = Info, 2 = Warning, 3 = Error, 4 = Fatal
+        };
+        pinoLogger.trace({ correlationId, event: 'onnx_session_run_start' }, 'Running ONNX session');
+        const results = await this.session.run(feeds, runOptions);
+        pinoLogger.trace({ correlationId, event: 'onnx_session_run_end' }, 'ONNX session run complete');
+
 
         const outputData = results.output.data;
         const batchPredictions = [];
