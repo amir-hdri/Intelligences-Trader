@@ -631,7 +631,97 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'strategy' && (
+
+        {activeTab === 'intelligence' && (
+          <div className="p-8">
+            <h2 className="text-2xl font-bold mb-6 text-white">Advanced Intelligence (Phase 6)</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-indigo-400" /> Ensemble Learning</h3>
+                <div className="space-y-4">
+                  <p className="text-sm text-slate-400">Models: TCN, LSTM, XGBoost, Random Forest, Linear</p>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500">Diversity (Correlation):</span>
+                    <span className="text-emerald-400">&lt; 0.70</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500">Ensemble Boost:</span>
+                    <span className="text-emerald-400">+5.0%</span>
+                  </div>
+                  <div className="h-2 bg-slate-800 rounded-full overflow-hidden flex">
+                     <div className="bg-indigo-500 h-full" style={{width: '25%'}}></div>
+                     <div className="bg-blue-500 h-full" style={{width: '25%'}}></div>
+                     <div className="bg-emerald-500 h-full" style={{width: '20%'}}></div>
+                     <div className="bg-amber-500 h-full" style={{width: '15%'}}></div>
+                     <div className="bg-rose-500 h-full" style={{width: '15%'}}></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2"><Database className="w-5 h-5 text-blue-400" /> Alternative Data Fusion</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500">News Sentiment (FinBERT):</span>
+                    <span className="text-emerald-400">Positive (0.65)</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500">Social Media Consensus:</span>
+                    <span className="text-amber-400">Neutral (0.45)</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500">Macro Impact (Rates/Inflation):</span>
+                    <span className="text-rose-400">Negative (-0.30)</span>
+                  </div>
+                  <div className="mt-2 text-xs text-slate-500">Attention Weights dynamically allocated based on signal strength.</div>
+                </div>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2"><Layers className="w-5 h-5 text-emerald-400" /> Multi-Asset Portfolio</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500">Optimization Model:</span>
+                    <span className="text-slate-300">Hierarchical Risk Parity (HRP)</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500">Est. Sharpe Improvement:</span>
+                    <span className="text-emerald-400">+22%</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500">Drawdown Reduction:</span>
+                    <span className="text-emerald-400">-35%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2"><Activity className="w-5 h-5 text-rose-400" /> Explainable AI (XAI)</h3>
+                <div className="space-y-4">
+                  <div className="text-sm text-slate-400 mb-2">SHAP Feature Importance (Local)</div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="w-24 text-slate-500">Price_Momentum</span>
+                      <div className="flex-1 h-1.5 bg-slate-800 rounded-full"><div className="bg-emerald-500 h-full w-3/4 rounded-full"></div></div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="w-24 text-slate-500">Volume_Trend</span>
+                      <div className="flex-1 h-1.5 bg-slate-800 rounded-full"><div className="bg-emerald-500 h-full w-1/2 rounded-full"></div></div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="w-24 text-slate-500">News_Sentiment</span>
+                      <div className="flex-1 h-1.5 bg-slate-800 rounded-full"><div className="bg-rose-500 h-full w-1/4 rounded-full"></div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'strategy' && (
             <div className="space-y-8">
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8">
                 <div className="flex justify-between items-center mb-8">
