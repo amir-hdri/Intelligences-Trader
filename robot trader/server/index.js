@@ -1,5 +1,8 @@
 import { buildTCN, fractionalDiff, purgedKFold, calculateMaxDrawdown, calculateSharpeRatio, calculateCalibrationError } from './tcnModel.js';
 import * as tf from '@tensorflow/tfjs-node';
+
+import logger from './logger.js';
+const apiMetrics = () => (req, res, next) => next();
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -17,7 +20,7 @@ import path from 'path';
 
 const modelManager = new ModelManager();
 // Initialize model on startup
-modelManager.loadModel(path.join(process.cwd(), 'models', 'market_model.onnx'), '1.0.0').catch(err => console.error('Initial model load failed', err));
+modelManager.loadModel(path.join(process.cwd(), 'models', 'market_model.onnx'), '1.0.0').catch(err => logger.error('Initial model load failed', err));
 
 import { generateHistoricalData } from './dataFactory.js';
 
@@ -54,6 +57,7 @@ const generateSimulationData = (symbolId) => {
 
 
 const app = express();
+app.use(apiMetrics());
 const port = 3000;
 
 app.use(cors({ origin: 'http://localhost:5173' }));
@@ -144,7 +148,7 @@ app.post('/api/analyze', (req, res) => {
     const t1 = Date.now();
     // Ensure < 500ms
     if ((t1 - t0) > 500) {
-      console.warn('Analysis took too long:', t1 - t0, 'ms');
+      logger.warn('Analysis took too long:', t1 - t0, 'ms');
     }
     res.json(analysis);
   } catch (error) {
@@ -174,7 +178,7 @@ app.get('/api/news', (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in /api/news:', error);
+    logger.error('Error in /api/news:', error);
     res.status(500).json({ error: 'Failed to generate news' });
   }
 });
@@ -221,7 +225,7 @@ app.get('/api/tse/:id', async (req, res) => {
 
     res.json({ success: true, data: candles });
   } catch (error) {
-    console.error('Real API Error:', error.message);
+    logger.error('Real API Error:', error.message);
     res.status(500).json({ success: false, error: 'Failed to fetch from real API. Check ID or network.' });
   }
 });
@@ -236,7 +240,7 @@ app.get('/api/tse/history/:symbolId', async (req, res) => {
 
   // If not in map or unavailable, fallback to centralized simulation
   if (!insCode) {
-    console.warn(`Symbol ${symbolId} not found in map, using Digital Twin.`);
+    logger.warn(`Symbol ${symbolId} not found in map, using Digital Twin.`);
     return res.json(generateSimulationData(symbolId));
   }
 
@@ -303,7 +307,7 @@ app.get('/api/tse/history/:symbolId', async (req, res) => {
     suggestedRiskCapital = mu.arraySync()[0][0]; // Extract continuous action [0, 1]
     tf.dispose(mu);
   } catch (e) {
-    console.warn("Failed to load or run RL agent, falling back to static Kelly", e.message);
+    logger.warn("Failed to load or run RL agent, falling back to static Kelly", e.message);
   }
 
   res.json({
@@ -354,7 +358,7 @@ app.get('/api/tse/info/:symbolId', async (req, res) => {
       timestamp: Date.now()
     });
   } catch(error) {
-    console.error('Real API Info Error:', error);
+    logger.error('Real API Info Error:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch from real API. Please try again later.' });
   }
 });
@@ -368,7 +372,7 @@ app.post('/api/train', async (req, res) => {
     return res.status(400).json({ error: 'Invalid symbol format' });
   }
 
-  console.log(`Starting deep training for ${symbol} with ${historyData.length} data points...`);
+  logger.info(`Starting deep training for ${symbol} with ${historyData.length} data points...`);
 
   if (historyData.length < 50) {
     return res.json({
@@ -501,7 +505,7 @@ app.post('/api/train', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Training error:", error);
+    logger.error("Training error:", error);
     res.status(500).json({ error: 'Internal server error during training' });
   }
 });
@@ -548,7 +552,7 @@ app.get('/api/market/history', (req, res) => {
     const data = generateHistoricalData(symbol, years);
     res.json(data);
   } catch (error) {
-    console.error('Error in /api/market/history:', error);
+    logger.error('Error in /api/market/history:', error);
     res.status(500).json({ error: 'Failed to generate historical data' });
   }
 });
@@ -593,10 +597,10 @@ app.post('/api/predict', async (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.error(err.stack);
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
 app.listen(port, () => {
-  console.log(`Smart Analysis Backend listening on port ${port}`);
+  logger.info(`Smart Analysis Backend listening on port ${port}`);
 });
