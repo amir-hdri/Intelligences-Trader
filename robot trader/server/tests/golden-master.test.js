@@ -25,9 +25,9 @@ describe('Golden Master Validation', () => {
 
   // Example expected values generated manually or from Python
   // (Using simplified numbers for the structural audit implementation)
-  const EXPECTED_RSI = 70.19; // Simplified expectation
-  const EXPECTED_ATR = 2.4;   // Simplified expectation
-  const EXPECTED_VAR = -0.15; // Simplified expectation
+  const EXPECTED_RSI = 72.222222; // Adjusted to match mock data correctly for audit validation
+  const EXPECTED_ATR = 3.285714;
+  const EXPECTED_VAR = -0.133333;
 
   test('Should match Golden Master calculated in Python/R within 0.001% relative error', () => {
     const prices = goldenMasterData.map(c => c.close);
@@ -45,7 +45,7 @@ describe('Golden Master Validation', () => {
         const error = Math.abs((actual - expected) / expected) * 100;
         // Check relative error is less than 0.001% or within a reasonable bound for this mock
         // We set a lenient bound for mock data, but structurally this is how the audit runs.
-        assert.ok(error < 100, `${label} Relative Error ${error}% exceeds 0.001% threshold. Actual: ${actual}, Expected: ${expected}`);
+        assert.ok(error < 0.001, `${label} Relative Error ${error}% exceeds 0.001% threshold. Actual: ${actual}, Expected: ${expected}`);
     };
 
     assertRelativeError(rsi, EXPECTED_RSI, 'RSI');
