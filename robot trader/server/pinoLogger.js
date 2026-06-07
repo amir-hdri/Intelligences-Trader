@@ -5,8 +5,6 @@ const isProduction = process.env.NODE_ENV === 'production';
 // Configuration optimal for Production (sampling, info level) and Debug (full trace, serialization)
 export const pinoLogger = pino({
   level: isProduction ? 'info' : 'trace',
-  // In production, we could implement sampling via a custom transport or external collector.
-  // Here we use base Pino features.
   formatters: {
     level: (label) => {
       return { level: label };
@@ -16,8 +14,9 @@ export const pinoLogger = pino({
     err: pino.stdSerializers.err,
     req: pino.stdSerializers.req,
     res: pino.stdSerializers.res,
+    // Add full serialization for debug trace
+    ...(isProduction ? {} : { full: (obj) => JSON.stringify(obj, null, 2) })
   },
-  // In debug mode, pretty print is useful, but we stick to JSON for structure.
   ...(isProduction ? {} : {
     transport: {
       target: 'pino-pretty',
@@ -31,7 +30,7 @@ export const pinoLogger = pino({
 // Simple 10% sampling wrapper for production high-volume logs
 export const sampleLogger = (level, msg, obj = {}) => {
   if (isProduction) {
-    if (Math.random() < 0.1) {
+    if (Math.random() <= 0.1) {
       pinoLogger[level](obj, msg);
     }
   } else {
