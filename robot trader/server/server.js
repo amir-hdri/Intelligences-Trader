@@ -41,7 +41,8 @@ app.get('/api/news', (req, res) => {
 
 // 3. Historical Data
 app.get('/api/market/history', (req, res) => {
-  const symbol = req.query.symbol || 'SAF1403';
+  const rawSymbol = req.query.symbol;
+  const symbol = (typeof rawSymbol === 'string' && rawSymbol.trim() !== '') ? rawSymbol : 'SAF1403';
   const years = parseInt(req.query.years) || 3;
   try {
     const data = generateHistoricalData(symbol, years);
