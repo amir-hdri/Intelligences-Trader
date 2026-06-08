@@ -1,14 +1,10 @@
 version: 2
 updates:
   - package-ecosystem: "npm"
-    directory: "/robot_trader" # Updated path
+    directory: "/robot trader"
     schedule:
       interval: "weekly"
   - package-ecosystem: "npm"
-    directory: "/robot_trader/server" # Updated path
-    schedule:
-      interval: "weekly"
-  - package-ecosystem: "npm"
-    directory: "/server" # Verified path
+    directory: "/server"
     schedule:
       interval: "weekly"
