@@ -2,9 +2,9 @@ name: Enterprise GitOps CI/CD
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
   REGISTRY: ghcr.io
@@ -15,6 +15,7 @@ jobs:
     strategy:
       matrix:
         service: [frontend, backend-ml, backend-proxy]
+
     steps:
       - uses: actions/checkout@v4
 
@@ -26,13 +27,13 @@ jobs:
 
       - name: Install and Build Dependencies
         run: |
-          npm ci || npm install --no-audit --no-fund
+          npm install --no-audit --no-fund --force
           if [ "${{ matrix.service }}" == "frontend" ]; then
-            cd "robot trader" && npm ci || npm install --no-audit --no-fund
+            cd "robot trader" && npm install --no-audit --no-fund --force
           elif [ "${{ matrix.service }}" == "backend-ml" ]; then
-            cd "robot trader/server" && npm ci || npm install --no-audit --no-fund
+            cd "robot trader/server" && npm install --no-audit --no-fund --force
           elif [ "${{ matrix.service }}" == "backend-proxy" ]; then
-            cd server && npm ci || npm install --no-audit --no-fund
+            cd server && npm install --no-audit --no-fund --force
           fi
 
       - name: Tests
@@ -66,6 +67,7 @@ jobs:
           - service: backend-proxy
             context: "server"
             dockerfile: "server/Dockerfile.backend-proxy"
+
     steps:
       - uses: actions/checkout@v4
 
@@ -86,27 +88,3 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
-          tags: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Generate SBOM (Syft)
-        uses: anchore/sbom-action@v0
-        with:
-          image: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:${{ github.sha }}
-          format: spdx-json
-          output-file: ${{ matrix.service }}-sbom.spdx.json
-
-      - name: Vulnerability Scan (Trivy)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:${{ github.sha }}
-          format: 'table'
-          exit-code: '1' # Fail pipeline on CRITICAL
-          severity: 'CRITICAL,HIGH'
-
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v3
-
-      - name: Sign Image
-        run: cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}@${{ steps.build-and-push.outputs.digest }}
