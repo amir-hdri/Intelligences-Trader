@@ -88,3 +88,4 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/intelligences-trader-${{ matrix.service }}:latest
