@@ -1,0 +1,29 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend-ml-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: backend-ml
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend-proxy-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: backend-proxy
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: frontend
