@@ -38,6 +38,36 @@ export class StressEngine {
         this.averageLoss = averageLoss;
     }
 
+    private simulatePath(numTrades: number): { currentDrawdown: number; isRuined: boolean } {
+        let capital = this.initialCapital;
+        let peak = capital;
+        let currentDrawdown = 0;
+        let isRuined = false;
+
+        for (let t = 0; t < numTrades; t++) {
+            const isWin = Math.random() < this.winRate;
+            const pnl = isWin ? this.averageWin : -this.averageLoss;
+
+            capital += pnl;
+
+            if (capital > peak) {
+                peak = capital;
+            }
+
+            const drawdown = (peak - capital) / peak;
+            if (drawdown > currentDrawdown) {
+                currentDrawdown = drawdown;
+            }
+
+            if (capital <= 0) {
+                isRuined = true;
+                break;
+            }
+        }
+
+        return { currentDrawdown, isRuined };
+    }
+
     /**
      * Run Monte Carlo Simulation to calculate Probability of Ruin and Expected Drawdowns
      * @param numSimulations Number of random walk paths (default 10000)
@@ -49,29 +79,10 @@ export class StressEngine {
         let totalDrawdowns = 0;
 
         for (let i = 0; i < numSimulations; i++) {
-            let capital = this.initialCapital;
-            let peak = capital;
-            let currentDrawdown = 0;
+            const { currentDrawdown, isRuined } = this.simulatePath(numTrades);
 
-            for (let t = 0; t < numTrades; t++) {
-                const isWin = Math.random() < this.winRate;
-                const pnl = isWin ? this.averageWin : -this.averageLoss;
-
-                capital += pnl;
-
-                if (capital > peak) {
-                    peak = capital;
-                }
-
-                const drawdown = (peak - capital) / peak;
-                if (drawdown > currentDrawdown) {
-                    currentDrawdown = drawdown;
-                }
-
-                if (capital <= 0) {
-                    ruinCount++;
-                    break;
-                }
+            if (isRuined) {
+                ruinCount++;
             }
 
             if (currentDrawdown > maxDrawdownOverall) {
