@@ -10,6 +10,7 @@ import type {
   CorrelationMetrics,
   SentimentData,
   ArbitrageOpportunity,
+  WalkForwardResult
 } from "./types";
 import { INDICATOR_PARAMS } from "./constants";
 import Sentiment from "sentiment";
@@ -962,7 +963,7 @@ const simulateForwardStep = (
   return { windowProfit, trades };
 };
 
-export const performWalkForwardBacktest = (candles: MarketCandle[]) => {
+export const performWalkForwardBacktest = (candles: MarketCandle[]): WalkForwardResult[] => {
   if (candles.length < 50) return [];
   const windowSize = 50;
   const stepSize = 10;
