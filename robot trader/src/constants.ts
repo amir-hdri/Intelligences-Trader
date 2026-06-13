@@ -43,6 +43,8 @@ export const IME_SYMBOLS: SymbolInfo[] = [
   },
 ];
 
+export const API_BASE_URL = (typeof process !== 'undefined' && process.env ? process.env.VITE_BACKEND_URL : '') || 'http://localhost:3000';
+
 export const DEFAULT_API_CONFIG: ApiConfig = {
   proxyUrl: 'http://localhost:3001',
   apiKey: (typeof process !== 'undefined' && process.env ? process.env.VITE_API_KEY : '') || '',
