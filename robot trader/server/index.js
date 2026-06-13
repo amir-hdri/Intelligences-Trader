@@ -600,8 +600,15 @@ app.post('/api/train', async (req, res) => {
 
     let correct = 0;
     for (let i = 0; i < predProbs.length; i++) {
-      const maxProb = Math.max(...predProbs[i]);
-      const predClass = predProbs[i].indexOf(maxProb);
+      const probs = predProbs[i];
+      let maxProb = probs[0];
+      let predClass = 0;
+      for (let j = 1; j < probs.length; j++) {
+        if (probs[j] > maxProb) {
+          maxProb = probs[j];
+          predClass = j;
+        }
+      }
       const trueClass = yVal[i];
 
       allYTrue.push(trueClass);
