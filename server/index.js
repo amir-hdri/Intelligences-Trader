@@ -97,8 +97,13 @@ app.get('/api/market/:symbol', async (req, res) => {
 
     const close = Math.floor(price * (1 + change));
     const open = Math.floor(price * (1 + (Math.random() - 0.5) * 0.005));
-    const high = Math.max(open, close, Math.floor(price * (1 + Math.abs(change) + 0.005)));
-    const low = Math.min(open, close, Math.floor(price * (1 - Math.abs(change) - 0.005)));
+    const computedHigh = Math.floor(price * (1 + Math.abs(change) + 0.005));
+    let high = open > close ? open : close;
+    if (computedHigh > high) high = computedHigh;
+
+    const computedLow = Math.floor(price * (1 - Math.abs(change) - 0.005));
+    let low = open < close ? open : close;
+    if (computedLow < low) low = computedLow;
     const volume = Math.floor(Math.random() * 100000) + 5000;
 
     // Open Interest Logic (increasing near expiry)
