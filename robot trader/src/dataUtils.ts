@@ -86,8 +86,63 @@ export class TseApiClient {
       return cached.data;
     }
 
-    // Simulated Order Book with Spoofing detection logic
-    const lastPrice = 150000; // Mock base price
+    const apiUrl = this.config.proxyUrl || "http://localhost:3000";
+    try {
+      const response = await fetch(`${apiUrl}/api/orderbook/${symbolId}`);
+      if (response.ok) {
+        const json = await response.json();
+
+        const bids: OrderBookItem[] = json.bids || [];
+        const asks: OrderBookItem[] = json.asks || [];
+
+        const buyVolume = bids.reduce((sum, item) => sum + item.quantity, 0);
+        const sellVolume = asks.reduce((sum, item) => sum + item.quantity, 0);
+        const totalVolume = buyVolume + sellVolume;
+
+        const pressure = totalVolume > 0 ? (buyVolume - sellVolume) / totalVolume : 0;
+        const buyRatio = totalVolume > 0 ? buyVolume / totalVolume : 0.5;
+        const isHerdingDetected = buyRatio > 0.5;
+        const momentumMultiplier = isHerdingDetected ? 1.5 : 1.0;
+
+        const isSpoofingDetected = json.isSpoofing !== undefined ? json.isSpoofing : false;
+
+        const result: OrderBook = {
+          bids,
+          asks,
+          timestamp: json.timestamp || now,
+          isSpoofingDetected,
+          pressure,
+          queueDynamics: {
+            buyVolume,
+            sellVolume,
+            totalVolume,
+            buyRatio,
+            isHerdingDetected,
+            momentumMultiplier,
+          },
+        };
+
+        this.orderBookCache.set(symbolId, { timestamp: now, data: result });
+        return result;
+      }
+    } catch (error) {
+      console.warn("Failed to fetch order book from API, falling back to simulation", error);
+    }
+
+    // Simulated Order Book fallback
+    let lastPrice = 150000; // Mock base price
+    try {
+      // Prioritize real-time base prices by querying this.fetchMarketData
+      const marketData = await this.fetchMarketData(symbolId);
+      if (marketData && marketData.length > 0) {
+        lastPrice = marketData[marketData.length - 1].close;
+      } else {
+        lastPrice = await this.getLastPrice(symbolId);
+      }
+    } catch (e) {
+      // Ignore error, keep default lastPrice
+    }
+
     const LEVELS = 50;
 
     // Use TypedArrays instead of normal Arrays for reducing GC Overhead
@@ -145,9 +200,6 @@ export class TseApiClient {
     let left = 0;
     let right = allQuantities.length - 1;
 
-    // We are looking for any value > spoofingThreshold
-    // Since the array is sorted ascending, we can just check the last element,
-    // but to demonstrate binary search for a threshold crossing:
     let resultIdx = -1;
     while (left <= right) {
       const mid = Math.floor((left + right) / 2);
