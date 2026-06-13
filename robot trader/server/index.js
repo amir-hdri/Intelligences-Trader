@@ -230,77 +230,6 @@ app.post('/api/analyze', (req, res) => {
     res.status(500).json({ error: 'Analysis failed' });
   }
 });
-  }
-
-  try {
-    const correlationId = req.correlationId;
-    pinoLogger.info({ correlationId, event: 'analyze_request' }, 'Starting rule-based analysis');
-
-    // Rule-Based Strategy (Primary) - executes synchronously
-    const analysis = generateAnalysis(historyData);
-    const t1 = Date.now();
-
-    // Shadow Mode Protocol: Execute TCN Model concurrently
-    // We run it asynchronously so it doesn't block the rule-based response
-    setTimeout(async () => {
-        try {
-            // Transform historyData for the model (simplified mock format conversion)
-            // Model expects [batch_size, 30, 10]
-            if (historyData.length >= 30) {
-               // Pad or truncate to exact shape needed for shadow test
-               const recentData = historyData.slice(-30).map(c => [
-                   c.open, c.high, c.low, c.close, c.volume,
-                   0, 0, 0, 0, 0 // mock indicators
-               ]);
-
-               const tcnStart = Date.now();
-               const tcnPredictions = await modelManager.predict([recentData], correlationId);
-               const tcnPrediction = tcnPredictions[0].prediction;
-
-               // Compare Rule-based vs TCN Model (Shadow Mode)
-               const ruleBasedAction = analysis.action; // e.g., 'BUY', 'SELL', 'HOLD'
-
-               // Calculate confidence deviation if actions match, or 100% deviation if they differ
-               let deviation = 0;
-               if (ruleBasedAction !== tcnPrediction) {
-                   deviation = 100; // Complete disagreement
-               } else {
-                   // Compare confidence (TCN probability vs Rule-based confidence)
-                   const tcnConf = Math.max(...tcnPredictions[0].probabilities) * 100;
-                   const ruleConf = analysis.confidence || 0;
-                   deviation = Math.abs(tcnConf - ruleConf);
-               }
-
-               if (deviation > 5) {
-                   pinoLogger.warn({
-                       correlationId,
-                       event: 'shadow_mode_deviation',
-                       deviationPercent: deviation,
-                       ruleBasedAction,
-                       tcnPrediction,
-                       tcnInferenceTime: Date.now() - tcnStart
-                   }, 'Shadow Mode detected significant deviation between Rule-Based and TCN Model outputs');
-               }
-            }
-        } catch (shadowError) {
-            pinoLogger.error({ correlationId, event: 'shadow_mode_error', error: shadowError.message }, 'TCN Shadow execution failed');
-        }
-    }, 0);
-
-    // Ensure < 500ms for Rule-Based
-    if ((t1 - t0) > 500) {
-      pinoLogger.warn({ correlationId, durationMs: t1 - t0 }, 'Analysis took too long');
-    }
-
-    // Always return rule-based to ensure kill-switch and standard logic applies
-    res.json(analysis);
-  } catch (error) {
-    pinoLogger.error({ correlationId, event: 'analyze_error', error: error.message }, 'Analysis failed');
-    res.status(500).json({ error: 'Analysis failed' });
-  }
-});
-
-
 
 
 // 1. Status Check
@@ -537,14 +466,17 @@ app.post('/api/train', async (req, res) => {
 
     // Create sequences (window size = 20)
     const windowSize = 20;
-    const X = [];
-    const Y = [];
+    const numSequences = Math.max(0, fracDiffClose.length - 1 - windowSize);
+    const X = new Array(numSequences);
+    const Y = new Array(numSequences);
 
     for (let i = windowSize; i < fracDiffClose.length - 1; i++) {
+      const seqIndex = i - windowSize;
       // Create feature vector (just fracDiffClose for simplicity in this example)
       // A full implementation would include Technical Indicators, Order Book Features, etc.
-      const seq = fracDiffClose.slice(i - windowSize, i).map(v => [v]);
-      X.push(seq);
+      const seq = new Array(windowSize);
+      for (let j = 0; j < windowSize; j++) seq[j] = [fracDiffClose[seqIndex + j]];
+      X[seqIndex] = seq;
 
       // Target: 0 (DOWN), 1 (HOLD), 2 (UP)
       const currentPrice = closePrices[i];
@@ -555,7 +487,7 @@ app.post('/api/train', async (req, res) => {
       if (return_pct > 0.001) label = 2; // UP
       else if (return_pct < -0.001) label = 0; // DOWN
 
-      Y.push(label);
+      Y[seqIndex] = label;
     }
 
     if (X.length < 20) {
