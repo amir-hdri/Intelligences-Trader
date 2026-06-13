@@ -87,7 +87,18 @@ export class TseApiClient {
     }
 
     // Simulated Order Book with Spoofing detection logic
-    const lastPrice = 150000; // Mock base price
+    let lastPrice = 150000; // Default fallback
+    try {
+      const marketData = await this.fetchMarketData(symbolId);
+      if (marketData && marketData.length > 0) {
+        lastPrice = marketData[marketData.length - 1].close;
+      } else {
+        lastPrice = await this.getLastPrice(symbolId);
+      }
+    } catch (error) {
+      console.warn("Failed to fetch real market data for order book, falling back to digital twin:", error);
+      lastPrice = await this.getLastPrice(symbolId);
+    }
     const LEVELS = 50;
 
     // Use TypedArrays instead of normal Arrays for reducing GC Overhead
