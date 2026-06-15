@@ -1,7 +1,7 @@
 import { generateHistoricalData } from './dataFactory.js';
 
 // --- Indicator Helpers (Optimized) ---
-const calculateRSISeries = (prices, period = 14) => {
+export const calculateRSISeries = (prices, period = 14) => {
   const rsi = new Array(prices.length).fill(50);
   if (prices.length <= period) return rsi;
 
