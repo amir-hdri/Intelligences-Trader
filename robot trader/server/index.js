@@ -232,8 +232,6 @@ app.post('/api/analyze', (req, res) => {
 });
 
 
-
-
 // 1. Status Check
 app.get('/api/status', (req, res) => {
   res.json({ status: 'Online', service: 'Robot Trader Intelligence Core', version: '2.5.0' });
@@ -468,16 +466,17 @@ app.post('/api/train', async (req, res) => {
 
     // Create sequences (window size = 20)
     const windowSize = 20;
-    const arrayLen = Math.max(0, fracDiffClose.length - 1 - windowSize);
-    const X = new Array(arrayLen);
-    const Y = new Array(arrayLen);
+    const numSequences = Math.max(0, fracDiffClose.length - 1 - windowSize);
+    const X = new Array(numSequences);
+    const Y = new Array(numSequences);
 
     for (let i = windowSize; i < fracDiffClose.length - 1; i++) {
+      const seqIndex = i - windowSize;
       // Create feature vector (just fracDiffClose for simplicity in this example)
       // A full implementation would include Technical Indicators, Order Book Features, etc.
-      const seq = fracDiffClose.slice(i - windowSize, i).map(v => [v]);
-      const idx = i - windowSize;
-      X[idx] = seq;
+      const seq = new Array(windowSize);
+      for (let j = 0; j < windowSize; j++) seq[j] = [fracDiffClose[seqIndex + j]];
+      X[seqIndex] = seq;
 
       // Target: 0 (DOWN), 1 (HOLD), 2 (UP)
       const currentPrice = closePrices[i];
@@ -488,7 +487,7 @@ app.post('/api/train', async (req, res) => {
       if (return_pct > 0.001) label = 2; // UP
       else if (return_pct < -0.001) label = 0; // DOWN
 
-      Y[idx] = label;
+      Y[seqIndex] = label;
     }
 
     if (X.length < 20) {
