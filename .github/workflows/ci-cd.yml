@@ -10,18 +10,18 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '22'
 
     - name: Install Dependencies
       run: |
-        npm install
-        cd "robot trader/server" && npm install
-        cd ../../server && npm install
+        npm install --no-audit --no-fund
+        cd "robot trader/server" && npm install --no-audit --no-fund --force
+        cd ../../server && npm install --no-audit --no-fund
 
     - name: Run Tests
       run: npm test
@@ -37,10 +37,10 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '22'
 
@@ -48,7 +48,7 @@ jobs:
       run: |
         cd "robot trader/server"
         rm -f package-lock.json
-        npm install
+        npm install --no-audit --no-fund
 
     - name: Build Frontend Image
       run: docker build -t kalaybot-frontend:latest -f "robot trader/Dockerfile.frontend" "robot trader"
