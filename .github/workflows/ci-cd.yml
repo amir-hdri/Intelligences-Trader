@@ -10,66 +10,52 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  static-analysis-and-test:
+  test-and-build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service: [frontend, backend-ml, backend-proxy]
-
     steps:
-      - uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
 
-      - name: Install and Build Dependencies
-        run: |
-          npm install --no-audit --no-fund --force
-          if [ "${{ matrix.service }}" == "frontend" ]; then
-            cd "robot trader" && npm install --no-audit --no-fund --force
-          elif [ "${{ matrix.service }}" == "backend-ml" ]; then
-            cd "robot trader/server" && npm install --no-audit --no-fund --force
-          elif [ "${{ matrix.service }}" == "backend-proxy" ]; then
-            cd server && npm install --no-audit --no-fund --force
-          fi
+    - name: Install Dependencies
+      run: |
+        npm install --no-audit --no-fund
+        cd "robot trader/server" && npm install --no-audit --no-fund --force
+        cd ../../server && npm install --no-audit --no-fund
 
-      - name: Tests
-        run: |
-          if [ "${{ matrix.service }}" == "frontend" ]; then
-            cd "robot trader" && npm test || true
-          elif [ "${{ matrix.service }}" == "backend-ml" ]; then
-            cd "robot trader/server" && npm test || true
-          elif [ "${{ matrix.service }}" == "backend-proxy" ]; then
-            cd server && npm test || true
-          fi
+    - name: Run Tests
+      run: npm test
 
-  build-scan-sign:
-    needs: static-analysis-and-test
-    runs-on: ubuntu-latest
+    - name: Security Scan (npm audit)
+      run: |
+        npm audit --audit-level=high || true
+        cd "robot trader/server" && npm audit --audit-level=high || true
+        cd ../../server && npm audit --audit-level=high || true
+
+  docker-build:
+    needs: test-and-build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    permissions:
-      contents: read
-      packages: write
-      id-token: write # Required for Cosign keyless signing
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         service: [frontend, backend-ml, backend-proxy]
-        include:
-          - service: frontend
-            context: "robot trader"
-            dockerfile: "robot trader/Dockerfile.frontend"
-          - service: backend-ml
-            context: "robot trader/server"
-            dockerfile: "robot trader/server/Dockerfile.backend-ml"
-          - service: backend-proxy
-            context: "server"
-            dockerfile: "server/Dockerfile.backend-proxy"
 
     steps:
-      - uses: actions/checkout@v4
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Regenerate lock files
+      run: |
+        cd "robot trader/server"
+        rm -f package-lock.json
+        npm install --no-audit --no-fund
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
