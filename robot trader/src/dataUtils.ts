@@ -12,7 +12,7 @@ import type {
   SentimentData,
   ArbitrageOpportunity,
 } from "./types";
-import { INDICATOR_PARAMS, API_BASE_URL } from "./constants";
+import { INDICATOR_PARAMS, DEFAULT_API_CONFIG } from "./constants";
 import Sentiment from "sentiment";
 
 import { WorkerPool } from "./workers/workerPool";
@@ -44,7 +44,7 @@ export class TseApiClient {
 
   async fetchMarketData(symbolId: string): Promise<MarketCandle[]> {
     // 1. Prioritize real API on localhost proxy
-    const apiUrl = this.config.proxyUrl || API_BASE_URL;
+    const apiUrl = this.config.proxyUrl || DEFAULT_API_CONFIG.proxyUrl;
     try {
       const response = await fetch(`${apiUrl}/api/tse/${symbolId}`);
       if (!response.ok) throw new Error("Network response was not ok");
@@ -64,7 +64,7 @@ export class TseApiClient {
   }
 
   async fetchAdvancedMetrics(historyData: MarketCandle[]) {
-    const apiUrl = this.config.proxyUrl || API_BASE_URL;
+    const apiUrl = this.config.proxyUrl || DEFAULT_API_CONFIG.proxyUrl;
     try {
       const response = await fetch(`${apiUrl}/api/analyze`, {
         method: "POST",
