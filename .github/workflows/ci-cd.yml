@@ -1,10 +1,13 @@
-name: CI/CD Pipeline
+name: Enterprise GitOps CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches: ["main"]
   pull_request:
-    branches: [ main ]
+    branches: ["main"]
+
+env:
+  REGISTRY: ghcr.io
 
 jobs:
   test-and-build:
@@ -36,6 +39,10 @@ jobs:
     needs: test-and-build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [frontend, backend-ml, backend-proxy]
+
     steps:
     - uses: actions/checkout@v4
 
@@ -50,11 +57,21 @@ jobs:
         rm -f package-lock.json
         npm install --no-audit --no-fund
 
-    - name: Build Frontend Image
-      run: docker build -t kalaybot-frontend:latest -f "robot trader/Dockerfile.frontend" "robot trader"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Build ML Backend Image
-      run: docker build -t kalaybot-ml:latest -f "robot trader/server/Dockerfile.backend-ml" "robot trader/server"
+      - name: Log in to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build Proxy Backend Image
-      run: docker build -t kalaybot-proxy:latest -f "server/Dockerfile.backend-proxy" "server"
+      - name: Build and Push Image
+        id: build-and-push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/intelligences-trader-${{ matrix.service }}:latest
