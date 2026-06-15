@@ -2,6 +2,7 @@
 import { describe, test, beforeEach, afterEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
+import { API_BASE_URL } from './constants';
 import { fetchHistoricalData, fetchSaffronData, fetchGoldData } from './historicalData';
 import { MarketCandle } from './types';
 

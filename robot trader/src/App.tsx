@@ -7,7 +7,7 @@ import { MarketCorrelation } from './components/analytics/MarketCorrelation';
 import { SentimentMonitor } from './components/analytics/SentimentMonitor';
 import { ArbitragePanel } from './components/analytics/ArbitragePanel';
 import { LearningDashboard } from './components/analytics/LearningDashboard';
-import { IME_SYMBOLS, DEFAULT_API_CONFIG, INITIAL_METRICS, DEFAULT_RISK_LIMITS } from './constants';
+import { IME_SYMBOLS, DEFAULT_API_CONFIG, API_BASE_URL, INITIAL_METRICS, DEFAULT_RISK_LIMITS } from './constants';
 import { 
   MarketCandle, ExpertForecast, ApiConfig, SystemMetrics, SymbolInfo, TimeFrame, 
   TradeLogEntry, RiskLimits, RiskStatus, OrderBook as OrderBookType, 
@@ -906,7 +906,7 @@ const App: React.FC = () => {
                 <div className="space-y-6">
                    <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-2 tracking-widest">OMS Proxy Server</label>
-                      <input type="text" value={apiConfig.proxyUrl} onChange={e => setApiConfig({...apiConfig, proxyUrl: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="http://localhost:3000" />
+                      <input type="text" value={apiConfig.proxyUrl} onChange={e => setApiConfig({...apiConfig, proxyUrl: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder={API_BASE_URL} />
                    </div>
                    <div className="flex gap-4">
                       <button onClick={() => setApiConfig({...apiConfig, isConnected: !apiConfig.isConnected})} className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${apiConfig.isConnected ? 'bg-rose-500 text-white' : 'bg-emerald-600 text-white'}`}>
