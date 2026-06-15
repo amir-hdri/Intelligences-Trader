@@ -45,7 +45,9 @@ export class TseApiClient {
 
   async fetchMarketData(symbolId: string): Promise<MarketCandle[]> {
     // 1. Prioritize real API on localhost proxy
-    const apiUrl = this.config.proxyUrl || DEFAULT_API_CONFIG.proxyUrl;
+    const apiUrl = this.config.proxyUrl;
+    if (!apiUrl) throw new Error("API proxy URL is not configured");
+
     try {
       const response = await fetch(`${apiUrl}/api/tse/${symbolId}`);
       if (!response.ok) throw new Error("Network response was not ok");
@@ -65,7 +67,9 @@ export class TseApiClient {
   }
 
   async fetchAdvancedMetrics(historyData: MarketCandle[]) {
-    const apiUrl = this.config.proxyUrl || DEFAULT_API_CONFIG.proxyUrl;
+    const apiUrl = this.config.proxyUrl;
+    if (!apiUrl) throw new Error("API proxy URL is not configured");
+
     try {
       const response = await fetch(`${apiUrl}/api/analyze`, {
         method: "POST",
