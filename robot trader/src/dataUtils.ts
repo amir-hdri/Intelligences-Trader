@@ -11,6 +11,7 @@ import type {
   PoliticalRiskNews,
   SentimentData,
   ArbitrageOpportunity,
+  WalkForwardResult
 } from "./types";
 import { INDICATOR_PARAMS, DEFAULT_API_CONFIG } from "./constants";
 import Sentiment from "sentiment";
@@ -993,7 +994,7 @@ const simulateForwardStep = (
   return { windowProfit, trades };
 };
 
-export const performWalkForwardBacktest = (candles: MarketCandle[]) => {
+export const performWalkForwardBacktest = (candles: MarketCandle[]): WalkForwardResult[] => {
   if (candles.length < 50) return [];
   const windowSize = 50;
   const stepSize = 10;
