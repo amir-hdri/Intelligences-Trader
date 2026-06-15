@@ -38,6 +38,34 @@ export class StressEngine {
         this.averageLoss = averageLoss;
     }
 
+    private simulatePath(initialCapital: number, numTrades: number): { isRuin: boolean, maxDrawdown: number } {
+        let capital = initialCapital;
+        let peak = capital;
+        let currentDrawdown = 0;
+
+        for (let t = 0; t < numTrades; t++) {
+            const isWin = Math.random() < this.winRate;
+            const pnl = isWin ? this.averageWin : -this.averageLoss;
+
+            capital += pnl;
+
+            if (capital > peak) {
+                peak = capital;
+            }
+
+            const drawdown = (peak - capital) / peak;
+            if (drawdown > currentDrawdown) {
+                currentDrawdown = drawdown;
+            }
+
+            if (capital <= 0) {
+                return { isRuin: true, maxDrawdown: currentDrawdown };
+            }
+        }
+
+        return { isRuin: false, maxDrawdown: currentDrawdown };
+    }
+
     /**
      * Run Monte Carlo Simulation to calculate Probability of Ruin and Expected Drawdowns
      * @param numSimulations Number of random walk paths (default 10000)
@@ -53,25 +81,12 @@ export class StressEngine {
             let peak = capital;
             let currentDrawdown = 0;
 
-            for (let t = 0; t < numTrades; t++) {
-                const isWin = Math.random() < this.winRate;
-                const pnl = isWin ? this.averageWin : -this.averageLoss;
-
-                capital += pnl;
-
-                if (capital > peak) {
-                    peak = capital;
-                }
-
-                const drawdown = (peak - capital) / peak;
-                if (drawdown > currentDrawdown) {
-                    currentDrawdown = drawdown;
-                }
-
-                if (capital <= 0) {
-                    ruinCount++;
-                    break;
-                }
+            const result = this.simulatePath(capital, numTrades);
+            if (result.isRuin) {
+                ruinCount++;
+            }
+            if (result.maxDrawdown > currentDrawdown) {
+                currentDrawdown = result.maxDrawdown;
             }
 
             if (currentDrawdown > maxDrawdownOverall) {
