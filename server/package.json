@@ -5,6 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "test": "node --test",
     "start": "node index.js"
   },
   "dependencies": {

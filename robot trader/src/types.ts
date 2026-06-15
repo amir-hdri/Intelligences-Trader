@@ -183,6 +183,13 @@ export interface Order {
   timestamp: number;
 }
 
+export interface WalkForwardResult {
+  period: string;
+  winRate: number;
+  profitFactor: number;
+  profit: number;
+}
+
 export interface SymbolInfo {
   id: string;
   name: string;
