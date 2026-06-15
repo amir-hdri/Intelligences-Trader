@@ -2,6 +2,7 @@
 import { describe, test, beforeEach, afterEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
+import { API_BASE_URL } from './constants';
 import { fetchHistoricalData, fetchSaffronData, fetchGoldData } from './historicalData';
 import { MarketCandle } from './types';
 
@@ -26,7 +27,7 @@ describe('historicalData', () => {
       const mockData = [{ close: 100 }, { close: 101 }];
 
       globalThis.fetch = async (url) => {
-        assert.strictEqual(url, 'http://localhost:3000/api/tse/history/TEST-SYM');
+        assert.strictEqual(url, `${API_BASE_URL}/api/tse/history/TEST-SYM`);
         return {
           ok: true,
           json: async () => mockData,
@@ -103,7 +104,7 @@ describe('historicalData', () => {
     test('should fetch data for SAF-NGN-FUT', async () => {
       const mockData = [{ close: 200 }];
       globalThis.fetch = async (url) => {
-        assert.strictEqual(url, 'http://localhost:3000/api/tse/history/SAF-NGN-FUT');
+        assert.strictEqual(url, `${API_BASE_URL}/api/tse/history/SAF-NGN-FUT`);
         return {
           ok: true,
           json: async () => mockData,
@@ -119,7 +120,7 @@ describe('historicalData', () => {
     test('should fetch data for GOLD-FUT', async () => {
       const mockData = [{ close: 300 }];
       globalThis.fetch = async (url) => {
-        assert.strictEqual(url, 'http://localhost:3000/api/tse/history/GOLD-FUT');
+        assert.strictEqual(url, `${API_BASE_URL}/api/tse/history/GOLD-FUT`);
         return {
           ok: true,
           json: async () => mockData,

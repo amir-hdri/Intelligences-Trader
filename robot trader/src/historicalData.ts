@@ -1,3 +1,4 @@
+import { API_BASE_URL } from './constants';
 import { MarketCandle } from './types';
 
 /**
@@ -10,7 +11,7 @@ import { MarketCandle } from './types';
  */
 export const fetchHistoricalData = async (
   symbolId: string,
-  proxyUrl: string = 'http://localhost:3000'
+  proxyUrl: string = API_BASE_URL
 ): Promise<MarketCandle[]> => {
   try {
     const response = await fetch(`${proxyUrl}/api/tse/history/${symbolId}`);
