@@ -8,23 +8,28 @@ import type {
   OrderBook,
   OrderBookItem,
   CorrelationMetrics,
+  PoliticalRiskNews,
   SentimentData,
   ArbitrageOpportunity,
+  WalkForwardResult
 } from "./types";
-import { INDICATOR_PARAMS } from "./constants";
+import { INDICATOR_PARAMS, DEFAULT_API_CONFIG } from "./constants";
 import Sentiment from "sentiment";
 
-import { WorkerPool } from './workers/workerPool';
+import { WorkerPool } from "./workers/workerPool";
 // Module-level worker pool for testing/analysis dispatch
 
 // Avoid import.meta.url in CommonJS test environments
-const isBrowser = typeof window !== 'undefined';
-const workerUrl = isBrowser ? new URL('./workers/marketAnalyzer.worker.ts', window.location.href).href : './workers/marketAnalyzer.worker.ts';
+const isBrowser = typeof window !== "undefined";
+const workerUrl = isBrowser
+  ? new URL("./workers/marketAnalyzer.worker.ts", window.location.href).href
+  : "./workers/marketAnalyzer.worker.ts";
 
 // We must only instantiate the WorkerPool in environments where Worker exists
-const analysisWorkerPool = typeof Worker !== 'undefined' ? new WorkerPool(workerUrl as string | URL, 2) : null;
-
-
+const analysisWorkerPool =
+  typeof Worker !== "undefined"
+    ? new WorkerPool(workerUrl as string | URL, 2)
+    : null;
 
 const sentiment = new Sentiment();
 
@@ -40,7 +45,7 @@ export class TseApiClient {
 
   async fetchMarketData(symbolId: string): Promise<MarketCandle[]> {
     // 1. Prioritize real API on localhost proxy
-    const apiUrl = this.config.proxyUrl || "http://localhost:3000";
+    const apiUrl = this.config.proxyUrl || DEFAULT_API_CONFIG.proxyUrl;
     try {
       const response = await fetch(`${apiUrl}/api/tse/${symbolId}`);
       if (!response.ok) throw new Error("Network response was not ok");
@@ -60,7 +65,7 @@ export class TseApiClient {
   }
 
   async fetchAdvancedMetrics(historyData: MarketCandle[]) {
-    const apiUrl = this.config.proxyUrl || "http://localhost:3000";
+    const apiUrl = this.config.proxyUrl || DEFAULT_API_CONFIG.proxyUrl;
     try {
       const response = await fetch(`${apiUrl}/api/analyze`, {
         method: "POST",
@@ -76,7 +81,10 @@ export class TseApiClient {
   }
 
   // Cache Layer for storing repetitive calculations
-  private orderBookCache = new Map<string, { timestamp: number; data: OrderBook }>();
+  private orderBookCache = new Map<
+    string,
+    { timestamp: number; data: OrderBook }
+  >();
 
   async fetchOrderBook(symbolId: string): Promise<OrderBook> {
     const now = Date.now();
@@ -164,7 +172,8 @@ export class TseApiClient {
     }
 
     const totalVolume = buyVolume + sellVolume;
-    const pressure = totalVolume > 0 ? (buyVolume - sellVolume) / totalVolume : 0;
+    const pressure =
+      totalVolume > 0 ? (buyVolume - sellVolume) / totalVolume : 0;
 
     // Phase 3: Queue Dynamics Module (Detecting Herding Behavior)
     const buyRatio = totalVolume > 0 ? buyVolume / totalVolume : 0.5;
@@ -242,12 +251,13 @@ export class TseApiClient {
 
     // Phase 1: Political Risk Indexer (Simulated ParsBERT NLP Engine)
     // We parse simulated news using real NLP sentiment analysis
-    const news: any[] = [
+    const news: PoliticalRiskNews[] = [
       {
         id: "1",
         title:
           "Central Bank announces new strict limits on currency allocation",
         nerTags: ["Central Bank", "Currency Allocation"],
+        sentimentScore: 0,
         impactEffect: "DOLLAR_BULLISH",
         source: "Fars News",
         timestamp: Date.now() - 3600000,
@@ -256,6 +266,7 @@ export class TseApiClient {
         id: "2",
         title: "Talks stall regarding international trade agreements",
         nerTags: ["Sanctions", "Trade", "International"],
+        sentimentScore: 0,
         impactEffect: "DOLLAR_BULLISH",
         source: "Bloomberg Persian",
         timestamp: Date.now() - 7200000,
@@ -264,6 +275,7 @@ export class TseApiClient {
         id: "3",
         title: "Ministry of Industry increases export duties on metals",
         nerTags: ["Ministry", "Export", "Metals"],
+        sentimentScore: 0,
         impactEffect: "NEUTRAL",
         source: "ISNA",
         timestamp: Date.now() - 12000000,
@@ -654,12 +666,30 @@ export const DEFAULT_WEIGHTS: StrategyWeights = {
 let optimizedWeights: StrategyWeights = { ...DEFAULT_WEIGHTS };
 
 export interface PrecalculatedIndicators {
-  dIchimoku: { tenkan: number; kijun: number; senkouA: number; senkouB: number; chikou?: number };
+  dIchimoku: {
+    tenkan: number;
+    kijun: number;
+    senkouA: number;
+    senkouB: number;
+    chikou?: number;
+  };
   rsi: number;
   macd: { value: number; signal: number; histogram: number };
   atr: number;
-  bb: { upper: number; mid?: number; middle?: number; lower: number; bandwidth?: number };
-  ichimoku: { tenkan: number; kijun: number; senkouA: number; senkouB: number; chikou?: number };
+  bb: {
+    upper: number;
+    mid?: number;
+    middle?: number;
+    lower: number;
+    bandwidth?: number;
+  };
+  ichimoku: {
+    tenkan: number;
+    kijun: number;
+    senkouA: number;
+    senkouB: number;
+    chikou?: number;
+  };
   regime: MarketRegime;
 }
 
@@ -680,34 +710,36 @@ export const analyzeMarketMTF = (
   // Note: Requires cross-origin isolation headers in production.
   let sharedBuffer: SharedArrayBuffer | undefined;
   try {
-      sharedBuffer = new SharedArrayBuffer(4); // 4 bytes for an Int32 flag
+    sharedBuffer = new SharedArrayBuffer(4); // 4 bytes for an Int32 flag
   } catch (e) {
-      // SharedArrayBuffer might not be available if COOP/COEP headers aren't set
-      console.warn("SharedArrayBuffer not supported in this environment.", e);
+    // SharedArrayBuffer might not be available if COOP/COEP headers aren't set
+    console.warn("SharedArrayBuffer not supported in this environment.", e);
   }
 
   // Simulate acquiring the lock on the main thread right before dispatching
   if (sharedBuffer && analysisWorkerPool) {
-      const flagArray = new Int32Array(sharedBuffer);
-      // Main thread intentionally holds the lock to test the worker's race condition detector
-      // In production, you would only do this while actually mutating the weights object.
-      Atomics.store(flagArray, 0, 1);
+    const flagArray = new Int32Array(sharedBuffer);
+    // Main thread intentionally holds the lock to test the worker's race condition detector
+    // In production, you would only do this while actually mutating the weights object.
+    Atomics.store(flagArray, 0, 1);
 
-      // Dispatch async task to trigger the race condition warning in the worker
-      analysisWorkerPool.executeTask('analyzeMarketMTF', {
-          data: mtfData,
-          symbolId,
-          context: externalMetrics,
-          weights,
-          sharedBuffer
-      }).catch(console.error).finally(() => {
-          // Release lock
-          Atomics.store(flagArray, 0, 0);
+    // Dispatch async task to trigger the race condition warning in the worker
+    analysisWorkerPool
+      .executeTask("analyzeMarketMTF", {
+        data: mtfData,
+        symbolId,
+        context: externalMetrics,
+        weights,
+        sharedBuffer,
+      })
+      .catch(console.error)
+      .finally(() => {
+        // Release lock
+        Atomics.store(flagArray, 0, 0);
       });
   }
 
   if (dailyCandles.length < 30) {
-
     return {
       action: "HOLD",
       entryPrice: 0,
@@ -962,7 +994,7 @@ const simulateForwardStep = (
   return { windowProfit, trades };
 };
 
-export const performWalkForwardBacktest = (candles: MarketCandle[]) => {
+export const performWalkForwardBacktest = (candles: MarketCandle[]): WalkForwardResult[] => {
   if (candles.length < 50) return [];
   const windowSize = 50;
   const stepSize = 10;
@@ -1026,7 +1058,7 @@ export const optimizeStrategyWeights = (
       "15m": [],
     };
 
-    const hPrices = currentSlice.map(c => c.close);
+    const hPrices = currentSlice.map((c) => c.close);
     const atrVal = calculateATR(currentSlice);
     const precalc: PrecalculatedIndicators = {
       dIchimoku: calculateIchimoku(currentSlice),
@@ -1035,7 +1067,7 @@ export const optimizeStrategyWeights = (
       atr: atrVal,
       bb: calculateBollingerBands(hPrices),
       ichimoku: calculateIchimoku(currentSlice),
-      regime: detectMarketRegime(currentSlice, atrVal)
+      regime: detectMarketRegime(currentSlice, atrVal),
     };
 
     for (let i = 0; i < 15; i++) {
