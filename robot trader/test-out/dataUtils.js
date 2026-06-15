@@ -23,7 +23,7 @@ class TseApiClient {
     }
     async fetchMarketData(symbolId) {
         // 1. Prioritize real API on localhost proxy
-        const apiUrl = this.config.proxyUrl || constants_1.DEFAULT_API_CONFIG.proxyUrl;
+        const apiUrl = this.config.proxyUrl || "http://localhost:3000";
         try {
             const response = await fetch(`${apiUrl}/api/tse/${symbolId}`);
             if (!response.ok)
@@ -44,7 +44,7 @@ class TseApiClient {
         }
     }
     async fetchAdvancedMetrics(historyData) {
-        const apiUrl = this.config.proxyUrl || constants_1.DEFAULT_API_CONFIG.proxyUrl;
+        const apiUrl = this.config.proxyUrl || "http://localhost:3000";
         try {
             const response = await fetch(`${apiUrl}/api/analyze`, {
                 method: "POST",
