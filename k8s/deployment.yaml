@@ -10,7 +10,7 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
+      maxSurge: 25%
       maxUnavailable: 0
   template:
     metadata:
@@ -23,6 +23,13 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
         envFrom:
         - secretRef:
             name: kalaybot-secrets
@@ -55,6 +62,11 @@ spec:
   selector:
     matchLabels:
       app: backend-proxy
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 0
   template:
     metadata:
       labels:
@@ -66,9 +78,28 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3001
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
         envFrom:
         - secretRef:
             name: kalaybot-secrets
+        livenessProbe:
+          httpGet:
+            path: /api/status
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/status
+            port: 3001
+          initialDelaySeconds: 15
+          periodSeconds: 10
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -79,6 +110,11 @@ spec:
   selector:
     matchLabels:
       app: frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 0
   template:
     metadata:
       labels:
@@ -90,3 +126,22 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
