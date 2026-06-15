@@ -587,8 +587,8 @@ app.post('/api/train', async (req, res) => {
 });
 // Helper to generate fake history anchored to real price
 function generateHistory(currentCandle) {
-    const candles = [];
     const count = 100;
+    const candles = new Array(count);
     let lastClose = currentCandle.close * 0.95; // start 5% lower to create a trend
     const tfMs = 60 * 60 * 1000;
     const now = currentCandle.timestamp;
@@ -596,7 +596,7 @@ function generateHistory(currentCandle) {
     for (let i = 0; i < count - 1; i++) {
         const change = lastClose * ((crypto.randomBytes(4).readUInt32BE() / 0x100000000) * 0.02 - 0.01);
         const close = lastClose + change;
-        candles.push({
+        candles[i] = {
             timestamp: now - (count - i) * tfMs,
             open: lastClose,
             high: Math.max(lastClose, close) * 1.01,
@@ -606,11 +606,11 @@ function generateHistory(currentCandle) {
             openInterest: 5000,
             basis: 0,
             warehouseVolume: 10000
-        });
+        };
         lastClose = close;
     }
     // Push the real current candle last
-    candles.push(currentCandle);
+    candles[count - 1] = currentCandle;
     return candles;
 }
 
