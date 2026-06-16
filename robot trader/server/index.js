@@ -87,11 +87,14 @@ app.use((req, res, next) => {
 });
 
 
+// SECURITY FIX: Removed the vulnerable fallback values (|| 'default-dev-secret' and 'default-dev-refresh-secret')
+// to prevent attackers from bypassing authentication if secrets are not set in production.
 const JWT_SECRET = process.env.JWT_SECRET;
 const REFRESH_SECRET = process.env.REFRESH_SECRET;
 
 if (!JWT_SECRET || !REFRESH_SECRET) {
-  throw new Error('JWT_SECRET and REFRESH_SECRET environment variables must be defined');
+  console.error('FATAL ERROR: JWT_SECRET and REFRESH_SECRET environment variables must be defined.');
+  process.exit(1);
 }
 
 // Rate limiter: max 100 requests per minute
