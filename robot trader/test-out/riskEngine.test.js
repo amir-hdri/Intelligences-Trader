@@ -48,6 +48,9 @@ class MockDate extends Date {
         if (args.length === 0 && fixedDate) {
             super(fixedDate.getTime());
         }
+        else if (args.length === 1) {
+            super(args[0]);
+        }
         else {
             // @ts-ignore
             super(...args);
@@ -93,7 +96,7 @@ function restoreDate() {
             orderBookPressure: 0.1,
             politicalRiskIndex: 50,
             queueDynamicsRatio: 0.6,
-            timeframeAnalysis: { id: 'TEST', name: 'Test', fullName: 'Test', type: 'SPOT', priceLimit: { up: 100, down: 50 } },
+            timeframeAnalysis: undefined,
             indicators: {
                 rsi: 50,
                 macd: { value: 0, signal: 0, histogram: 0 },
