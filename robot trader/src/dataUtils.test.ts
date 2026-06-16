@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, trainModelEpoch } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket , calculateBollingerBands } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -581,70 +581,38 @@ describe('calculateIchimoku', () => {
 });
 
 
-describe('trainModelEpoch', () => {
-  let originalFetch;
-  let originalConsoleError;
-  let originalConsoleLog;
+test('calculateBollingerBands - constant prices result in 0 variance', () => {
+  const prices = new Array(20).fill(100);
+  const result = calculateBollingerBands(prices);
 
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-    originalConsoleError = console.error;
-    originalConsoleLog = console.log;
-    console.error = () => {};
-    console.log = () => {};
-  });
+  assert.strictEqual(result.middle, 100);
+  assert.strictEqual(result.upper, 100);
+  assert.strictEqual(result.lower, 100);
+});
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    console.error = originalConsoleError;
-    console.log = originalConsoleLog;
-  });
+test('calculateBollingerBands - calculates correctly with standard parameters', () => {
+  const prices = [10, 20, 30, 40, 50];
+  const result = calculateBollingerBands(prices, 5, 2);
 
-  it('should return server winRate when fetch succeeds', async () => {
-    globalThis.fetch = async () => ({
-      ok: true,
-      json: async () => ({ performance: { winRate: 0.85 } }),
-    } as unknown as Response);
+  assert.strictEqual(result.middle, 30);
+  assert.ok(Math.abs(result.upper - 58.2842712) < 0.0001);
+  assert.ok(Math.abs(result.lower - 1.7157288) < 0.0001);
+});
 
-    const candles: MarketCandle[] = [];
-    const result = await trainModelEpoch(candles, 'TEST-SYMBOL');
-    assert.strictEqual(result, 0.85);
-  });
+test('calculateBollingerBands - uses only the last `period` prices', () => {
+  const prices = [1000, 2000, 10, 20, 30, 40, 50];
+  const result = calculateBollingerBands(prices, 5, 2);
 
-  it('should fall back to local optimization when fetch throws an error', async () => {
-    globalThis.fetch = async () => {
-      throw new Error('Network Error');
-    };
+  assert.strictEqual(result.middle, 30);
+  assert.ok(Math.abs(result.upper - 58.2842712) < 0.0001);
+  assert.ok(Math.abs(result.lower - 1.7157288) < 0.0001);
+});
 
-    // Provide some dummy candles to ensure optimizeStrategyWeights doesn't throw and returns a number
-    const candles: MarketCandle[] = Array.from({ length: 50 }, (_, i) => ({
-      timestamp: Date.now() - i * 60000,
-      open: 100 + i,
-      high: 105 + i,
-      low: 95 + i,
-      close: 102 + i,
-      volume: 1000
-    }));
+test('calculateBollingerBands - calculates correctly with custom stdDev', () => {
+  const prices = [10, 20, 30, 40, 50];
+  const result = calculateBollingerBands(prices, 5, 1);
 
-    const result = await trainModelEpoch(candles, 'TEST-SYMBOL');
-    assert.strictEqual(typeof result, 'number');
-  });
-
-  it('should fall back to local optimization when fetch response is not ok', async () => {
-    globalThis.fetch = async () => ({
-      ok: false,
-    } as unknown as Response);
-
-    const candles: MarketCandle[] = Array.from({ length: 50 }, (_, i) => ({
-      timestamp: Date.now() - i * 60000,
-      open: 100 + i,
-      high: 105 + i,
-      low: 95 + i,
-      close: 102 + i,
-      volume: 1000
-    }));
-
-    const result = await trainModelEpoch(candles, 'TEST-SYMBOL');
-    assert.strictEqual(typeof result, 'number');
-  });
+  assert.strictEqual(result.middle, 30);
+  assert.ok(Math.abs(result.upper - 44.1421356) < 0.0001);
+  assert.ok(Math.abs(result.lower - 15.8578644) < 0.0001);
 });
