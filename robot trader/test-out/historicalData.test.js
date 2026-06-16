@@ -25,7 +25,7 @@ const historicalData_1 = require("./historicalData");
         (0, node_test_1.test)('should return data when response is a direct array', async () => {
             const mockData = [{ close: 100 }, { close: 101 }];
             globalThis.fetch = async (url) => {
-                node_assert_1.default.strictEqual(url, 'http://localhost:3000/api/tse/history/TEST-SYM');
+                node_assert_1.default.strictEqual(url, 'http://localhost:3001/api/tse/history/TEST-SYM');
                 return {
                     ok: true,
                     json: async () => mockData,
@@ -89,7 +89,7 @@ const historicalData_1 = require("./historicalData");
         (0, node_test_1.test)('should fetch data for SAF-NGN-FUT', async () => {
             const mockData = [{ close: 200 }];
             globalThis.fetch = async (url) => {
-                node_assert_1.default.strictEqual(url, 'http://localhost:3000/api/tse/history/SAF-NGN-FUT');
+                node_assert_1.default.strictEqual(url, 'http://localhost:3001/api/tse/history/SAF-NGN-FUT');
                 return {
                     ok: true,
                     json: async () => mockData,
@@ -103,7 +103,7 @@ const historicalData_1 = require("./historicalData");
         (0, node_test_1.test)('should fetch data for GOLD-FUT', async () => {
             const mockData = [{ close: 300 }];
             globalThis.fetch = async (url) => {
-                node_assert_1.default.strictEqual(url, 'http://localhost:3000/api/tse/history/GOLD-FUT');
+                node_assert_1.default.strictEqual(url, 'http://localhost:3001/api/tse/history/GOLD-FUT');
                 return {
                     ok: true,
                     json: async () => mockData,
