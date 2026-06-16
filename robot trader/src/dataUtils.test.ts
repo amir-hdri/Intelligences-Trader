@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket , calculateBollingerBands } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -179,6 +179,44 @@ describe('dataUtils - Market Regime Detection', () => {
 // ========================================
 // Test Suite: TseApiClient
 // ========================================
+
+describe('dataUtils - analyzeMarketMTF', () => {
+    let originalSharedArrayBuffer: any;
+    let originalConsoleWarn: any;
+    let warnMessages: string[] = [];
+
+    beforeEach(() => {
+        originalSharedArrayBuffer = globalThis.SharedArrayBuffer;
+        originalConsoleWarn = console.warn;
+        warnMessages = [];
+
+        // Mock SharedArrayBuffer to throw an error
+        globalThis.SharedArrayBuffer = class {
+            constructor() {
+                throw new Error('SharedArrayBuffer is not defined');
+            }
+        } as any;
+
+        // Mock console.warn
+        console.warn = (...args: any[]) => {
+            warnMessages.push(args[0]);
+        };
+    });
+
+    afterEach(() => {
+        globalThis.SharedArrayBuffer = originalSharedArrayBuffer;
+        console.warn = originalConsoleWarn;
+    });
+
+    it('should warn when SharedArrayBuffer is not supported', () => {
+        const mtfData = { '1d': [], '1h': [] } as any;
+        analyzeMarketMTF(mtfData, 'TEST_SYMBOL');
+
+        assert.strictEqual(warnMessages.length, 1);
+        assert.ok(warnMessages[0].includes('SharedArrayBuffer not supported in this environment.'));
+    });
+});
+
 describe('TseApiClient', () => {
   let originalFetch: typeof globalThis.fetch;
   let originalConsoleError: typeof console.error;
@@ -194,6 +232,63 @@ describe('TseApiClient', () => {
     globalThis.fetch = originalFetch;
     console.error = originalConsoleError;
   });
+  test('fetchOrderBook fetches real data successfully', async () => {
+    const mockOrderBookData = {
+      timestamp: 1234567890,
+      orderBook: {
+        bids: [{ price: 100, quantity: 50, count: 1 }, { price: 90, quantity: 100, count: 2 }],
+        asks: [{ price: 110, quantity: 40, count: 1 }, { price: 120, quantity: 80, count: 2 }]
+      }
+    };
+
+    globalThis.fetch = async (url) => {
+      if (url.toString().includes('api/tse/info')) {
+        return {
+          ok: true,
+          json: async () => mockOrderBookData
+        } as any;
+      }
+      return { ok: false } as any;
+    };
+
+    const config: ApiConfig = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config);
+    const data = await client.fetchOrderBook('TEST');
+
+    assert.deepStrictEqual(data.bids, mockOrderBookData.orderBook.bids);
+    assert.deepStrictEqual(data.asks, mockOrderBookData.orderBook.asks);
+    assert.strictEqual(data.timestamp, mockOrderBookData.timestamp);
+    assert.strictEqual(data.queueDynamics.buyVolume, 150);
+    assert.strictEqual(data.queueDynamics.sellVolume, 120);
+    assert.strictEqual(data.queueDynamics.totalVolume, 270);
+  });
+
+  test('fetchOrderBook falls back to twin on fetch failure', async () => {
+    globalThis.fetch = async () => {
+      throw new Error('Network error');
+    };
+
+    const config: ApiConfig = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config);
+    const data = await client.fetchOrderBook('TEST');
+
+    assert.deepStrictEqual(data.bids, []);
+    assert.deepStrictEqual(data.asks, []);
+    assert.strictEqual(data.queueDynamics.buyVolume, 0);
+  });
+
 
   test('fetchMarketData fetches from proxy when configured and connected', async () => {
     const mockResponse: MarketCandle[] = [{
@@ -244,6 +339,87 @@ describe('TseApiClient', () => {
     assert.strictEqual(data.length, 0);
   });
 
+
+
+  test('fetchOrderBook handles fetch error and returns digital twin data', async () => {
+    const origFetchMarketData = TseApiClient.prototype.fetchMarketData;
+    TseApiClient.prototype.fetchMarketData = async () => {
+      throw new Error('Network Error');
+    };
+
+    let errorLogged = false;
+    console.warn = () => {
+      errorLogged = true;
+    };
+
+    const config = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: true,
+    };
+
+    const client = new TseApiClient(config as any);
+    const data = await client.fetchOrderBook('TEST');
+
+    TseApiClient.prototype.fetchMarketData = origFetchMarketData;
+    assert.ok(data !== null);
+    assert.strictEqual(errorLogged, true, 'console.warn should have been called');
+  });
+
+  test('fetchSentiment handles fetch error and returns simulation', async () => {
+    globalThis.fetch = async () => {
+      throw new Error('Network Error');
+    };
+
+    let errorLogged = false;
+    console.warn = () => {
+      errorLogged = true;
+    };
+
+    const config = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: true,
+    };
+
+    const client = new TseApiClient(config as any);
+    const data = await client.fetchSentiment();
+
+    assert.ok(data !== null);
+    assert.strictEqual(typeof data.score, 'number');
+    assert.strictEqual(errorLogged, true, 'console.warn should have been called');
+  });
+
+  test('fetchMultiTimeframe handles API failure and returns full simulation', async () => {
+    const origFetchMarketData = TseApiClient.prototype.fetchMarketData;
+    TseApiClient.prototype.fetchMarketData = async () => {
+      throw new Error('Network Error');
+    };
+
+    let errorLogged = false;
+    console.warn = () => {
+      errorLogged = true;
+    };
+
+    const config = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: true,
+    };
+
+    const client = new TseApiClient(config as any);
+    const data = await client.fetchMultiTimeframeData('TEST');
+
+    TseApiClient.prototype.fetchMarketData = origFetchMarketData;
+    assert.ok(data['1d']);
+    assert.ok(data['1h']);
+    assert.ok(data['15m']);
+    assert.ok(data['1m']);
+    assert.strictEqual(errorLogged, true, 'console.warn should have been called');
+  });
 
   test('fetchAdvancedMetrics handles fetch error and returns null', async () => {
     // Mock fetch failure
@@ -402,4 +578,41 @@ describe('calculateIchimoku', () => {
     assert.strictEqual(result.senkouB, 133.5);
     assert.strictEqual(result.senkouA, (155 + 146.5) / 2);
   });
+});
+
+
+test('calculateBollingerBands - constant prices result in 0 variance', () => {
+  const prices = new Array(20).fill(100);
+  const result = calculateBollingerBands(prices);
+
+  assert.strictEqual(result.middle, 100);
+  assert.strictEqual(result.upper, 100);
+  assert.strictEqual(result.lower, 100);
+});
+
+test('calculateBollingerBands - calculates correctly with standard parameters', () => {
+  const prices = [10, 20, 30, 40, 50];
+  const result = calculateBollingerBands(prices, 5, 2);
+
+  assert.strictEqual(result.middle, 30);
+  assert.ok(Math.abs(result.upper - 58.2842712) < 0.0001);
+  assert.ok(Math.abs(result.lower - 1.7157288) < 0.0001);
+});
+
+test('calculateBollingerBands - uses only the last `period` prices', () => {
+  const prices = [1000, 2000, 10, 20, 30, 40, 50];
+  const result = calculateBollingerBands(prices, 5, 2);
+
+  assert.strictEqual(result.middle, 30);
+  assert.ok(Math.abs(result.upper - 58.2842712) < 0.0001);
+  assert.ok(Math.abs(result.lower - 1.7157288) < 0.0001);
+});
+
+test('calculateBollingerBands - calculates correctly with custom stdDev', () => {
+  const prices = [10, 20, 30, 40, 50];
+  const result = calculateBollingerBands(prices, 5, 1);
+
+  assert.strictEqual(result.middle, 30);
+  assert.ok(Math.abs(result.upper - 44.1421356) < 0.0001);
+  assert.ok(Math.abs(result.lower - 15.8578644) < 0.0001);
 });
