@@ -88,8 +88,12 @@ app.use((req, res, next) => {
 });
 
 
-const JWT_SECRET = process.env.JWT_SECRET || 'default-dev-secret';
-const REFRESH_SECRET = process.env.REFRESH_SECRET || 'default-dev-refresh-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+const REFRESH_SECRET = process.env.REFRESH_SECRET;
+
+if (!JWT_SECRET || !REFRESH_SECRET) {
+  throw new Error('JWT_SECRET and REFRESH_SECRET environment variables must be defined');
+}
 
 // Rate limiter: max 100 requests per minute
 const apiLimiter = rateLimit({
@@ -230,6 +234,8 @@ app.post('/api/analyze', (req, res) => {
     res.status(500).json({ error: 'Analysis failed' });
   }
 });
+
+
 
 
 // 1. Status Check
