@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, calculateFairValue } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -402,4 +402,54 @@ describe('calculateIchimoku', () => {
     assert.strictEqual(result.senkouB, 133.5);
     assert.strictEqual(result.senkouA, (155 + 146.5) / 2);
   });
+});
+
+test('calculateFairValue - returns calculated value for GOLD symbols', () => {
+  const correlationMetrics = {
+    globalGold: 2350,
+    usdFree: 60000,
+    usdNima: 40000,
+    globalCopper: 9000,
+    globalBrent: 80,
+    correlations: {}
+  };
+
+  const result = calculateFairValue('IME-GOLD-FUTURES', 100000, correlationMetrics);
+
+  // ((2350 * 60000) / 31.1035) * 0.976 * 1.05 = 4644814.892...
+  const expectedValue = ((2350 * 60000) / 31.1035) * 0.976 * 1.05;
+
+  assert.strictEqual(Math.abs(result - expectedValue) < 0.001, true, 'Result should match expected formula value');
+});
+
+test('calculateFairValue - returns currentPrice for non-GOLD symbols', () => {
+  const correlationMetrics = {
+    globalGold: 2350,
+    usdFree: 60000,
+    usdNima: 40000,
+    globalCopper: 9000,
+    globalBrent: 80,
+    correlations: {}
+  };
+
+  const currentPrice = 150000;
+  const result = calculateFairValue('IME-COPPER', currentPrice, correlationMetrics);
+
+  assert.strictEqual(result, currentPrice, 'Should return current price for non-GOLD symbols');
+});
+
+test('calculateFairValue - case sensitivity of GOLD string', () => {
+  const correlationMetrics = {
+    globalGold: 2350,
+    usdFree: 60000,
+    usdNima: 40000,
+    globalCopper: 9000,
+    globalBrent: 80,
+    correlations: {}
+  };
+
+  const currentPrice = 150000;
+  const result = calculateFairValue('ime-gold', currentPrice, correlationMetrics);
+
+  assert.strictEqual(result, currentPrice, 'Should return current price because includes("GOLD") is case-sensitive');
 });
