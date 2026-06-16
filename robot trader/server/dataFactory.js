@@ -89,7 +89,6 @@ const generateHistoricalData = (symbolId, years = 3) => {
   const config = getSymbolConfig(symbolId);
   let price = config.basePrice;
 
-  console.log(`Generating ${years} years of data for ${config.name} (${symbolId}), starting price: ${price}`);
 
   for (let i = 0; i < totalHours; i++) {
     // Calculate timestamp for this candle (going backwards from now)
