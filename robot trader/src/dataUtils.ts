@@ -11,7 +11,7 @@ import type {
   PoliticalRiskNews,
   SentimentData,
   ArbitrageOpportunity,
-  WalkForwardResult
+  WalkForwardResult,
 } from "./types";
 import { INDICATOR_PARAMS, DEFAULT_API_CONFIG } from "./constants";
 import Sentiment from "sentiment";
@@ -107,12 +107,12 @@ export class TseApiClient {
       } else {
         lastPrice = await this.getLastPrice(symbolId);
       }
-    } catch (e) {
-      try {
-        lastPrice = await this.getLastPrice(symbolId);
-      } catch (e2) {
-        lastPrice = 150000;
-      }
+    } catch (error) {
+      console.warn(
+        "Failed to fetch real market data for order book, falling back to digital twin:",
+        error,
+      );
+      lastPrice = await this.getLastPrice(symbolId);
     }
 
     const LEVELS = 50;
@@ -716,6 +716,7 @@ export const analyzeMarketMTF = (
     sentiment: SentimentData | null;
   },
   weights: StrategyWeights = optimizedWeights,
+  precalc?: PrecalculatedIndicators,
 ): ExpertForecast => {
   const dailyCandles = mtfData["1d"] || [];
   const hourlyCandles = mtfData["1h"] || dailyCandles;
@@ -789,12 +790,12 @@ export const analyzeMarketMTF = (
         : "NEUTRAL";
 
   const hPrices = hourlyCandles.map((c) => c.close);
-  const rsi = calculateRSI(hPrices);
-  const macd = calculateMACD(hPrices);
-  const atr = calculateATR(hourlyCandles);
-  const bb = calculateBollingerBands(hPrices);
-  const ichimoku = calculateIchimoku(hourlyCandles);
-  const regime = detectMarketRegime(hourlyCandles, atr);
+  const rsi = precalc?.rsi ?? calculateRSI(hPrices);
+  const macd = precalc?.macd ?? calculateMACD(hPrices);
+  const atr = precalc?.atr ?? calculateATR(hourlyCandles);
+  const bb = precalc?.bb ?? calculateBollingerBands(hPrices);
+  const ichimoku = precalc?.ichimoku ?? calculateIchimoku(hourlyCandles);
+  const regime = precalc?.regime ?? detectMarketRegime(hourlyCandles, atr);
 
   let score = 0;
   const reasons: string[] = [];
@@ -954,7 +955,19 @@ export const analyzeMarketMTF = (
       "1d": { trend: dailyTrend, signal: "Trend Context" },
       "1h": { trend: score > 0 ? "BULLISH" : "BEARISH", signal: action },
     },
-    indicators: { rsi, macd, atr, bollinger: bb, ichimoku },
+    indicators: {
+      rsi,
+      macd,
+      atr,
+      bollinger: {
+        upper: bb.upper,
+        lower: bb.lower,
+        middle: bb.middle ?? (bb as any).mid ?? (bb.upper + bb.lower) / 2
+      },
+      ichimoku: {
+        tenkan: ichimoku.tenkan, kijun: ichimoku.kijun, senkouA: ichimoku.senkouA, senkouB: ichimoku.senkouB
+      }
+    },
     reason: reasons.join(". ") || "Market consolidating.",
   };
 };
@@ -1008,7 +1021,9 @@ const simulateForwardStep = (
   return { windowProfit, trades };
 };
 
-export const performWalkForwardBacktest = (candles: MarketCandle[]): WalkForwardResult[] => {
+export const performWalkForwardBacktest = (
+  candles: MarketCandle[],
+): WalkForwardResult[] => {
   if (candles.length < 50) return [];
   const windowSize = 50;
   const stepSize = 10;
@@ -1085,7 +1100,13 @@ export const optimizeStrategyWeights = (
     };
 
     for (let i = 0; i < 15; i++) {
-      const forecast = analyzeMarketMTF(mtfData, "", undefined, candidates[i]);
+      const forecast = analyzeMarketMTF(
+        mtfData,
+        "",
+        undefined,
+        candidates[i],
+        precalc,
+      );
       if (forecast.action !== "HOLD") {
         const profit =
           forecast.action === "BUY"
