@@ -38,10 +38,11 @@ export class StressEngine {
         this.averageLoss = averageLoss;
     }
 
-    private simulatePath(initialCapital: number, numTrades: number): { isRuin: boolean, maxDrawdown: number } {
-        let capital = initialCapital;
+    private simulatePath(numTrades: number): { currentDrawdown: number; isRuined: boolean } {
+        let capital = this.initialCapital;
         let peak = capital;
         let currentDrawdown = 0;
+        let isRuined = false;
 
         for (let t = 0; t < numTrades; t++) {
             const isWin = Math.random() < this.winRate;
@@ -59,11 +60,12 @@ export class StressEngine {
             }
 
             if (capital <= 0) {
-                return { isRuin: true, maxDrawdown: currentDrawdown };
+                isRuined = true;
+                break;
             }
         }
 
-        return { isRuin: false, maxDrawdown: currentDrawdown };
+        return { currentDrawdown, isRuined };
     }
 
     /**
@@ -77,9 +79,9 @@ export class StressEngine {
         let totalDrawdowns = 0;
 
         for (let i = 0; i < numSimulations; i++) {
-            const pathResult = this.simulatePath(numTrades);
+            const { currentDrawdown, isRuined } = this.simulatePath(numTrades);
 
-            if (pathResult.isRuined) {
+            if (isRuined) {
                 ruinCount++;
             }
 
