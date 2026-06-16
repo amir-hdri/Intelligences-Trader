@@ -245,6 +245,87 @@ describe('TseApiClient', () => {
   });
 
 
+
+  test('fetchOrderBook handles fetch error and returns digital twin data', async () => {
+    const origFetchMarketData = TseApiClient.prototype.fetchMarketData;
+    TseApiClient.prototype.fetchMarketData = async () => {
+      throw new Error('Network Error');
+    };
+
+    let errorLogged = false;
+    console.warn = () => {
+      errorLogged = true;
+    };
+
+    const config = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: true,
+    };
+
+    const client = new TseApiClient(config as any);
+    const data = await client.fetchOrderBook('TEST');
+
+    TseApiClient.prototype.fetchMarketData = origFetchMarketData;
+    assert.ok(data !== null);
+    assert.strictEqual(errorLogged, true, 'console.warn should have been called');
+  });
+
+  test('fetchSentiment handles fetch error and returns simulation', async () => {
+    globalThis.fetch = async () => {
+      throw new Error('Network Error');
+    };
+
+    let errorLogged = false;
+    console.warn = () => {
+      errorLogged = true;
+    };
+
+    const config = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: true,
+    };
+
+    const client = new TseApiClient(config as any);
+    const data = await client.fetchSentiment();
+
+    assert.ok(data !== null);
+    assert.strictEqual(typeof data.score, 'number');
+    assert.strictEqual(errorLogged, true, 'console.warn should have been called');
+  });
+
+  test('fetchMultiTimeframe handles API failure and returns full simulation', async () => {
+    const origFetchMarketData = TseApiClient.prototype.fetchMarketData;
+    TseApiClient.prototype.fetchMarketData = async () => {
+      throw new Error('Network Error');
+    };
+
+    let errorLogged = false;
+    console.warn = () => {
+      errorLogged = true;
+    };
+
+    const config = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: true,
+    };
+
+    const client = new TseApiClient(config as any);
+    const data = await client.fetchMultiTimeframeData('TEST');
+
+    TseApiClient.prototype.fetchMarketData = origFetchMarketData;
+    assert.ok(data['1d']);
+    assert.ok(data['1h']);
+    assert.ok(data['15m']);
+    assert.ok(data['1m']);
+    assert.strictEqual(errorLogged, true, 'console.warn should have been called');
+  });
+
   test('fetchAdvancedMetrics handles fetch error and returns null', async () => {
     // Mock fetch failure
     globalThis.fetch = async () => {
@@ -401,5 +482,44 @@ describe('calculateIchimoku', () => {
     assert.strictEqual(result.kijun, 146.5);
     assert.strictEqual(result.senkouB, 133.5);
     assert.strictEqual(result.senkouA, (155 + 146.5) / 2);
+  });
+});
+
+
+describe('trainModelEpoch', () => {
+  let originalFetch: typeof globalThis.fetch;
+  let originalConsoleError: typeof console.error;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    originalConsoleError = console.error;
+    console.error = () => {};
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    console.error = originalConsoleError;
+  });
+
+  test('handles fetch error and falls back to local optimization', async () => {
+    globalThis.fetch = async () => {
+      throw new Error('Network Error');
+    };
+
+    let errorLogged = false;
+    console.error = () => {
+      errorLogged = true;
+    };
+
+    const mockCandles = [
+      { timestamp: 1, open: 10, high: 20, low: 10, close: 15, volume: 100 },
+      { timestamp: 2, open: 15, high: 25, low: 12, close: 20, volume: 100 },
+    ];
+
+    const { trainModelEpoch } = require('./dataUtils');
+    const accuracy = await trainModelEpoch(mockCandles, 'TEST');
+
+    assert.ok(typeof accuracy === 'number');
+    assert.strictEqual(errorLogged, true, 'console.error should have been called');
   });
 });
