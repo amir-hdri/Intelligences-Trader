@@ -19,7 +19,7 @@ const hpoEngine = new HPOEngine();
 import logger from './logger.js';
 const apiMetrics = () => (req, res, next) => next();
 
-import { pinoLogger, sampleLogger } from './pinoLogger.js';
+import { pinoLogger } from './pinoLogger.js';
 import crypto from 'crypto';
 import express from 'express';
 import cors from 'cors';
@@ -28,7 +28,6 @@ dotenv.config();
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import { auditLogger } from './AuditLogger.js';
-import { secretManager } from './SecretManager.js';
 
 import { DayDetails } from 'tsetmc-client';
 import { analyzeMarketMTF, detectMarketRegime, calculateATR } from './analyzer.js';
@@ -78,7 +77,8 @@ const app = express();
 app.use(apiMetrics());
 const port = 3000;
 
-app.use(cors({ origin: 'http://localhost:5173' }));
+const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -88,8 +88,15 @@ app.use((req, res, next) => {
 });
 
 
-const JWT_SECRET = process.env.JWT_SECRET || 'default-dev-secret';
-const REFRESH_SECRET = process.env.REFRESH_SECRET || 'default-dev-refresh-secret';
+// SECURITY FIX: Removed the vulnerable fallback values (|| 'default-dev-secret' and 'default-dev-refresh-secret')
+// to prevent attackers from bypassing authentication if secrets are not set in production.
+const JWT_SECRET = process.env.JWT_SECRET;
+const REFRESH_SECRET = process.env.REFRESH_SECRET;
+
+if (!JWT_SECRET || !REFRESH_SECRET) {
+  console.error('FATAL ERROR: JWT_SECRET and REFRESH_SECRET environment variables must be defined.');
+  process.exit(1);
+}
 
 // Rate limiter: max 100 requests per minute
 const apiLimiter = rateLimit({
@@ -129,7 +136,7 @@ const authenticateToken = (req, res, next) => {
 app.post('/api/auth/login', (req, res) => {
   // Dummy authentication for demonstration
   const { username, password } = req.body;
-  if (username === 'admin' && password === 'admin') {
+  if (username && password && username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
     const user = { name: username };
     const accessToken = jwt.sign(user, JWT_SECRET, { expiresIn: '15m' });
     const refreshToken = jwt.sign(user, REFRESH_SECRET, { expiresIn: '1h' });
@@ -178,69 +185,6 @@ app.post('/api/analyze', (req, res) => {
     const t1 = Date.now();
 
     // Shadow Mode Protocol: Execute TCN Model concurrently
-    setTimeout(async () => {
-        try {
-            const tcnStart = Date.now();
-            // Need 30 candles for the TCN model
-            if (historyData.length >= 30) {
-               const recentData = historyData.slice(-30).map(c => [
-                   c.open, c.high, c.low, c.close, c.volume,
-                   c.openInterest || 0, c.basis || 0, c.warehouseVolume || 0, 0, 0
-               ]);
-
-               // Pass correlationId for full tracing
-               const tcnPredictions = await modelManager.predict([recentData], correlationId);
-               const tcnPrediction = tcnPredictions[0].prediction;
-
-               const ruleBasedAction = analysis.action; // 'BUY', 'SELL', 'HOLD'
-
-               // Determine deviation
-               let deviation = 0;
-               if (ruleBasedAction !== tcnPrediction) {
-                   deviation = 100; // Complete disagreement
-               } else {
-                   const tcnConf = tcnPredictions[0].confidence;
-                   const ruleConf = analysis.confidence || 0;
-                   deviation = Math.abs(tcnConf - ruleConf) * 100; // Convert to percentage
-               }
-
-               if (deviation > 5) {
-                   pinoLogger.warn({
-                       correlationId,
-                       event: 'shadow_mode_deviation',
-                       deviationPercent: deviation,
-                       ruleBasedAction,
-                       tcnPrediction,
-                       tcnInferenceTime: Date.now() - tcnStart
-                   }, 'Shadow Mode detected >5% deviation between Rule-Based and TCN Model outputs');
-               }
-            }
-        } catch (shadowError) {
-            pinoLogger.error({ correlationId, event: 'shadow_mode_error', error: shadowError.message }, 'TCN Shadow execution failed');
-        }
-    }, 0);
-
-    if ((t1 - t0) > 500) {
-      pinoLogger.warn({ correlationId, durationMs: t1 - t0 }, 'Analysis took too long');
-    }
-
-    res.json(analysis);
-  } catch (error) {
-    pinoLogger.error({ correlationId, event: 'analyze_error', error: error.message }, 'Analysis failed');
-    res.status(500).json({ error: 'Analysis failed' });
-  }
-});
-  }
-
-  try {
-    const correlationId = req.correlationId;
-    pinoLogger.info({ correlationId, event: 'analyze_request' }, 'Starting rule-based analysis');
-
-    // Rule-Based Strategy (Primary) - executes synchronously
-    const analysis = generateAnalysis(historyData);
-    const t1 = Date.now();
-
-    // Shadow Mode Protocol: Execute TCN Model concurrently
     // We run it asynchronously so it doesn't block the rule-based response
     setTimeout(async () => {
         try {
@@ -248,10 +192,15 @@ app.post('/api/analyze', (req, res) => {
             // Model expects [batch_size, 30, 10]
             if (historyData.length >= 30) {
                // Pad or truncate to exact shape needed for shadow test
-               const recentData = historyData.slice(-30).map(c => [
-                   c.open, c.high, c.low, c.close, c.volume,
-                   0, 0, 0, 0, 0 // mock indicators
-               ]);
+               const len = historyData.length;
+               const recentData = new Array(30);
+               for (let i = 0, k = len - 30; i < 30; i++, k++) {
+                   const c = historyData[k];
+                   recentData[i] = [
+                       c.open, c.high, c.low, c.close, c.volume,
+                       0, 0, 0, 0, 0 // mock indicators
+                   ];
+               }
 
                const tcnStart = Date.now();
                const tcnPredictions = await modelManager.predict([recentData], correlationId);
@@ -537,14 +486,17 @@ app.post('/api/train', async (req, res) => {
 
     // Create sequences (window size = 20)
     const windowSize = 20;
-    const X = [];
-    const Y = [];
+    const numSequences = Math.max(0, fracDiffClose.length - 1 - windowSize);
+    const X = new Array(numSequences);
+    const Y = new Array(numSequences);
 
     for (let i = windowSize; i < fracDiffClose.length - 1; i++) {
+      const seqIndex = i - windowSize;
       // Create feature vector (just fracDiffClose for simplicity in this example)
       // A full implementation would include Technical Indicators, Order Book Features, etc.
-      const seq = fracDiffClose.slice(i - windowSize, i).map(v => [v]);
-      X.push(seq);
+      const seq = new Array(windowSize);
+      for (let j = 0; j < windowSize; j++) seq[j] = [fracDiffClose[seqIndex + j]];
+      X[seqIndex] = seq;
 
       // Target: 0 (DOWN), 1 (HOLD), 2 (UP)
       const currentPrice = closePrices[i];
@@ -555,10 +507,10 @@ app.post('/api/train', async (req, res) => {
       if (return_pct > 0.001) label = 2; // UP
       else if (return_pct < -0.001) label = 0; // DOWN
 
-      Y.push(label);
+      Y[seqIndex] = label;
     }
 
-    if (X.length < 20) {
+    if (numSequences < 20) {
       return res.json({
         success: true,
         message: 'Not enough sequences generated.',
@@ -568,7 +520,7 @@ app.post('/api/train', async (req, res) => {
 
     // 2. Purged K-Fold Cross-Validation
     const numClasses = 3;
-    const folds = purgedKFold(X.length, 5, 5);
+    const folds = purgedKFold(numSequences, 5, 5);
 
     let totalAccuracy = 0;
     let allYTrue = [];
@@ -579,11 +531,34 @@ app.post('/api/train', async (req, res) => {
     // Train on the last fold for demonstration, or average over folds
     const fold = folds[folds.length - 1];
 
-    const xTrain = tf.tensor3d(fold.trainIndices.map(idx => X[idx]));
-    const yTrain = tf.oneHot(tf.tensor1d(fold.trainIndices.map(idx => Y[idx]), 'int32'), numClasses);
+    // Pre-allocate flat arrays for training and validation to avoid mass array slicing
+    const trainIndices = fold.trainIndices;
+    const valIndices = fold.valIndices;
+    const numTrain = trainIndices.length;
+    const numVal = valIndices.length;
 
-    const xVal = tf.tensor3d(fold.valIndices.map(idx => X[idx]));
-    const yVal = fold.valIndices.map(idx => Y[idx]);
+    const xTrainFlat = new Float32Array(numTrain * windowSize);
+    for (let i = 0; i < numTrain; i++) {
+      const idx = trainIndices[i];
+      const offset = i * windowSize;
+      for (let j = 0; j < windowSize; j++) {
+        xTrainFlat[offset + j] = fracDiffClose[idx + j];
+      }
+    }
+    const xTrain = tf.tensor3d(xTrainFlat, [numTrain, windowSize, 1]);
+
+    const xValFlat = new Float32Array(numVal * windowSize);
+    for (let i = 0; i < numVal; i++) {
+      const idx = valIndices[i];
+      const offset = i * windowSize;
+      for (let j = 0; j < windowSize; j++) {
+        xValFlat[offset + j] = fracDiffClose[idx + j];
+      }
+    }
+    const xVal = tf.tensor3d(xValFlat, [numVal, windowSize, 1]);
+
+    const yTrain = tf.oneHot(tf.tensor1d(trainIndices.map(idx => Y[idx]), 'int32'), numClasses);
+    const yVal = valIndices.map(idx => Y[idx]);
 
     // Build and train TCN
     const model = buildTCN([windowSize, 1], numClasses);
@@ -600,8 +575,15 @@ app.post('/api/train', async (req, res) => {
 
     let correct = 0;
     for (let i = 0; i < predProbs.length; i++) {
-      const maxProb = Math.max(...predProbs[i]);
-      const predClass = predProbs[i].indexOf(maxProb);
+      const probs = predProbs[i];
+      let maxProb = probs[0];
+      let predClass = 0;
+      for (let j = 1; j < probs.length; j++) {
+        if (probs[j] > maxProb) {
+          maxProb = probs[j];
+          predClass = j;
+        }
+      }
       const trueClass = yVal[i];
 
       allYTrue.push(trueClass);
@@ -656,8 +638,8 @@ app.post('/api/train', async (req, res) => {
 });
 // Helper to generate fake history anchored to real price
 function generateHistory(currentCandle) {
-    const candles = [];
     const count = 100;
+    const candles = new Array(count);
     let lastClose = currentCandle.close * 0.95; // start 5% lower to create a trend
     const tfMs = 60 * 60 * 1000;
     const now = currentCandle.timestamp;
@@ -665,7 +647,7 @@ function generateHistory(currentCandle) {
     for (let i = 0; i < count - 1; i++) {
         const change = lastClose * ((crypto.randomBytes(4).readUInt32BE() / 0x100000000) * 0.02 - 0.01);
         const close = lastClose + change;
-        candles.push({
+        candles[i] = {
             timestamp: now - (count - i) * tfMs,
             open: lastClose,
             high: Math.max(lastClose, close) * 1.01,
@@ -675,11 +657,11 @@ function generateHistory(currentCandle) {
             openInterest: 5000,
             basis: 0,
             warehouseVolume: 10000
-        });
+        };
         lastClose = close;
     }
     // Push the real current candle last
-    candles.push(currentCandle);
+    candles[count - 1] = currentCandle;
     return candles;
 }
 
