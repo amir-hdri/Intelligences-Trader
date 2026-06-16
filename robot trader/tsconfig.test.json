@@ -18,6 +18,6 @@
     "src/riskEngine.ts",
     "src/riskEngine.test.ts",
     "src/historicalData.ts",
-    "src/historicalData.test.ts"
+    "src/historicalData.test.ts", "src/dataUtils.worker.test.ts"
   ]
 }
