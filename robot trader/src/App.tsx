@@ -16,7 +16,6 @@ import {
 import { TseApiClient, StrategyWeights, DEFAULT_WEIGHTS } from './dataUtils';
 import { WorkerPool } from './workers/workerPool';
 import { predictionService } from './services/PredictionHistoryService';
-import { learningEngine } from './services/LearningEngine';
 import { RiskEngine } from './riskEngine';
 import { 
   Activity, Cpu, TrendingUp, Clock, AlertCircle, Play, RefreshCcw, Save, 
@@ -301,7 +300,6 @@ const App: React.FC = () => {
           window.location.reload();
       }
   }
-
 
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -630,7 +628,6 @@ const App: React.FC = () => {
               </table>
             </div>
           )}
-
 
         {activeTab === 'intelligence' && (
           <div className="p-8">
