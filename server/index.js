@@ -19,7 +19,11 @@ const PORT = 3001;
 app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
 
-const JWT_SECRET = process.env.JWT_SECRET || 'default-dev-secret';
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL ERROR: JWT_SECRET environment variable is not defined.');
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Rate limiter: max 100 requests per minute
 const apiLimiter = rateLimit({
