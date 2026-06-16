@@ -182,30 +182,39 @@ app.post('/api/analyze', (req, res) => {
     const t1 = Date.now();
 
     // Shadow Mode Protocol: Execute TCN Model concurrently
+    // We run it asynchronously so it doesn't block the rule-based response
     setTimeout(async () => {
         try {
-            const tcnStart = Date.now();
-            // Need 30 candles for the TCN model
+            // Transform historyData for the model (simplified mock format conversion)
+            // Model expects [batch_size, 30, 10]
             if (historyData.length >= 30) {
-               const recentData = historyData.slice(-30).map(c => [
-                   c.open, c.high, c.low, c.close, c.volume,
-                   c.openInterest || 0, c.basis || 0, c.warehouseVolume || 0, 0, 0
-               ]);
+               // Pad or truncate to exact shape needed for shadow test
+               const len = historyData.length;
+               const recentData = new Array(30);
+               for (let i = 0, k = len - 30; i < 30; i++, k++) {
+                   const c = historyData[k];
+                   recentData[i] = [
+                       c.open, c.high, c.low, c.close, c.volume,
+                       0, 0, 0, 0, 0 // mock indicators
+                   ];
+               }
 
-               // Pass correlationId for full tracing
+               const tcnStart = Date.now();
                const tcnPredictions = await modelManager.predict([recentData], correlationId);
                const tcnPrediction = tcnPredictions[0].prediction;
 
-               const ruleBasedAction = analysis.action; // 'BUY', 'SELL', 'HOLD'
+               // Compare Rule-based vs TCN Model (Shadow Mode)
+               const ruleBasedAction = analysis.action; // e.g., 'BUY', 'SELL', 'HOLD'
 
-               // Determine deviation
+               // Calculate confidence deviation if actions match, or 100% deviation if they differ
                let deviation = 0;
                if (ruleBasedAction !== tcnPrediction) {
                    deviation = 100; // Complete disagreement
                } else {
-                   const tcnConf = tcnPredictions[0].confidence;
+                   // Compare confidence (TCN probability vs Rule-based confidence)
+                   const tcnConf = Math.max(...tcnPredictions[0].probabilities) * 100;
                    const ruleConf = analysis.confidence || 0;
-                   deviation = Math.abs(tcnConf - ruleConf) * 100; // Convert to percentage
+                   deviation = Math.abs(tcnConf - ruleConf);
                }
 
                if (deviation > 5) {
@@ -216,7 +225,7 @@ app.post('/api/analyze', (req, res) => {
                        ruleBasedAction,
                        tcnPrediction,
                        tcnInferenceTime: Date.now() - tcnStart
-                   }, 'Shadow Mode detected >5% deviation between Rule-Based and TCN Model outputs');
+                   }, 'Shadow Mode detected significant deviation between Rule-Based and TCN Model outputs');
                }
             }
         } catch (shadowError) {
@@ -224,10 +233,12 @@ app.post('/api/analyze', (req, res) => {
         }
     }, 0);
 
+    // Ensure < 500ms for Rule-Based
     if ((t1 - t0) > 500) {
       pinoLogger.warn({ correlationId, durationMs: t1 - t0 }, 'Analysis took too long');
     }
 
+    // Always return rule-based to ensure kill-switch and standard logic applies
     res.json(analysis);
   } catch (error) {
     pinoLogger.error({ correlationId, event: 'analyze_error', error: error.message }, 'Analysis failed');
