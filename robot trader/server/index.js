@@ -178,69 +178,6 @@ app.post('/api/analyze', (req, res) => {
     const t1 = Date.now();
 
     // Shadow Mode Protocol: Execute TCN Model concurrently
-    setTimeout(async () => {
-        try {
-            const tcnStart = Date.now();
-            // Need 30 candles for the TCN model
-            if (historyData.length >= 30) {
-               const recentData = historyData.slice(-30).map(c => [
-                   c.open, c.high, c.low, c.close, c.volume,
-                   c.openInterest || 0, c.basis || 0, c.warehouseVolume || 0, 0, 0
-               ]);
-
-               // Pass correlationId for full tracing
-               const tcnPredictions = await modelManager.predict([recentData], correlationId);
-               const tcnPrediction = tcnPredictions[0].prediction;
-
-               const ruleBasedAction = analysis.action; // 'BUY', 'SELL', 'HOLD'
-
-               // Determine deviation
-               let deviation = 0;
-               if (ruleBasedAction !== tcnPrediction) {
-                   deviation = 100; // Complete disagreement
-               } else {
-                   const tcnConf = tcnPredictions[0].confidence;
-                   const ruleConf = analysis.confidence || 0;
-                   deviation = Math.abs(tcnConf - ruleConf) * 100; // Convert to percentage
-               }
-
-               if (deviation > 5) {
-                   pinoLogger.warn({
-                       correlationId,
-                       event: 'shadow_mode_deviation',
-                       deviationPercent: deviation,
-                       ruleBasedAction,
-                       tcnPrediction,
-                       tcnInferenceTime: Date.now() - tcnStart
-                   }, 'Shadow Mode detected >5% deviation between Rule-Based and TCN Model outputs');
-               }
-            }
-        } catch (shadowError) {
-            pinoLogger.error({ correlationId, event: 'shadow_mode_error', error: shadowError.message }, 'TCN Shadow execution failed');
-        }
-    }, 0);
-
-    if ((t1 - t0) > 500) {
-      pinoLogger.warn({ correlationId, durationMs: t1 - t0 }, 'Analysis took too long');
-    }
-
-    res.json(analysis);
-  } catch (error) {
-    pinoLogger.error({ correlationId, event: 'analyze_error', error: error.message }, 'Analysis failed');
-    res.status(500).json({ error: 'Analysis failed' });
-  }
-});
-  }
-
-  try {
-    const correlationId = req.correlationId;
-    pinoLogger.info({ correlationId, event: 'analyze_request' }, 'Starting rule-based analysis');
-
-    // Rule-Based Strategy (Primary) - executes synchronously
-    const analysis = generateAnalysis(historyData);
-    const t1 = Date.now();
-
-    // Shadow Mode Protocol: Execute TCN Model concurrently
     // We run it asynchronously so it doesn't block the rule-based response
     setTimeout(async () => {
         try {
@@ -248,10 +185,15 @@ app.post('/api/analyze', (req, res) => {
             // Model expects [batch_size, 30, 10]
             if (historyData.length >= 30) {
                // Pad or truncate to exact shape needed for shadow test
-               const recentData = historyData.slice(-30).map(c => [
-                   c.open, c.high, c.low, c.close, c.volume,
-                   0, 0, 0, 0, 0 // mock indicators
-               ]);
+               const len = historyData.length;
+               const recentData = new Array(30);
+               for (let i = 0, k = len - 30; i < 30; i++, k++) {
+                   const c = historyData[k];
+                   recentData[i] = [
+                       c.open, c.high, c.low, c.close, c.volume,
+                       0, 0, 0, 0, 0 // mock indicators
+                   ];
+               }
 
                const tcnStart = Date.now();
                const tcnPredictions = await modelManager.predict([recentData], correlationId);
