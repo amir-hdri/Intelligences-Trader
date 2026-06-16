@@ -192,21 +192,21 @@ export class TseApiClient {
     const isHerdingDetected = buyRatio > 0.5;
     const momentumMultiplier = isHerdingDetected ? 1.5 : 1.0; // Boost momentum if herding
 
-    const bids: OrderBookItem[] = [];
-    const asks: OrderBookItem[] = [];
+    const bids: OrderBookItem[] = new Array(LEVELS);
+    const asks: OrderBookItem[] = new Array(LEVELS);
 
     // Reconstruct OrderBookItem[] for the UI
     for (let i = 0; i < LEVELS; i++) {
-      bids.push({
+      bids[i] = {
         price: bidPrices[i],
         quantity: bidQuantities[i],
         count: bidCounts[i],
-      });
-      asks.push({
+      };
+      asks[i] = {
         price: askPrices[i],
         quantity: askQuantities[i],
         count: askCounts[i],
-      });
+      };
     }
 
     const result: OrderBook = {
