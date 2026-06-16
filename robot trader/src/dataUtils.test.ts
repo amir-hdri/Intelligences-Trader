@@ -279,6 +279,42 @@ describe('TseApiClient', () => {
     assert.strictEqual(errorLogged, true, 'console.error should have been called');
   });
 
+
+  test('fetchMultiTimeframeData falls back to full simulation when API fetch fails', async () => {
+    const originalConsoleWarn = console.warn;
+    let warnLogged = false;
+    console.warn = () => {
+      warnLogged = true;
+    };
+
+    const config = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: true,
+    };
+
+    try {
+      const client = new TseApiClient(config as any);
+
+      // Override fetchMarketData directly to force the exception
+      // which allows testing the catch block in fetchMultiTimeframeData
+      client.fetchMarketData = async () => {
+        throw new Error('Forced fetchMarketData Error');
+      };
+
+      const data = await client.fetchMultiTimeframeData('TEST');
+
+      assert.ok(Array.isArray(data['1d']));
+      assert.ok(Array.isArray(data['1h']));
+      assert.ok(Array.isArray(data['15m']));
+      assert.ok(Array.isArray(data['1m']));
+      assert.strictEqual(warnLogged, true, 'console.warn should have been called');
+    } finally {
+      console.warn = originalConsoleWarn;
+    }
+  });
+
 });
 
 test('calculateATR - returns 0 if candles length is less than 2', () => {
