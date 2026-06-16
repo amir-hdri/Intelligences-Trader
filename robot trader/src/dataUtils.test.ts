@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, calculateSeasonalityFactor } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -401,5 +401,69 @@ describe('calculateIchimoku', () => {
     assert.strictEqual(result.kijun, 146.5);
     assert.strictEqual(result.senkouB, 133.5);
     assert.strictEqual(result.senkouA, (155 + 146.5) / 2);
+  });
+});
+
+describe('calculateSeasonalityFactor', () => {
+  const OriginalDate = globalThis.Date;
+
+  // Define mock class at module scope
+  class GlobalDateMock {
+    private mockMonth: number;
+
+    constructor(mockMonth: number) {
+      this.mockMonth = mockMonth;
+    }
+
+    getMonth() {
+      return this.mockMonth;
+    }
+
+    getTime() {
+      return 1000000;
+    }
+  }
+
+  afterEach(() => {
+    // Restore OriginalDate after each test
+    globalThis.Date = OriginalDate;
+  });
+
+  test('returns 1.25 for SAF symbols in harvest months (Oct/Nov)', () => {
+    globalThis.Date = class extends OriginalDate {
+      getMonth() { return 9; } // Oct
+    } as DateConstructor;
+    assert.strictEqual(calculateSeasonalityFactor('SAF123'), 1.25);
+
+    globalThis.Date = class extends OriginalDate {
+      getMonth() { return 10; } // Nov
+    } as DateConstructor;
+    assert.strictEqual(calculateSeasonalityFactor('SAF123'), 1.25);
+  });
+
+  test('returns 0.85 for SAF symbols in off-season months (Mar/Apr)', () => {
+    globalThis.Date = class extends OriginalDate {
+      getMonth() { return 2; } // Mar
+    } as DateConstructor;
+    assert.strictEqual(calculateSeasonalityFactor('SAF123'), 0.85);
+
+    globalThis.Date = class extends OriginalDate {
+      getMonth() { return 3; } // Apr
+    } as DateConstructor;
+    assert.strictEqual(calculateSeasonalityFactor('SAF123'), 0.85);
+  });
+
+  test('returns 1.0 for SAF symbols in other months', () => {
+    globalThis.Date = class extends OriginalDate {
+      getMonth() { return 5; } // Jun
+    } as DateConstructor;
+    assert.strictEqual(calculateSeasonalityFactor('SAF123'), 1.0);
+  });
+
+  test('returns 1.0 for non-SAF symbols in any month', () => {
+    globalThis.Date = class extends OriginalDate {
+      getMonth() { return 9; } // Oct
+    } as DateConstructor;
+    assert.strictEqual(calculateSeasonalityFactor('GOLD'), 1.0);
   });
 });
