@@ -166,6 +166,7 @@ wss.on('connection', (ws, req) => {
 
   const url = new URL(req.url, `ws://${req.headers.host}`);
   const symbol = url.searchParams.get('symbol') || 'SAF1403';
+  ws.basePrice = symbol.includes('GOLD') ? 35000000 : 1200000;
   ws.symbol = symbol;
 
   logger.info(`WebSocket connected for symbol: ${symbol}`);
@@ -188,7 +189,8 @@ setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.readyState === 1) { // OPEN
       const symbol = ws.symbol;
-      const basePrice = symbol.includes('GOLD') ? 35000000 : 1200000;
+      const basePrice = ws.basePrice;
+
 
       const change = (Math.random() - 0.5) * 1000;
       currentPrice = basePrice + change;
