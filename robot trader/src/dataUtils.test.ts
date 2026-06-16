@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, trainModelEpoch } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -401,5 +401,74 @@ describe('calculateIchimoku', () => {
     assert.strictEqual(result.kijun, 146.5);
     assert.strictEqual(result.senkouB, 133.5);
     assert.strictEqual(result.senkouA, (155 + 146.5) / 2);
+  });
+});
+
+
+describe('trainModelEpoch', () => {
+  let originalFetch;
+  let originalConsoleError;
+  let originalConsoleLog;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    originalConsoleError = console.error;
+    originalConsoleLog = console.log;
+    console.error = () => {};
+    console.log = () => {};
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    console.error = originalConsoleError;
+    console.log = originalConsoleLog;
+  });
+
+  it('should return server winRate when fetch succeeds', async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({ performance: { winRate: 0.85 } }),
+    } as unknown as Response);
+
+    const candles: MarketCandle[] = [];
+    const result = await trainModelEpoch(candles, 'TEST-SYMBOL');
+    assert.strictEqual(result, 0.85);
+  });
+
+  it('should fall back to local optimization when fetch throws an error', async () => {
+    globalThis.fetch = async () => {
+      throw new Error('Network Error');
+    };
+
+    // Provide some dummy candles to ensure optimizeStrategyWeights doesn't throw and returns a number
+    const candles: MarketCandle[] = Array.from({ length: 50 }, (_, i) => ({
+      timestamp: Date.now() - i * 60000,
+      open: 100 + i,
+      high: 105 + i,
+      low: 95 + i,
+      close: 102 + i,
+      volume: 1000
+    }));
+
+    const result = await trainModelEpoch(candles, 'TEST-SYMBOL');
+    assert.strictEqual(typeof result, 'number');
+  });
+
+  it('should fall back to local optimization when fetch response is not ok', async () => {
+    globalThis.fetch = async () => ({
+      ok: false,
+    } as unknown as Response);
+
+    const candles: MarketCandle[] = Array.from({ length: 50 }, (_, i) => ({
+      timestamp: Date.now() - i * 60000,
+      open: 100 + i,
+      high: 105 + i,
+      low: 95 + i,
+      close: 102 + i,
+      volume: 1000
+    }));
+
+    const result = await trainModelEpoch(candles, 'TEST-SYMBOL');
+    assert.strictEqual(typeof result, 'number');
   });
 });
