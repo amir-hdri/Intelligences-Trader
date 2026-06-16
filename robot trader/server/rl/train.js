@@ -3,12 +3,13 @@ import { PPOAgent } from './PPOAgent.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import logger from '../logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function trainPPO() {
-  console.log("Starting PPO Training for Position Sizing with Curriculum Learning...");
+  logger.info("Starting PPO Training for Position Sizing with Curriculum Learning...");
 
   const env = new PositionSizingEnv();
   const stateDim = env.getState().length;
@@ -40,10 +41,10 @@ async function trainPPO() {
     // Manage Curriculum
     if (ep > curriculumThresholds[0] && curriculumLevel === 0) {
       curriculumLevel = 1;
-      console.log("--- Moving to Medium Curriculum (Added Volatility) ---");
+      logger.info("--- Moving to Medium Curriculum (Added Volatility) ---");
     } else if (ep > curriculumThresholds[1] && curriculumLevel === 1) {
       curriculumLevel = 2;
-      console.log("--- Moving to Hard Curriculum (Market Shocks / COVID-19 Crash simulator) ---");
+      logger.info("--- Moving to Hard Curriculum (Market Shocks / COVID-19 Crash simulator) ---");
     }
 
     // Generate specific market data based on curriculum
@@ -92,7 +93,7 @@ async function trainPPO() {
 
     if (ep % 100 === 0) {
       const avgReward = historyRewards.slice(-100).reduce((a, b) => a + b, 0) / 100;
-      console.log(`Episode: ${ep}, Curriculum Level: ${curriculumLevel}, Avg Reward (last 100): ${avgReward.toFixed(4)}`);
+      logger.info(`Episode: ${ep}, Curriculum Level: ${curriculumLevel}, Avg Reward (last 100): ${avgReward.toFixed(4)}`);
 
       // Save model periodically
       if (ep % 1000 === 0) {
@@ -105,13 +106,13 @@ async function trainPPO() {
              await agent.actor.save(`file://${path.join(modelsDir, 'actor')}`);
              await agent.critic.save(`file://${path.join(modelsDir, 'critic')}`);
          } catch (e) {
-             console.error("Error saving model", e);
+             logger.error("Error saving model", e);
          }
       }
     }
   }
 
-  console.log("Training Complete.");
+  logger.info("Training Complete.");
 }
 
 function generateMarketDataForCurriculum(level, length) {
