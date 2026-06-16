@@ -1,7 +1,7 @@
 import { generateHistoricalData } from './dataFactory.js';
 
 // --- Indicator Helpers (Optimized) ---
-const calculateRSISeries = (prices, period = 14) => {
+export const calculateRSISeries = (prices, period = 14) => {
   const rsi = new Array(prices.length).fill(50);
   if (prices.length <= period) return rsi;
 
@@ -38,6 +38,7 @@ const calculateRSISeries = (prices, period = 14) => {
 };
 
 const calculateEMASeries = (prices, period) => {
+  if (!prices || prices.length === 0) return [];
   const ema = new Array(prices.length);
   const k = 2 / (period + 1);
   ema[0] = prices[0];
@@ -140,4 +141,4 @@ const optimizeStrategy = (symbolId = 'SAF1403') => {
 
 
 
-export { optimizeStrategy };
+export { optimizeStrategy, calculateEMASeries };
