@@ -10,6 +10,12 @@ services:
     depends_on:
       - backend-ml
       - backend-proxy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   backend-ml:
     build:
@@ -19,12 +25,19 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - MASTER_ENCRYPTION_KEY=dev-master-key-replace-in-prod
-      - JWT_SECRET=dev-jwt-secret-replace-in-prod
-      - REFRESH_SECRET=dev-refresh-secret-replace-in-prod
+    secrets:
+      - master_encryption_key
+      - jwt_secret
+      - refresh_secret
     volumes:
       - ./models:/app/models
       - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   backend-proxy:
     build:
@@ -34,4 +47,19 @@ services:
       - "3001:3001"
     environment:
       - NODE_ENV=production
-      - JWT_SECRET=dev-jwt-secret-replace-in-prod
+    secrets:
+      - jwt_secret
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+secrets:
+  master_encryption_key:
+    file: ./secrets/master_encryption_key.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  refresh_secret:
+    file: ./secrets/refresh_secret.txt

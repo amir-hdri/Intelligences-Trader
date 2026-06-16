@@ -21,9 +21,7 @@ self.onmessage = async (e: MessageEvent) => {
            result = analyzeMarketMTF(payload.data, payload.symbolId, payload.context, payload.weights);
 
            // Release the lock
-           if (previousVal === 0) {
-               Atomics.store(flagArray, 0, 0);
-           }
+           Atomics.store(flagArray, 0, 0);
         } else {
            result = analyzeMarketMTF(payload.data, payload.symbolId, payload.context, payload.weights);
         }
