@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.INITIAL_METRICS = exports.DEFAULT_RISK_LIMITS = exports.INDICATOR_PARAMS = exports.DEFAULT_API_CONFIG = exports.IME_SYMBOLS = void 0;
+exports.INITIAL_METRICS = exports.DEFAULT_RISK_LIMITS = exports.INDICATOR_PARAMS = exports.DEFAULT_API_CONFIG = exports.API_BASE_URL = exports.IME_SYMBOLS = void 0;
 exports.IME_SYMBOLS = [
     {
         id: 'SAF-NGN-FUT',
@@ -43,6 +43,7 @@ exports.IME_SYMBOLS = [
         priceLimit: { up: 350000, down: 320000 }
     },
 ];
+exports.API_BASE_URL = (typeof process !== 'undefined' && process.env ? process.env.VITE_BACKEND_URL : '') || 'http://localhost:3000';
 exports.DEFAULT_API_CONFIG = {
     proxyUrl: 'http://localhost:3001',
     apiKey: (typeof process !== 'undefined' && process.env ? process.env.VITE_API_KEY : '') || '',
