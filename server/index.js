@@ -16,7 +16,8 @@ const app = express();
 app.use(apiMetrics());
 const PORT = 3001;
 
-app.use(cors({ origin: 'http://localhost:5173' }));
+const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
 if (!process.env.JWT_SECRET) {
