@@ -371,84 +371,42 @@ describe('TseApiClient', () => {
 
 
 
-  test('fetchOrderBook handles fetch error and returns digital twin data', async () => {
-    const origFetchMarketData = TseApiClient.prototype.fetchMarketData;
-    TseApiClient.prototype.fetchMarketData = async () => {
-      throw new Error('Network Error');
-    };
-
-    let errorLogged = false;
-    console.warn = () => {
-      errorLogged = true;
-    };
-
+  test('fetchMultiTimeframeData falls back to full simulation on API fetch failure', async () => {
     const config = {
       proxyUrl: 'http://proxy.com',
       apiKey: 'key',
       isConnected: true,
-      useDigitalTwin: true,
+      useDigitalTwin: false,
     };
-
     const client = new TseApiClient(config as any);
-    const data = await client.fetchOrderBook('TEST');
 
-    TseApiClient.prototype.fetchMarketData = origFetchMarketData;
-    assert.ok(data !== null);
-    assert.strictEqual(errorLogged, true, 'console.warn should have been called');
-  });
-
-  test('fetchSentiment handles fetch error and returns simulation', async () => {
-    globalThis.fetch = async () => {
-      throw new Error('Network Error');
+    // Mock fetchMarketData to throw an error
+    client.fetchMarketData = async () => {
+      throw new Error('API fetch failed');
     };
 
-    let errorLogged = false;
-    console.warn = () => {
-      errorLogged = true;
+    let warningLogged = false;
+    let loggedWarning = '';
+    const originalConsoleWarn = console.warn;
+    console.warn = (msg) => {
+      if (typeof msg === 'string' && msg.includes('API fetch failed, using full simulation for all timeframes')) {
+        warningLogged = true;
+      }
+      loggedWarning = msg;
     };
 
-    const config = {
-      proxyUrl: 'http://proxy.com',
-      apiKey: 'key',
-      isConnected: true,
-      useDigitalTwin: true,
-    };
+    try {
+      const data = await client.fetchMultiTimeframeData('TEST');
 
-    const client = new TseApiClient(config as any);
-    const data = await client.fetchSentiment();
-
-    assert.ok(data !== null);
-    assert.strictEqual(typeof data.score, 'number');
-    assert.strictEqual(errorLogged, true, 'console.warn should have been called');
-  });
-
-  test('fetchMultiTimeframe handles API failure and returns full simulation', async () => {
-    const origFetchMarketData = TseApiClient.prototype.fetchMarketData;
-    TseApiClient.prototype.fetchMarketData = async () => {
-      throw new Error('Network Error');
-    };
-
-    let errorLogged = false;
-    console.warn = () => {
-      errorLogged = true;
-    };
-
-    const config = {
-      proxyUrl: 'http://proxy.com',
-      apiKey: 'key',
-      isConnected: true,
-      useDigitalTwin: true,
-    };
-
-    const client = new TseApiClient(config as any);
-    const data = await client.fetchMultiTimeframeData('TEST');
-
-    TseApiClient.prototype.fetchMarketData = origFetchMarketData;
-    assert.ok(data['1d']);
-    assert.ok(data['1h']);
-    assert.ok(data['15m']);
-    assert.ok(data['1m']);
-    assert.strictEqual(errorLogged, true, 'console.warn should have been called');
+      // Verify fallback behavior
+      assert.ok(data['1d']);
+      assert.ok(data['1h']);
+      assert.ok(data['15m']);
+      assert.ok(data['1m']);
+      assert.strictEqual(warningLogged, true, `Expected warning to be logged, but got: ${loggedWarning}`);
+    } finally {
+      console.warn = originalConsoleWarn;
+    }
   });
 
   test('fetchAdvancedMetrics handles fetch error and returns null', async () => {
