@@ -1,7 +1,7 @@
 import React from 'react';
 import { StoredPrediction } from '../../services/PredictionHistoryService';
 import { StrategyWeights, DEFAULT_WEIGHTS } from '../../dataUtils';
-import { BrainCircuit, CheckCircle, XCircle, Clock, TrendingUp, TrendingDown, Target, Zap } from 'lucide-react';
+import { BrainCircuit, CheckCircle, XCircle, Clock, Target, Zap } from 'lucide-react';
 
 interface LearningDashboardProps {
   history: StoredPrediction[];
