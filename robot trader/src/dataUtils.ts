@@ -99,7 +99,7 @@ export class TseApiClient {
     }
 
     // Simulated Order Book with Spoofing detection logic
-    let lastPrice = 150000; // Default fallback
+    let lastPrice: number;
     try {
       const marketData = await this.fetchMarketData(symbolId);
       if (marketData && marketData.length > 0) {

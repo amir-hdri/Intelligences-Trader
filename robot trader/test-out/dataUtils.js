@@ -9,14 +9,10 @@ const sentiment_1 = __importDefault(require("sentiment"));
 const workerPool_1 = require("./workers/workerPool");
 // Module-level worker pool for testing/analysis dispatch
 // Avoid import.meta.url in CommonJS test environments
-const isBrowser = typeof window !== "undefined";
-const workerUrl = isBrowser
-    ? new URL("./workers/marketAnalyzer.worker.ts", window.location.href).href
-    : "./workers/marketAnalyzer.worker.ts";
+const isBrowser = typeof window !== 'undefined';
+const workerUrl = isBrowser ? new URL('./workers/marketAnalyzer.worker.ts', window.location.href).href : './workers/marketAnalyzer.worker.ts';
 // We must only instantiate the WorkerPool in environments where Worker exists
-const analysisWorkerPool = typeof Worker !== "undefined"
-    ? new workerPool_1.WorkerPool(workerUrl, 2)
-    : null;
+const analysisWorkerPool = typeof Worker !== 'undefined' ? new workerPool_1.WorkerPool(workerUrl, 2) : null;
 const sentiment = new sentiment_1.default();
 // Module-level storage for simulation state to ensure continuity
 const SIMULATION_STATE = {};
@@ -27,9 +23,7 @@ class TseApiClient {
     }
     async fetchMarketData(symbolId) {
         // 1. Prioritize real API on localhost proxy
-        const apiUrl = this.config.proxyUrl;
-        if (!apiUrl)
-            throw new Error("API proxy URL is not configured");
+        const apiUrl = this.config.proxyUrl || "http://localhost:3000";
         try {
             const response = await fetch(`${apiUrl}/api/tse/${symbolId}`);
             if (!response.ok)
@@ -50,9 +44,7 @@ class TseApiClient {
         }
     }
     async fetchAdvancedMetrics(historyData) {
-        const apiUrl = this.config.proxyUrl;
-        if (!apiUrl)
-            throw new Error("API proxy URL is not configured");
+        const apiUrl = this.config.proxyUrl || "http://localhost:3000";
         try {
             const response = await fetch(`${apiUrl}/api/analyze`, {
                 method: "POST",
@@ -78,20 +70,7 @@ class TseApiClient {
             return cached.data;
         }
         // Simulated Order Book with Spoofing detection logic
-        let lastPrice = 150000; // Default fallback
-        try {
-            const marketData = await this.fetchMarketData(symbolId);
-            if (marketData && marketData.length > 0) {
-                lastPrice = marketData[marketData.length - 1].close;
-            }
-            else {
-                lastPrice = await this.getLastPrice(symbolId);
-            }
-        }
-        catch (error) {
-            console.warn("Failed to fetch real market data for order book, falling back to digital twin:", error);
-            lastPrice = await this.getLastPrice(symbolId);
-        }
+        const lastPrice = 150000; // Mock base price
         const LEVELS = 50;
         // Use TypedArrays instead of normal Arrays for reducing GC Overhead
         const bidPrices = new Int32Array(LEVELS);
@@ -138,6 +117,9 @@ class TseApiClient {
         let isSpoofingDetected = false;
         let left = 0;
         let right = allQuantities.length - 1;
+        // We are looking for any value > spoofingThreshold
+        // Since the array is sorted ascending, we can just check the last element,
+        // but to demonstrate binary search for a threshold crossing:
         let resultIdx = -1;
         while (left <= right) {
             const mid = Math.floor((left + right) / 2);
@@ -226,7 +208,6 @@ class TseApiClient {
                 id: "1",
                 title: "Central Bank announces new strict limits on currency allocation",
                 nerTags: ["Central Bank", "Currency Allocation"],
-                sentimentScore: 0,
                 impactEffect: "DOLLAR_BULLISH",
                 source: "Fars News",
                 timestamp: Date.now() - 3600000,
@@ -235,7 +216,6 @@ class TseApiClient {
                 id: "2",
                 title: "Talks stall regarding international trade agreements",
                 nerTags: ["Sanctions", "Trade", "International"],
-                sentimentScore: 0,
                 impactEffect: "DOLLAR_BULLISH",
                 source: "Bloomberg Persian",
                 timestamp: Date.now() - 7200000,
@@ -244,7 +224,6 @@ class TseApiClient {
                 id: "3",
                 title: "Ministry of Industry increases export duties on metals",
                 nerTags: ["Ministry", "Export", "Metals"],
-                sentimentScore: 0,
                 impactEffect: "NEUTRAL",
                 source: "ISNA",
                 timestamp: Date.now() - 12000000,
@@ -564,16 +543,13 @@ const analyzeMarketMTF = (mtfData, symbolId = "", externalMetrics, weights = opt
         // In production, you would only do this while actually mutating the weights object.
         Atomics.store(flagArray, 0, 1);
         // Dispatch async task to trigger the race condition warning in the worker
-        analysisWorkerPool
-            .executeTask("analyzeMarketMTF", {
+        analysisWorkerPool.executeTask('analyzeMarketMTF', {
             data: mtfData,
             symbolId,
             context: externalMetrics,
             weights,
-            sharedBuffer,
-        })
-            .catch(console.error)
-            .finally(() => {
+            sharedBuffer
+        }).catch(console.error).finally(() => {
             // Release lock
             Atomics.store(flagArray, 0, 0);
         });
@@ -836,7 +812,7 @@ const optimizeStrategyWeights = (candles) => {
             "1m": [],
             "15m": [],
         };
-        const hPrices = currentSlice.map((c) => c.close);
+        const hPrices = currentSlice.map(c => c.close);
         const atrVal = (0, exports.calculateATR)(currentSlice);
         const precalc = {
             dIchimoku: (0, exports.calculateIchimoku)(currentSlice),
@@ -845,7 +821,7 @@ const optimizeStrategyWeights = (candles) => {
             atr: atrVal,
             bb: (0, exports.calculateBollingerBands)(hPrices),
             ichimoku: (0, exports.calculateIchimoku)(currentSlice),
-            regime: (0, exports.detectMarketRegime)(currentSlice, atrVal),
+            regime: (0, exports.detectMarketRegime)(currentSlice, atrVal)
         };
         for (let i = 0; i < 15; i++) {
             const forecast = (0, exports.analyzeMarketMTF)(mtfData, "", undefined, candidates[i]);

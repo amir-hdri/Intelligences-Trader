@@ -157,6 +157,31 @@ class RiskEngine {
             return Math.min(entryPrice + 1.5 * atr, currentPrice + multiplier * atr);
         }
     }
+    calculateCommission(volume, type) {
+        // IME commission rates (simplified estimates)
+        const rates = {
+            'FUTURES': 0.0004,
+            'SPOT': 0.0024,
+            'CERTIFICATE': 0.0024,
+            'FUND': 0.001
+        };
+        return volume * (rates[type] || 0.001);
+    }
+    estimateSlippage(orderBookPressure, regime, volume) {
+        // Base slippage
+        let slippageBps = 2;
+        if (regime === 'HIGH_VOLATILITY') {
+            slippageBps += 5;
+        }
+        // High imbalance means higher slippage taking liquidity
+        if (Math.abs(orderBookPressure) > 0.5) {
+            slippageBps += 3;
+        }
+        // Volume impact (simplified market impact model)
+        // Assume each 1000 units adds 1 bps
+        slippageBps += (volume / 1000);
+        return slippageBps / 10000; // Convert bps to percentage
+    }
     getStatus() {
         return { ...this.status };
     }
