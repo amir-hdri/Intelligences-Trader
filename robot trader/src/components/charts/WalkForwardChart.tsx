@@ -87,7 +87,7 @@ const WalkForwardChart: React.FC<WalkForwardChartProps> = ({ data, forecast }) =
             contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
             itemStyle={{ color: '#e2e8f0' }}
             labelStyle={{ color: '#94a3b8', marginBottom: '0.5rem' }}
-            formatter={(value: any) => [value ? value.toLocaleString() : '', '']}
+            formatter={(value: unknown) => { const v = value as number; return [v ? v.toLocaleString() : '', '']; }}
           />
           <Legend />
 
