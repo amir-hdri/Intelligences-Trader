@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-class SecretManager {
+export class SecretManager {
   constructor() {
     this.algorithm = 'aes-256-cbc';
     // Use a provided master key or generate one for dev (should be in env)
