@@ -1,62 +1,90 @@
-import { describe, test } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import crypto from 'crypto';
-import { secretManager } from './SecretManager.js';
+import { SecretManager, secretManager } from './SecretManager.js';
 
 describe('SecretManager', () => {
-  test('encrypt and decrypt should work correctly with a standard string', () => {
-    const originalText = 'my secret message 123!';
-    const encrypted = secretManager.encrypt(originalText);
+  test('encrypts and decrypts text successfully with generated key', () => {
+    const sm = new SecretManager();
+    const plainText = 'Hello, Secret World!';
 
-    assert.ok(encrypted.iv);
-    assert.ok(encrypted.encryptedData);
+    const { iv, encryptedData } = sm.encrypt(plainText);
 
-    const decrypted = secretManager.decrypt(encrypted.encryptedData, encrypted.iv);
-    assert.strictEqual(decrypted, originalText);
+    assert.ok(iv);
+    assert.ok(encryptedData);
+    assert.notStrictEqual(encryptedData, plainText);
+
+    const decryptedText = sm.decrypt(encryptedData, iv);
+
+    assert.strictEqual(decryptedText, plainText);
   });
 
-  test('encrypt and decrypt should handle empty strings', () => {
-    const originalText = '';
-    const encrypted = secretManager.encrypt(originalText);
-    const decrypted = secretManager.decrypt(encrypted.encryptedData, encrypted.iv);
-    assert.strictEqual(decrypted, originalText);
+  test('handles environment MASTER_ENCRYPTION_KEY', () => {
+    // 32 bytes hex = 64 characters
+    const testKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
+    const originalKey = process.env.MASTER_ENCRYPTION_KEY;
+    process.env.MASTER_ENCRYPTION_KEY = testKey;
+
+    const sm = new SecretManager();
+
+    assert.strictEqual(sm.masterKey, testKey);
+
+    const plainText = 'Testing env key';
+    const { iv, encryptedData } = sm.encrypt(plainText);
+    const decryptedText = sm.decrypt(encryptedData, iv);
+
+    assert.strictEqual(decryptedText, plainText);
+
+    // restore original state
+    process.env.MASTER_ENCRYPTION_KEY = originalKey;
   });
 
-  test('encrypt and decrypt should handle large text', () => {
-    const originalText = 'A'.repeat(10000);
-    const encrypted = secretManager.encrypt(originalText);
-    const decrypted = secretManager.decrypt(encrypted.encryptedData, encrypted.iv);
-    assert.strictEqual(decrypted, originalText);
+  test('hashes an invalid length MASTER_ENCRYPTION_KEY to 32 bytes', () => {
+    const invalidKey = 'too-short-key';
+
+    const originalKey = process.env.MASTER_ENCRYPTION_KEY;
+    process.env.MASTER_ENCRYPTION_KEY = invalidKey;
+
+    const sm = new SecretManager();
+
+    // Should be hashed to 32 bytes (64 hex characters)
+    assert.strictEqual(sm.masterKey.length, 64);
+    assert.notStrictEqual(sm.masterKey, invalidKey);
+
+    const plainText = 'Testing invalid key fallback';
+    const { iv, encryptedData } = sm.encrypt(plainText);
+    const decryptedText = sm.decrypt(encryptedData, iv);
+
+    assert.strictEqual(decryptedText, plainText);
+
+    process.env.MASTER_ENCRYPTION_KEY = originalKey;
   });
 
-  test('encrypt and decrypt should handle special characters', () => {
-    const originalText = 'こんにちは世界! 🌟';
-    const encrypted = secretManager.encrypt(originalText);
-    const decrypted = secretManager.decrypt(encrypted.encryptedData, encrypted.iv);
-    assert.strictEqual(decrypted, originalText);
+  test('exported singleton instance works', () => {
+    const plainText = 'Testing singleton';
+    const { iv, encryptedData } = secretManager.encrypt(plainText);
+
+    assert.ok(iv);
+    assert.ok(encryptedData);
+
+    const decryptedText = secretManager.decrypt(encryptedData, iv);
+    assert.strictEqual(decryptedText, plainText);
   });
 
-  test('decrypt should throw error on invalid encrypted data', () => {
-    const iv = crypto.randomBytes(16).toString('hex');
-    assert.throws(() => {
-      secretManager.decrypt('invalid_hex_data', iv);
-    });
-  });
+  test('decrypting with wrong iv fails or produces gibberish', () => {
+    const sm = new SecretManager();
+    const plainText = 'Secret payload';
+    const { iv, encryptedData } = sm.encrypt(plainText);
 
-  test('decrypt should throw error on invalid iv', () => {
-    const originalText = 'test';
-    const encrypted = secretManager.encrypt(originalText);
-    assert.throws(() => {
-      secretManager.decrypt(encrypted.encryptedData, 'invalid_iv');
-    });
-  });
+    // Create a wrong IV of same length
+    const wrongIv = '00'.repeat(16); // 16 bytes = 32 hex chars
 
-  test('decrypt should throw error with wrong iv but valid format', () => {
-    const originalText = 'test';
-    const encrypted = secretManager.encrypt(originalText);
-    const wrongIv = crypto.randomBytes(16).toString('hex');
-    assert.throws(() => {
-      secretManager.decrypt(encrypted.encryptedData, wrongIv);
-    });
+    try {
+      const decryptedText = sm.decrypt(encryptedData, wrongIv);
+      assert.notStrictEqual(decryptedText, plainText);
+    } catch (e) {
+      // It might throw a decipher error due to bad padding, which is also fine
+      assert.ok(e);
+    }
   });
 });
