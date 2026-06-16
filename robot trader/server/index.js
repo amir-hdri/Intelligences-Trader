@@ -133,7 +133,7 @@ const authenticateToken = (req, res, next) => {
 app.post('/api/auth/login', (req, res) => {
   // Dummy authentication for demonstration
   const { username, password } = req.body;
-  if (username === 'admin' && password === 'admin') {
+  if (username && password && username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
     const user = { name: username };
     const accessToken = jwt.sign(user, JWT_SECRET, { expiresIn: '15m' });
     const refreshToken = jwt.sign(user, REFRESH_SECRET, { expiresIn: '1h' });
@@ -472,14 +472,17 @@ app.post('/api/train', async (req, res) => {
 
     // Create sequences (window size = 20)
     const windowSize = 20;
-    const X = [];
-    const Y = [];
+    const numSequences = Math.max(0, fracDiffClose.length - 1 - windowSize);
+    const X = new Array(numSequences);
+    const Y = new Array(numSequences);
 
     for (let i = windowSize; i < fracDiffClose.length - 1; i++) {
+      const seqIndex = i - windowSize;
       // Create feature vector (just fracDiffClose for simplicity in this example)
       // A full implementation would include Technical Indicators, Order Book Features, etc.
-      const seq = fracDiffClose.slice(i - windowSize, i).map(v => [v]);
-      X.push(seq);
+      const seq = new Array(windowSize);
+      for (let j = 0; j < windowSize; j++) seq[j] = [fracDiffClose[seqIndex + j]];
+      X[seqIndex] = seq;
 
       // Target: 0 (DOWN), 1 (HOLD), 2 (UP)
       const currentPrice = closePrices[i];
@@ -490,7 +493,7 @@ app.post('/api/train', async (req, res) => {
       if (return_pct > 0.001) label = 2; // UP
       else if (return_pct < -0.001) label = 0; // DOWN
 
-      Y.push(label);
+      Y[seqIndex] = label;
     }
 
     if (X.length < 20) {
@@ -535,8 +538,15 @@ app.post('/api/train', async (req, res) => {
 
     let correct = 0;
     for (let i = 0; i < predProbs.length; i++) {
-      const maxProb = Math.max(...predProbs[i]);
-      const predClass = predProbs[i].indexOf(maxProb);
+      const probs = predProbs[i];
+      let maxProb = probs[0];
+      let predClass = 0;
+      for (let j = 1; j < probs.length; j++) {
+        if (probs[j] > maxProb) {
+          maxProb = probs[j];
+          predClass = j;
+        }
+      }
       const trueClass = yVal[i];
 
       allYTrue.push(trueClass);
@@ -591,8 +601,8 @@ app.post('/api/train', async (req, res) => {
 });
 // Helper to generate fake history anchored to real price
 function generateHistory(currentCandle) {
-    const candles = [];
     const count = 100;
+    const candles = new Array(count);
     let lastClose = currentCandle.close * 0.95; // start 5% lower to create a trend
     const tfMs = 60 * 60 * 1000;
     const now = currentCandle.timestamp;
@@ -600,7 +610,7 @@ function generateHistory(currentCandle) {
     for (let i = 0; i < count - 1; i++) {
         const change = lastClose * ((crypto.randomBytes(4).readUInt32BE() / 0x100000000) * 0.02 - 0.01);
         const close = lastClose + change;
-        candles.push({
+        candles[i] = {
             timestamp: now - (count - i) * tfMs,
             open: lastClose,
             high: Math.max(lastClose, close) * 1.01,
@@ -610,11 +620,11 @@ function generateHistory(currentCandle) {
             openInterest: 5000,
             basis: 0,
             warehouseVolume: 10000
-        });
+        };
         lastClose = close;
     }
     // Push the real current candle last
-    candles.push(currentCandle);
+    candles[count - 1] = currentCandle;
     return candles;
 }
 
