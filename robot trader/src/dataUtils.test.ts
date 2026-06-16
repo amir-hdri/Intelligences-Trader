@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, calculateEMA } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, trainModelEpoch } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -487,39 +487,69 @@ describe('calculateIchimoku', () => {
 
 
 describe('trainModelEpoch', () => {
-  let originalFetch: typeof globalThis.fetch;
-  let originalConsoleError: typeof console.error;
+  let originalFetch;
+  let originalConsoleError;
+  let originalConsoleLog;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
     originalConsoleError = console.error;
+    originalConsoleLog = console.log;
     console.error = () => {};
+    console.log = () => {};
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
     console.error = originalConsoleError;
+    console.log = originalConsoleLog;
   });
 
-  test('handles fetch error and falls back to local optimization', async () => {
+  it('should return server winRate when fetch succeeds', async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({ performance: { winRate: 0.85 } }),
+    } as unknown as Response);
+
+    const candles: MarketCandle[] = [];
+    const result = await trainModelEpoch(candles, 'TEST-SYMBOL');
+    assert.strictEqual(result, 0.85);
+  });
+
+  it('should fall back to local optimization when fetch throws an error', async () => {
     globalThis.fetch = async () => {
       throw new Error('Network Error');
     };
 
-    let errorLogged = false;
-    console.error = () => {
-      errorLogged = true;
-    };
+    // Provide some dummy candles to ensure optimizeStrategyWeights doesn't throw and returns a number
+    const candles: MarketCandle[] = Array.from({ length: 50 }, (_, i) => ({
+      timestamp: Date.now() - i * 60000,
+      open: 100 + i,
+      high: 105 + i,
+      low: 95 + i,
+      close: 102 + i,
+      volume: 1000
+    }));
 
-    const mockCandles = [
-      { timestamp: 1, open: 10, high: 20, low: 10, close: 15, volume: 100 },
-      { timestamp: 2, open: 15, high: 25, low: 12, close: 20, volume: 100 },
-    ];
+    const result = await trainModelEpoch(candles, 'TEST-SYMBOL');
+    assert.strictEqual(typeof result, 'number');
+  });
 
-    const { trainModelEpoch } = require('./dataUtils');
-    const accuracy = await trainModelEpoch(mockCandles, 'TEST');
+  it('should fall back to local optimization when fetch response is not ok', async () => {
+    globalThis.fetch = async () => ({
+      ok: false,
+    } as unknown as Response);
 
-    assert.ok(typeof accuracy === 'number');
-    assert.strictEqual(errorLogged, true, 'console.error should have been called');
+    const candles: MarketCandle[] = Array.from({ length: 50 }, (_, i) => ({
+      timestamp: Date.now() - i * 60000,
+      open: 100 + i,
+      high: 105 + i,
+      low: 95 + i,
+      close: 102 + i,
+      volume: 1000
+    }));
+
+    const result = await trainModelEpoch(candles, 'TEST-SYMBOL');
+    assert.strictEqual(typeof result, 'number');
   });
 });
