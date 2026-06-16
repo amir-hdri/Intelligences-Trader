@@ -11,7 +11,7 @@ import type {
   PoliticalRiskNews,
   SentimentData,
   ArbitrageOpportunity,
-  WalkForwardResult
+  WalkForwardResult,
 } from "./types";
 import { INDICATOR_PARAMS, DEFAULT_API_CONFIG } from "./constants";
 import Sentiment from "sentiment";
@@ -98,7 +98,87 @@ export class TseApiClient {
       return cached.data;
     }
 
-    // Simulated Order Book with Spoofing detection logic
+    const apiUrl = this.config.proxyUrl;
+    if (!apiUrl) throw new Error("API proxy URL is not configured");
+
+    try {
+      const response = await fetch(`${apiUrl}/api/orderbook/${symbolId}`);
+      if (!response.ok) throw new Error("Network response was not ok");
+      const json = await response.json();
+
+      if (json.bids && json.asks) {
+        const bids = json.bids;
+        const asks = json.asks;
+        const timestamp = json.timestamp || now;
+        const isSpoofingDetected = json.isSpoofing || false;
+
+        const buyVolume = bids.reduce(
+          (sum: number, item: OrderBookItem) => sum + item.quantity,
+          0,
+        );
+        const sellVolume = asks.reduce(
+          (sum: number, item: OrderBookItem) => sum + item.quantity,
+          0,
+        );
+
+        const totalVolume = buyVolume + sellVolume;
+        const pressure =
+          totalVolume > 0 ? (buyVolume - sellVolume) / totalVolume : 0;
+
+        const buyRatio = totalVolume > 0 ? buyVolume / totalVolume : 0.5;
+        const isHerdingDetected = buyRatio > 0.5;
+        const momentumMultiplier = isHerdingDetected ? 1.5 : 1.0;
+
+        const result: OrderBook = {
+          bids,
+          asks,
+          timestamp,
+          isSpoofingDetected,
+          pressure,
+          queueDynamics: {
+            buyVolume,
+            sellVolume,
+            totalVolume,
+            buyRatio,
+            isHerdingDetected,
+            momentumMultiplier,
+          },
+        };
+
+        this.orderBookCache.set(symbolId, { timestamp: now, data: result });
+        return result;
+      }
+      throw new Error("Invalid real data format");
+    } catch (error) {
+      console.warn(
+        "Failed to fetch real market data for order book, falling back to digital twin:",
+        error,
+      );
+      if (this.config.useDigitalTwin === false) {
+        const emptyResult: OrderBook = {
+          bids: [],
+          asks: [],
+          timestamp: now,
+          isSpoofingDetected: false,
+          pressure: 0,
+          queueDynamics: {
+            buyVolume: 0,
+            sellVolume: 0,
+            totalVolume: 0,
+            buyRatio: 0.5,
+            isHerdingDetected: false,
+            momentumMultiplier: 1.0,
+          },
+        };
+        this.orderBookCache.set(symbolId, {
+          timestamp: now,
+          data: emptyResult,
+        });
+        return emptyResult;
+      }
+    }
+
+    // Simulated Order Book with Spoofing detection logic (Digital Twin fallback)
     let lastPrice = 150000; // Default fallback
     try {
       const marketData = await this.fetchMarketData(symbolId);
@@ -108,7 +188,10 @@ export class TseApiClient {
         lastPrice = await this.getLastPrice(symbolId);
       }
     } catch (error) {
-      console.warn("Failed to fetch real market data for order book, falling back to digital twin:", error);
+      console.warn(
+        "Failed to fetch real market data for order book, falling back to digital twin:",
+        error,
+      );
       lastPrice = await this.getLastPrice(symbolId);
     }
     const LEVELS = 50;
@@ -1006,7 +1089,9 @@ const simulateForwardStep = (
   return { windowProfit, trades };
 };
 
-export const performWalkForwardBacktest = (candles: MarketCandle[]): WalkForwardResult[] => {
+export const performWalkForwardBacktest = (
+  candles: MarketCandle[],
+): WalkForwardResult[] => {
   if (candles.length < 50) return [];
   const windowSize = 50;
   const stepSize = 10;
