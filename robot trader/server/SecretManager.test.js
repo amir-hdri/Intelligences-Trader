@@ -1,9 +1,32 @@
-import { test, describe } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert';
+
+// We need to mock process.env before importing SecretManager
+const originalEnv = process.env.MASTER_ENCRYPTION_KEY;
+const testKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+process.env.MASTER_ENCRYPTION_KEY = testKey;
+
+// Now import it
 import { SecretManager, secretManager } from './SecretManager.js';
 
 describe('SecretManager', () => {
-  test('encrypts and decrypts text successfully with generated key', () => {
+  after(() => {
+    process.env.MASTER_ENCRYPTION_KEY = originalEnv;
+  });
+
+  test('throws error when MASTER_ENCRYPTION_KEY is missing', () => {
+    const tempKey = process.env.MASTER_ENCRYPTION_KEY;
+    delete process.env.MASTER_ENCRYPTION_KEY;
+
+    assert.throws(
+      () => new SecretManager(),
+      /FATAL ERROR: MASTER_ENCRYPTION_KEY is not defined in the environment/
+    );
+
+    process.env.MASTER_ENCRYPTION_KEY = tempKey;
+  });
+
+  test('encrypts and decrypts text successfully with valid key', () => {
     const sm = new SecretManager();
     const plainText = 'Hello, Secret World!';
 
@@ -19,12 +42,6 @@ describe('SecretManager', () => {
   });
 
   test('handles environment MASTER_ENCRYPTION_KEY', () => {
-    // 32 bytes hex = 64 characters
-    const testKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-
-    const originalKey = process.env.MASTER_ENCRYPTION_KEY;
-    process.env.MASTER_ENCRYPTION_KEY = testKey;
-
     const sm = new SecretManager();
 
     assert.strictEqual(sm.masterKey, testKey);
@@ -34,15 +51,12 @@ describe('SecretManager', () => {
     const decryptedText = sm.decrypt(encryptedData, iv);
 
     assert.strictEqual(decryptedText, plainText);
-
-    // restore original state
-    process.env.MASTER_ENCRYPTION_KEY = originalKey;
   });
 
   test('hashes an invalid length MASTER_ENCRYPTION_KEY to 32 bytes', () => {
     const invalidKey = 'too-short-key';
 
-    const originalKey = process.env.MASTER_ENCRYPTION_KEY;
+    const tempKey = process.env.MASTER_ENCRYPTION_KEY;
     process.env.MASTER_ENCRYPTION_KEY = invalidKey;
 
     const sm = new SecretManager();
@@ -57,7 +71,7 @@ describe('SecretManager', () => {
 
     assert.strictEqual(decryptedText, plainText);
 
-    process.env.MASTER_ENCRYPTION_KEY = originalKey;
+    process.env.MASTER_ENCRYPTION_KEY = tempKey;
   });
 
   test('exported singleton instance works', () => {
