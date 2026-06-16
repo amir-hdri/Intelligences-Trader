@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.fetchGoldData = exports.fetchSaffronData = exports.fetchHistoricalData = void 0;
-const constants_1 = require("./constants");
 /**
  * Fetches real historical market data from the backend proxy.
  * Replaces the previous static mocked data generation.
@@ -10,7 +9,7 @@ const constants_1 = require("./constants");
  * @param proxyUrl The base URL of the OMS proxy server
  * @returns A promise that resolves to an array of MarketCandle data
  */
-const fetchHistoricalData = async (symbolId, proxyUrl = constants_1.DEFAULT_API_CONFIG.proxyUrl) => {
+const fetchHistoricalData = async (symbolId, proxyUrl = 'http://localhost:3000') => {
     try {
         const response = await fetch(`${proxyUrl}/api/tse/history/${symbolId}`);
         if (!response.ok) {
