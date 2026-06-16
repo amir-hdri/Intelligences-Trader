@@ -15,7 +15,8 @@ export const app = express();
 app.use(apiMetrics());
 const PORT = process.env.PORT || 3001;
 
-app.use(cors({ origin: 'http://localhost:5173' }));
+const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
 // Fix: Prevent hardcoded JWT_SECRET fallback vulnerability by enforcing existence
