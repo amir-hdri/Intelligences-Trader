@@ -1,5 +1,5 @@
 import jalaali from 'jalaali-js';
-import { RiskLimits, RiskStatus, TradeAction, MarketCandle, ExpertForecast, MarginStatus, SymbolInfo } from './types';
+import { RiskLimits, RiskStatus, TradeAction, ExpertForecast, SymbolInfo } from './types';
 
 export class RiskEngine {
   private limits: RiskLimits;
