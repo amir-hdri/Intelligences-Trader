@@ -98,63 +98,19 @@ export class TseApiClient {
       return cached.data;
     }
 
-    const apiUrl = this.config.proxyUrl || "http://localhost:3000";
+    // Simulated Order Book with Spoofing detection logic
+    let lastPrice = 150000; // Default fallback
     try {
-      const response = await fetch(`${apiUrl}/api/orderbook/${symbolId}`);
-      if (response.ok) {
-        const json = await response.json();
-
-        const bids: OrderBookItem[] = json.bids || [];
-        const asks: OrderBookItem[] = json.asks || [];
-
-        const buyVolume = bids.reduce((sum, item) => sum + item.quantity, 0);
-        const sellVolume = asks.reduce((sum, item) => sum + item.quantity, 0);
-        const totalVolume = buyVolume + sellVolume;
-
-        const pressure = totalVolume > 0 ? (buyVolume - sellVolume) / totalVolume : 0;
-        const buyRatio = totalVolume > 0 ? buyVolume / totalVolume : 0.5;
-        const isHerdingDetected = buyRatio > 0.5;
-        const momentumMultiplier = isHerdingDetected ? 1.5 : 1.0;
-
-        const isSpoofingDetected = json.isSpoofing !== undefined ? json.isSpoofing : false;
-
-        const result: OrderBook = {
-          bids,
-          asks,
-          timestamp: json.timestamp || now,
-          isSpoofingDetected,
-          pressure,
-          queueDynamics: {
-            buyVolume,
-            sellVolume,
-            totalVolume,
-            buyRatio,
-            isHerdingDetected,
-            momentumMultiplier,
-          },
-        };
-
-        this.orderBookCache.set(symbolId, { timestamp: now, data: result });
-        return result;
-      }
-    } catch (error) {
-      console.warn("Failed to fetch order book from API, falling back to simulation", error);
-    }
-
-    // Simulated Order Book fallback
-    let lastPrice = 150000; // Mock base price
-    try {
-      // Prioritize real-time base prices by querying this.fetchMarketData
       const marketData = await this.fetchMarketData(symbolId);
       if (marketData && marketData.length > 0) {
         lastPrice = marketData[marketData.length - 1].close;
       } else {
         lastPrice = await this.getLastPrice(symbolId);
       }
-    } catch (e) {
-      // Ignore error, keep default lastPrice
+    } catch (error) {
+      console.warn("Failed to fetch real market data for order book, falling back to digital twin:", error);
+      lastPrice = await this.getLastPrice(symbolId);
     }
-
     const LEVELS = 50;
 
     // Use TypedArrays instead of normal Arrays for reducing GC Overhead
