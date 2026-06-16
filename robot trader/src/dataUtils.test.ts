@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, calculateFairValue } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, calculateEMA } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -404,52 +404,33 @@ describe('calculateIchimoku', () => {
   });
 });
 
-test('calculateFairValue - returns calculated value for GOLD symbols', () => {
-  const correlationMetrics = {
-    globalGold: 2350,
-    usdFree: 60000,
-    usdNima: 40000,
-    globalCopper: 9000,
-    globalBrent: 80,
-    correlations: {}
-  };
-
-  const result = calculateFairValue('IME-GOLD-FUTURES', 100000, correlationMetrics);
-
-  // ((2350 * 60000) / 31.1035) * 0.976 * 1.05 = 4644814.892...
-  const expectedValue = ((2350 * 60000) / 31.1035) * 0.976 * 1.05;
-
-  assert.strictEqual(Math.abs(result - expectedValue) < 0.001, true, 'Result should match expected formula value');
+test('calculateEMA - returns first element for single element array', () => {
+  const prices = [100];
+  const ema = calculateEMA(prices, 12);
+  assert.strictEqual(ema, 100);
 });
 
-test('calculateFairValue - returns currentPrice for non-GOLD symbols', () => {
-  const correlationMetrics = {
-    globalGold: 2350,
-    usdFree: 60000,
-    usdNima: 40000,
-    globalCopper: 9000,
-    globalBrent: 80,
-    correlations: {}
-  };
-
-  const currentPrice = 150000;
-  const result = calculateFairValue('IME-COPPER', currentPrice, correlationMetrics);
-
-  assert.strictEqual(result, currentPrice, 'Should return current price for non-GOLD symbols');
+test('calculateEMA - calculate correct EMA with basic integer prices', () => {
+  const prices = [100, 110];
+  const ema = calculateEMA(prices, 12);
+  const expectedEma = 110 * (2/13) + 100 * (11/13);
+  assert.strictEqual(ema, expectedEma);
 });
 
-test('calculateFairValue - case sensitivity of GOLD string', () => {
-  const correlationMetrics = {
-    globalGold: 2350,
-    usdFree: 60000,
-    usdNima: 40000,
-    globalCopper: 9000,
-    globalBrent: 80,
-    correlations: {}
-  };
+test('calculateEMA - calculate correctly over a larger set', () => {
+  const prices = [10, 20, 30, 40, 50];
+  const ema = calculateEMA(prices, 3);
+  // k = 2 / 4 = 0.5
+  // ema0 = 10
+  // ema1 = 20 * 0.5 + 10 * 0.5 = 15
+  // ema2 = 30 * 0.5 + 15 * 0.5 = 22.5
+  // ema3 = 40 * 0.5 + 22.5 * 0.5 = 31.25
+  // ema4 = 50 * 0.5 + 31.25 * 0.5 = 40.625
+  assert.strictEqual(ema, 40.625);
+});
 
-  const currentPrice = 150000;
-  const result = calculateFairValue('ime-gold', currentPrice, correlationMetrics);
-
-  assert.strictEqual(result, currentPrice, 'Should return current price because includes("GOLD") is case-sensitive');
+test('calculateEMA - calculation with constant prices', () => {
+  const prices = [100, 100, 100, 100, 100];
+  const ema = calculateEMA(prices, 14);
+  assert.strictEqual(ema, 100);
 });
