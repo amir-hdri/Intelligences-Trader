@@ -179,6 +179,44 @@ describe('dataUtils - Market Regime Detection', () => {
 // ========================================
 // Test Suite: TseApiClient
 // ========================================
+
+describe('dataUtils - analyzeMarketMTF', () => {
+    let originalSharedArrayBuffer: any;
+    let originalConsoleWarn: any;
+    let warnMessages: string[] = [];
+
+    beforeEach(() => {
+        originalSharedArrayBuffer = globalThis.SharedArrayBuffer;
+        originalConsoleWarn = console.warn;
+        warnMessages = [];
+
+        // Mock SharedArrayBuffer to throw an error
+        globalThis.SharedArrayBuffer = class {
+            constructor() {
+                throw new Error('SharedArrayBuffer is not defined');
+            }
+        } as any;
+
+        // Mock console.warn
+        console.warn = (...args: any[]) => {
+            warnMessages.push(args[0]);
+        };
+    });
+
+    afterEach(() => {
+        globalThis.SharedArrayBuffer = originalSharedArrayBuffer;
+        console.warn = originalConsoleWarn;
+    });
+
+    it('should warn when SharedArrayBuffer is not supported', () => {
+        const mtfData = { '1d': [], '1h': [] } as any;
+        analyzeMarketMTF(mtfData, 'TEST_SYMBOL');
+
+        assert.strictEqual(warnMessages.length, 1);
+        assert.ok(warnMessages[0].includes('SharedArrayBuffer not supported in this environment.'));
+    });
+});
+
 describe('TseApiClient', () => {
   let originalFetch: typeof globalThis.fetch;
   let originalConsoleError: typeof console.error;
