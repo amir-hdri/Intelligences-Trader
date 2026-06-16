@@ -4,7 +4,10 @@ export class SecretManager {
   constructor() {
     this.algorithm = 'aes-256-cbc';
     // Use a provided master key or generate one for dev (should be in env)
-    this.masterKey = process.env.MASTER_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
+    this.masterKey = process.env.MASTER_ENCRYPTION_KEY;
+    if (!this.masterKey) {
+      throw new Error('FATAL ERROR: MASTER_ENCRYPTION_KEY is not defined in the environment.');
+    }
 
     // Ensure key is exactly 32 bytes (256 bits)
     if (Buffer.from(this.masterKey, 'hex').length !== 32) {

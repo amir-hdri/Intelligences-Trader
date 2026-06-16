@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/auto-instrumentations-node": "^0.76.0",
-    "@opentelemetry/sdk-node": "^0.218.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.77.0",
+    "@opentelemetry/sdk-node": "^0.219.0",
     "@tensorflow/tfjs-node": "^4.22.0",
     "@types/jest": "^30.0.0",
     "@types/supertest": "^7.2.0",
