@@ -1,33 +1,45 @@
-import test from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { calculateRSISeries } from '../strategyOptimizer.js';
+import { calculateEMASeries } from '../strategyOptimizer.js';
 
-test('calculateRSISeries', async (t) => {
-  await t.test('returns an array of 50s when prices length is less than or equal to period', () => {
-    const prices = [10, 11, 12];
-    const rsi = calculateRSISeries(prices, 3);
-    assert.deepStrictEqual(rsi, [50, 50, 50]);
-  });
+describe('strategyOptimizer.js', () => {
+  describe('calculateEMASeries', () => {
+    test('should calculate EMA correctly for a simple series', () => {
+      const prices = [10, 12, 14, 16];
+      const period = 3;
+      const expected = [10, 11, 12.5, 14.25];
 
-  await t.test('calculates RSI correctly for simple trend', () => {
-    const prices = [10, 11, 12, 13, 14, 15];
-    const rsi = calculateRSISeries(prices, 4);
-    assert.strictEqual(rsi.length, 6);
-    assert.strictEqual(rsi[4], 100);
-    assert.strictEqual(rsi[5], 100);
-  });
+      const result = calculateEMASeries(prices, period);
 
-  await t.test('calculates RSI correctly for downtrend', () => {
-    const prices = [15, 14, 13, 12, 11, 10];
-    const rsi = calculateRSISeries(prices, 4);
-    assert.strictEqual(rsi[4], 0);
-    assert.strictEqual(rsi[5], 0);
-  });
+      assert.deepStrictEqual(result, expected);
+    });
 
-  await t.test('calculates RSI correctly for mixed trend', () => {
-    const prices = [10, 12, 11, 13, 12, 14];
-    const rsi = calculateRSISeries(prices, 4);
-    assert.ok(Math.abs(rsi[4] - 66.66666) < 0.0001);
-    assert.ok(Math.abs(rsi[5] - 66.66666) < 0.0001);
+    test('should return an array of the same length as prices', () => {
+      const prices = [1, 2, 3, 4, 5];
+      const period = 3;
+      const result = calculateEMASeries(prices, period);
+      assert.strictEqual(result.length, prices.length);
+    });
+
+    test('should start with the first price', () => {
+      const prices = [100, 105, 110];
+      const period = 2;
+      const result = calculateEMASeries(prices, period);
+      assert.strictEqual(result[0], 100);
+    });
+
+    test('should handle empty arrays', () => {
+      const prices = [];
+      const period = 3;
+      const result = calculateEMASeries(prices, period);
+      assert.deepStrictEqual(result, []);
+    });
+
+    test('should handle single element arrays', () => {
+      const prices = [10];
+      const period = 3;
+      const result = calculateEMASeries(prices, period);
+      assert.deepStrictEqual(result, [10]);
+    });
   });
 });
