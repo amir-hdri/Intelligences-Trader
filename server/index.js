@@ -46,7 +46,7 @@ const TSETMC_URL = 'http://cdn.tsetmc.com/api/Instrument/GetInstrumentHistory/';
 const getRealMarketData = async (symbolId) => {
   try {
     // Attempt to fetch from TSETMC (Example ID for Gold Futures)
-    const tsetmcId = symbolId.includes('GOLD') ? '35425587644337450' : '65883838195688438';
+    const tsetmcId = symbolId.indexOf('GOLD') !== -1 ? '35425587644337450' : '65883838195688438';
     const response = await axios.get(`${TSETMC_URL}${tsetmcId}`, {
       timeout: 5000,
       headers: { 'User-Agent': 'Mozilla/5.0' }
