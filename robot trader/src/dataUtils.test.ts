@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, calculateEMA } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -402,4 +402,35 @@ describe('calculateIchimoku', () => {
     assert.strictEqual(result.senkouB, 133.5);
     assert.strictEqual(result.senkouA, (155 + 146.5) / 2);
   });
+});
+
+test('calculateEMA - returns first element for single element array', () => {
+  const prices = [100];
+  const ema = calculateEMA(prices, 12);
+  assert.strictEqual(ema, 100);
+});
+
+test('calculateEMA - calculate correct EMA with basic integer prices', () => {
+  const prices = [100, 110];
+  const ema = calculateEMA(prices, 12);
+  const expectedEma = 110 * (2/13) + 100 * (11/13);
+  assert.strictEqual(ema, expectedEma);
+});
+
+test('calculateEMA - calculate correctly over a larger set', () => {
+  const prices = [10, 20, 30, 40, 50];
+  const ema = calculateEMA(prices, 3);
+  // k = 2 / 4 = 0.5
+  // ema0 = 10
+  // ema1 = 20 * 0.5 + 10 * 0.5 = 15
+  // ema2 = 30 * 0.5 + 15 * 0.5 = 22.5
+  // ema3 = 40 * 0.5 + 22.5 * 0.5 = 31.25
+  // ema4 = 50 * 0.5 + 31.25 * 0.5 = 40.625
+  assert.strictEqual(ema, 40.625);
+});
+
+test('calculateEMA - calculation with constant prices', () => {
+  const prices = [100, 100, 100, 100, 100];
+  const ema = calculateEMA(prices, 14);
+  assert.strictEqual(ema, 100);
 });
