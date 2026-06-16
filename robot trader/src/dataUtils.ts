@@ -98,74 +98,8 @@ export class TseApiClient {
       return cached.data;
     }
 
-    const apiUrl = this.config.proxyUrl || "http://localhost:3000";
-    try {
-      const response = await fetch(`${apiUrl}/api/tse/info/${symbolId}`);
-      if (!response.ok) throw new Error("Network response was not ok");
-      const json = await response.json();
-
-      if (json.orderBook && Array.isArray(json.orderBook.bids) && Array.isArray(json.orderBook.asks)) {
-        const bids: OrderBookItem[] = json.orderBook.bids;
-        const asks: OrderBookItem[] = json.orderBook.asks;
-
-        const buyVolume = bids.reduce((sum, b) => sum + b.quantity, 0);
-        const sellVolume = asks.reduce((sum, a) => sum + a.quantity, 0);
-        const totalVolume = buyVolume + sellVolume;
-        const pressure = totalVolume > 0 ? (buyVolume - sellVolume) / totalVolume : 0;
-
-        const buyRatio = totalVolume > 0 ? buyVolume / totalVolume : 0.5;
-        const isHerdingDetected = buyRatio > 0.5;
-        const momentumMultiplier = isHerdingDetected ? 1.5 : 1.0;
-
-        const spoofingThreshold = 200000;
-        let isSpoofingDetected = false;
-        if (bids.some(b => b.quantity > spoofingThreshold) || asks.some(a => a.quantity > spoofingThreshold)) {
-          isSpoofingDetected = true;
-        }
-
-        const result: OrderBook = {
-          bids,
-          asks,
-          timestamp: json.timestamp || now,
-          isSpoofingDetected,
-          pressure,
-          queueDynamics: {
-            buyVolume,
-            sellVolume,
-            totalVolume,
-            buyRatio,
-            isHerdingDetected,
-            momentumMultiplier,
-          },
-        };
-
-        this.orderBookCache.set(symbolId, { timestamp: now, data: result });
-        return result;
-      }
-      throw new Error("Invalid real data format");
-    } catch (error) {
-      console.error("Failed to fetch order book from Real API proxy", error);
-      if (this.config.useDigitalTwin === false) {
-        return {
-          bids: [],
-          asks: [],
-          timestamp: now,
-          isSpoofingDetected: false,
-          pressure: 0,
-          queueDynamics: {
-            buyVolume: 0,
-            sellVolume: 0,
-            totalVolume: 0,
-            buyRatio: 0.5,
-            isHerdingDetected: false,
-            momentumMultiplier: 1.0,
-          },
-        };
-      }
-    }
-
-    // Fallback: Simulated Order Book with Spoofing detection logic
-    let lastPrice = 150000; // Mock base price fallback
+    // Simulated Order Book with Spoofing detection logic
+    let lastPrice: number;
     try {
       const marketData = await this.fetchMarketData(symbolId);
       if (marketData && marketData.length > 0) {
