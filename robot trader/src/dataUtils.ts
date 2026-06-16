@@ -11,7 +11,7 @@ import type {
   PoliticalRiskNews,
   SentimentData,
   ArbitrageOpportunity,
-  WalkForwardResult,
+  WalkForwardResult
 } from "./types";
 import { INDICATOR_PARAMS, DEFAULT_API_CONFIG } from "./constants";
 import Sentiment from "sentiment";
@@ -98,41 +98,35 @@ export class TseApiClient {
       return cached.data;
     }
 
-    const apiUrl = this.config.proxyUrl;
-    if (!apiUrl) throw new Error("API proxy URL is not configured");
-
+    const apiUrl = this.config.proxyUrl || "http://localhost:3000";
     try {
-      const response = await fetch(`${apiUrl}/api/orderbook/${symbolId}`);
+      const response = await fetch(`${apiUrl}/api/tse/info/${symbolId}`);
       if (!response.ok) throw new Error("Network response was not ok");
       const json = await response.json();
 
-      if (json.bids && json.asks) {
-        const bids = json.bids;
-        const asks = json.asks;
-        const timestamp = json.timestamp || now;
-        const isSpoofingDetected = json.isSpoofing || false;
+      if (json.orderBook && Array.isArray(json.orderBook.bids) && Array.isArray(json.orderBook.asks)) {
+        const bids: OrderBookItem[] = json.orderBook.bids;
+        const asks: OrderBookItem[] = json.orderBook.asks;
 
-        const buyVolume = bids.reduce(
-          (sum: number, item: OrderBookItem) => sum + item.quantity,
-          0,
-        );
-        const sellVolume = asks.reduce(
-          (sum: number, item: OrderBookItem) => sum + item.quantity,
-          0,
-        );
-
+        const buyVolume = bids.reduce((sum, b) => sum + b.quantity, 0);
+        const sellVolume = asks.reduce((sum, a) => sum + a.quantity, 0);
         const totalVolume = buyVolume + sellVolume;
-        const pressure =
-          totalVolume > 0 ? (buyVolume - sellVolume) / totalVolume : 0;
+        const pressure = totalVolume > 0 ? (buyVolume - sellVolume) / totalVolume : 0;
 
         const buyRatio = totalVolume > 0 ? buyVolume / totalVolume : 0.5;
         const isHerdingDetected = buyRatio > 0.5;
         const momentumMultiplier = isHerdingDetected ? 1.5 : 1.0;
 
+        const spoofingThreshold = 200000;
+        let isSpoofingDetected = false;
+        if (bids.some(b => b.quantity > spoofingThreshold) || asks.some(a => a.quantity > spoofingThreshold)) {
+          isSpoofingDetected = true;
+        }
+
         const result: OrderBook = {
           bids,
           asks,
-          timestamp,
+          timestamp: json.timestamp || now,
           isSpoofingDetected,
           pressure,
           queueDynamics: {
@@ -150,12 +144,9 @@ export class TseApiClient {
       }
       throw new Error("Invalid real data format");
     } catch (error) {
-      console.warn(
-        "Failed to fetch real market data for order book, falling back to digital twin:",
-        error,
-      );
+      console.error("Failed to fetch order book from Real API proxy", error);
       if (this.config.useDigitalTwin === false) {
-        const emptyResult: OrderBook = {
+        return {
           bids: [],
           asks: [],
           timestamp: now,
@@ -170,16 +161,11 @@ export class TseApiClient {
             momentumMultiplier: 1.0,
           },
         };
-        this.orderBookCache.set(symbolId, {
-          timestamp: now,
-          data: emptyResult,
-        });
-        return emptyResult;
       }
     }
 
-    // Simulated Order Book with Spoofing detection logic (Digital Twin fallback)
-    let lastPrice = 150000; // Default fallback
+    // Fallback: Simulated Order Book with Spoofing detection logic
+    let lastPrice = 150000; // Mock base price fallback
     try {
       const marketData = await this.fetchMarketData(symbolId);
       if (marketData && marketData.length > 0) {
@@ -187,13 +173,14 @@ export class TseApiClient {
       } else {
         lastPrice = await this.getLastPrice(symbolId);
       }
-    } catch (error) {
-      console.warn(
-        "Failed to fetch real market data for order book, falling back to digital twin:",
-        error,
-      );
-      lastPrice = await this.getLastPrice(symbolId);
+    } catch (e) {
+      try {
+        lastPrice = await this.getLastPrice(symbolId);
+      } catch (e2) {
+        lastPrice = 150000;
+      }
     }
+
     const LEVELS = 50;
 
     // Use TypedArrays instead of normal Arrays for reducing GC Overhead
@@ -275,21 +262,21 @@ export class TseApiClient {
     const isHerdingDetected = buyRatio > 0.5;
     const momentumMultiplier = isHerdingDetected ? 1.5 : 1.0; // Boost momentum if herding
 
-    const bids: OrderBookItem[] = [];
-    const asks: OrderBookItem[] = [];
+    const bids: OrderBookItem[] = new Array(LEVELS);
+    const asks: OrderBookItem[] = new Array(LEVELS);
 
     // Reconstruct OrderBookItem[] for the UI
     for (let i = 0; i < LEVELS; i++) {
-      bids.push({
+      bids[i] = {
         price: bidPrices[i],
         quantity: bidQuantities[i],
         count: bidCounts[i],
-      });
-      asks.push({
+      };
+      asks[i] = {
         price: askPrices[i],
         quantity: askQuantities[i],
         count: askCounts[i],
-      });
+      };
     }
 
     const result: OrderBook = {
@@ -308,9 +295,7 @@ export class TseApiClient {
       },
     };
 
-    // Store in Cache Layer
     this.orderBookCache.set(symbolId, { timestamp: now, data: result });
-
     return result;
   }
 
@@ -1089,9 +1074,7 @@ const simulateForwardStep = (
   return { windowProfit, trades };
 };
 
-export const performWalkForwardBacktest = (
-  candles: MarketCandle[],
-): WalkForwardResult[] => {
+export const performWalkForwardBacktest = (candles: MarketCandle[]): WalkForwardResult[] => {
   if (candles.length < 50) return [];
   const windowSize = 50;
   const stepSize = 10;
