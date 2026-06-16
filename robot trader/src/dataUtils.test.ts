@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, trainModelEpoch } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -179,6 +179,44 @@ describe('dataUtils - Market Regime Detection', () => {
 // ========================================
 // Test Suite: TseApiClient
 // ========================================
+
+describe('dataUtils - analyzeMarketMTF', () => {
+    let originalSharedArrayBuffer: any;
+    let originalConsoleWarn: any;
+    let warnMessages: string[] = [];
+
+    beforeEach(() => {
+        originalSharedArrayBuffer = globalThis.SharedArrayBuffer;
+        originalConsoleWarn = console.warn;
+        warnMessages = [];
+
+        // Mock SharedArrayBuffer to throw an error
+        globalThis.SharedArrayBuffer = class {
+            constructor() {
+                throw new Error('SharedArrayBuffer is not defined');
+            }
+        } as any;
+
+        // Mock console.warn
+        console.warn = (...args: any[]) => {
+            warnMessages.push(args[0]);
+        };
+    });
+
+    afterEach(() => {
+        globalThis.SharedArrayBuffer = originalSharedArrayBuffer;
+        console.warn = originalConsoleWarn;
+    });
+
+    it('should warn when SharedArrayBuffer is not supported', () => {
+        const mtfData = { '1d': [], '1h': [] } as any;
+        analyzeMarketMTF(mtfData, 'TEST_SYMBOL');
+
+        assert.strictEqual(warnMessages.length, 1);
+        assert.ok(warnMessages[0].includes('SharedArrayBuffer not supported in this environment.'));
+    });
+});
+
 describe('TseApiClient', () => {
   let originalFetch: typeof globalThis.fetch;
   let originalConsoleError: typeof console.error;
@@ -301,6 +339,87 @@ describe('TseApiClient', () => {
     assert.strictEqual(data.length, 0);
   });
 
+
+
+  test('fetchOrderBook handles fetch error and returns digital twin data', async () => {
+    const origFetchMarketData = TseApiClient.prototype.fetchMarketData;
+    TseApiClient.prototype.fetchMarketData = async () => {
+      throw new Error('Network Error');
+    };
+
+    let errorLogged = false;
+    console.warn = () => {
+      errorLogged = true;
+    };
+
+    const config = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: true,
+    };
+
+    const client = new TseApiClient(config as any);
+    const data = await client.fetchOrderBook('TEST');
+
+    TseApiClient.prototype.fetchMarketData = origFetchMarketData;
+    assert.ok(data !== null);
+    assert.strictEqual(errorLogged, true, 'console.warn should have been called');
+  });
+
+  test('fetchSentiment handles fetch error and returns simulation', async () => {
+    globalThis.fetch = async () => {
+      throw new Error('Network Error');
+    };
+
+    let errorLogged = false;
+    console.warn = () => {
+      errorLogged = true;
+    };
+
+    const config = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: true,
+    };
+
+    const client = new TseApiClient(config as any);
+    const data = await client.fetchSentiment();
+
+    assert.ok(data !== null);
+    assert.strictEqual(typeof data.score, 'number');
+    assert.strictEqual(errorLogged, true, 'console.warn should have been called');
+  });
+
+  test('fetchMultiTimeframe handles API failure and returns full simulation', async () => {
+    const origFetchMarketData = TseApiClient.prototype.fetchMarketData;
+    TseApiClient.prototype.fetchMarketData = async () => {
+      throw new Error('Network Error');
+    };
+
+    let errorLogged = false;
+    console.warn = () => {
+      errorLogged = true;
+    };
+
+    const config = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: true,
+    };
+
+    const client = new TseApiClient(config as any);
+    const data = await client.fetchMultiTimeframeData('TEST');
+
+    TseApiClient.prototype.fetchMarketData = origFetchMarketData;
+    assert.ok(data['1d']);
+    assert.ok(data['1h']);
+    assert.ok(data['15m']);
+    assert.ok(data['1m']);
+    assert.strictEqual(errorLogged, true, 'console.warn should have been called');
+  });
 
   test('fetchAdvancedMetrics handles fetch error and returns null', async () => {
     // Mock fetch failure
@@ -458,5 +577,74 @@ describe('calculateIchimoku', () => {
     assert.strictEqual(result.kijun, 146.5);
     assert.strictEqual(result.senkouB, 133.5);
     assert.strictEqual(result.senkouA, (155 + 146.5) / 2);
+  });
+});
+
+
+describe('trainModelEpoch', () => {
+  let originalFetch;
+  let originalConsoleError;
+  let originalConsoleLog;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    originalConsoleError = console.error;
+    originalConsoleLog = console.log;
+    console.error = () => {};
+    console.log = () => {};
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    console.error = originalConsoleError;
+    console.log = originalConsoleLog;
+  });
+
+  it('should return server winRate when fetch succeeds', async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({ performance: { winRate: 0.85 } }),
+    } as unknown as Response);
+
+    const candles: MarketCandle[] = [];
+    const result = await trainModelEpoch(candles, 'TEST-SYMBOL');
+    assert.strictEqual(result, 0.85);
+  });
+
+  it('should fall back to local optimization when fetch throws an error', async () => {
+    globalThis.fetch = async () => {
+      throw new Error('Network Error');
+    };
+
+    // Provide some dummy candles to ensure optimizeStrategyWeights doesn't throw and returns a number
+    const candles: MarketCandle[] = Array.from({ length: 50 }, (_, i) => ({
+      timestamp: Date.now() - i * 60000,
+      open: 100 + i,
+      high: 105 + i,
+      low: 95 + i,
+      close: 102 + i,
+      volume: 1000
+    }));
+
+    const result = await trainModelEpoch(candles, 'TEST-SYMBOL');
+    assert.strictEqual(typeof result, 'number');
+  });
+
+  it('should fall back to local optimization when fetch response is not ok', async () => {
+    globalThis.fetch = async () => ({
+      ok: false,
+    } as unknown as Response);
+
+    const candles: MarketCandle[] = Array.from({ length: 50 }, (_, i) => ({
+      timestamp: Date.now() - i * 60000,
+      open: 100 + i,
+      high: 105 + i,
+      low: 95 + i,
+      close: 102 + i,
+      volume: 1000
+    }));
+
+    const result = await trainModelEpoch(candles, 'TEST-SYMBOL');
+    assert.strictEqual(typeof result, 'number');
   });
 });

@@ -19,7 +19,7 @@ const hpoEngine = new HPOEngine();
 import logger from './logger.js';
 const apiMetrics = () => (req, res, next) => next();
 
-import { pinoLogger, sampleLogger } from './pinoLogger.js';
+import { pinoLogger } from './pinoLogger.js';
 import crypto from 'crypto';
 import express from 'express';
 import cors from 'cors';
@@ -28,7 +28,6 @@ dotenv.config();
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import { auditLogger } from './AuditLogger.js';
-import { secretManager } from './SecretManager.js';
 
 import { DayDetails } from 'tsetmc-client';
 import { analyzeMarketMTF, detectMarketRegime, calculateATR } from './analyzer.js';
@@ -78,7 +77,7 @@ const app = express();
 app.use(apiMetrics());
 const port = 3000;
 
-app.use(cors({ origin: 'http://localhost:5173' }));
+app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -507,7 +506,7 @@ app.post('/api/train', async (req, res) => {
       Y[seqIndex] = label;
     }
 
-    if (X.length < 20) {
+    if (numSequences < 20) {
       return res.json({
         success: true,
         message: 'Not enough sequences generated.',
@@ -517,7 +516,7 @@ app.post('/api/train', async (req, res) => {
 
     // 2. Purged K-Fold Cross-Validation
     const numClasses = 3;
-    const folds = purgedKFold(X.length, 5, 5);
+    const folds = purgedKFold(numSequences, 5, 5);
 
     let totalAccuracy = 0;
     let allYTrue = [];
@@ -528,11 +527,34 @@ app.post('/api/train', async (req, res) => {
     // Train on the last fold for demonstration, or average over folds
     const fold = folds[folds.length - 1];
 
-    const xTrain = tf.tensor3d(fold.trainIndices.map(idx => X[idx]));
-    const yTrain = tf.oneHot(tf.tensor1d(fold.trainIndices.map(idx => Y[idx]), 'int32'), numClasses);
+    // Pre-allocate flat arrays for training and validation to avoid mass array slicing
+    const trainIndices = fold.trainIndices;
+    const valIndices = fold.valIndices;
+    const numTrain = trainIndices.length;
+    const numVal = valIndices.length;
 
-    const xVal = tf.tensor3d(fold.valIndices.map(idx => X[idx]));
-    const yVal = fold.valIndices.map(idx => Y[idx]);
+    const xTrainFlat = new Float32Array(numTrain * windowSize);
+    for (let i = 0; i < numTrain; i++) {
+      const idx = trainIndices[i];
+      const offset = i * windowSize;
+      for (let j = 0; j < windowSize; j++) {
+        xTrainFlat[offset + j] = fracDiffClose[idx + j];
+      }
+    }
+    const xTrain = tf.tensor3d(xTrainFlat, [numTrain, windowSize, 1]);
+
+    const xValFlat = new Float32Array(numVal * windowSize);
+    for (let i = 0; i < numVal; i++) {
+      const idx = valIndices[i];
+      const offset = i * windowSize;
+      for (let j = 0; j < windowSize; j++) {
+        xValFlat[offset + j] = fracDiffClose[idx + j];
+      }
+    }
+    const xVal = tf.tensor3d(xValFlat, [numVal, windowSize, 1]);
+
+    const yTrain = tf.oneHot(tf.tensor1d(trainIndices.map(idx => Y[idx]), 'int32'), numClasses);
+    const yVal = valIndices.map(idx => Y[idx]);
 
     // Build and train TCN
     const model = buildTCN([windowSize, 1], numClasses);

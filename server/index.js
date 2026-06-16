@@ -19,7 +19,11 @@ const PORT = 3001;
 app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
 
-const JWT_SECRET = process.env.JWT_SECRET || 'default-dev-secret';
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL ERROR: JWT_SECRET environment variable is not defined.');
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Rate limiter: max 100 requests per minute
 const apiLimiter = rateLimit({
@@ -46,7 +50,7 @@ const TSETMC_URL = 'http://cdn.tsetmc.com/api/Instrument/GetInstrumentHistory/';
 const getRealMarketData = async (symbolId) => {
   try {
     // Attempt to fetch from TSETMC (Example ID for Gold Futures)
-    const tsetmcId = symbolId.includes('GOLD') ? '35425587644337450' : '65883838195688438';
+    const tsetmcId = symbolId.indexOf('GOLD') !== -1 ? '35425587644337450' : '65883838195688438';
     const response = await axios.get(`${TSETMC_URL}${tsetmcId}`, {
       timeout: 5000,
       headers: { 'User-Agent': 'Mozilla/5.0' }
@@ -97,8 +101,13 @@ app.get('/api/market/:symbol', async (req, res) => {
 
     const close = Math.floor(price * (1 + change));
     const open = Math.floor(price * (1 + (Math.random() - 0.5) * 0.005));
-    const high = Math.max(open, close, Math.floor(price * (1 + Math.abs(change) + 0.005)));
-    const low = Math.min(open, close, Math.floor(price * (1 - Math.abs(change) - 0.005)));
+    const computedHigh = Math.floor(price * (1 + Math.abs(change) + 0.005));
+    let high = open > close ? open : close;
+    if (computedHigh > high) high = computedHigh;
+
+    const computedLow = Math.floor(price * (1 - Math.abs(change) - 0.005));
+    let low = open < close ? open : close;
+    if (computedLow < low) low = computedLow;
     const volume = Math.floor(Math.random() * 100000) + 5000;
 
     // Open Interest Logic (increasing near expiry)
@@ -166,6 +175,7 @@ wss.on('connection', (ws, req) => {
 
   const url = new URL(req.url, `ws://${req.headers.host}`);
   const symbol = url.searchParams.get('symbol') || 'SAF1403';
+  ws.basePrice = symbol.includes('GOLD') ? 35000000 : 1200000;
   ws.symbol = symbol;
 
   logger.info(`WebSocket connected for symbol: ${symbol}`);
@@ -188,7 +198,8 @@ setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.readyState === 1) { // OPEN
       const symbol = ws.symbol;
-      const basePrice = symbol.includes('GOLD') ? 35000000 : 1200000;
+      const basePrice = ws.basePrice;
+
 
       const change = (Math.random() - 0.5) * 1000;
       currentPrice = basePrice + change;
