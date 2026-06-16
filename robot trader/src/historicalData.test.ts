@@ -31,7 +31,7 @@ describe('historicalData', () => {
         return {
           ok: true,
           json: async () => mockData,
-        } as Response;
+        } as unknown as Response;
       };
 
       const result = await fetchHistoricalData('TEST-SYM');
@@ -45,7 +45,7 @@ describe('historicalData', () => {
         return {
           ok: true,
           json: async () => ({ data: mockData }),
-        } as Response;
+        } as unknown as Response;
       };
 
       const result = await fetchHistoricalData('TEST-SYM');
@@ -57,7 +57,7 @@ describe('historicalData', () => {
         return {
           ok: false,
           status: 404,
-        } as Response;
+        } as unknown as Response;
       };
 
       const result = await fetchHistoricalData('TEST-SYM');
@@ -69,7 +69,7 @@ describe('historicalData', () => {
         return {
           ok: true,
           json: async () => ({ unexpected: 'format' }),
-        } as Response;
+        } as unknown as Response;
       };
 
       const result = await fetchHistoricalData('TEST-SYM');
@@ -84,6 +84,18 @@ describe('historicalData', () => {
       const result = await fetchHistoricalData('TEST-SYM');
       assert.deepStrictEqual(result, []);
     });
+    test('should return empty array when response.json throws an error', async () => {
+      globalThis.fetch = async (url) => {
+        return {
+          ok: true,
+          json: async () => { throw new Error('Invalid JSON'); }
+        } as unknown as Response;
+      };
+
+      const result = await fetchHistoricalData('TEST-SYM');
+      assert.deepStrictEqual(result, []);
+    });
+
 
     test('should use provided proxyUrl', async () => {
       const mockData = [{ close: 50 }];
@@ -92,7 +104,7 @@ describe('historicalData', () => {
         return {
           ok: true,
           json: async () => mockData,
-        } as Response;
+        } as unknown as Response;
       };
 
       const result = await fetchHistoricalData('TEST-SYM', 'http://custom-proxy:4000');
@@ -108,7 +120,7 @@ describe('historicalData', () => {
         return {
           ok: true,
           json: async () => mockData,
-        } as Response;
+        } as unknown as Response;
       };
 
       const result = await fetchSaffronData();
@@ -124,7 +136,7 @@ describe('historicalData', () => {
         return {
           ok: true,
           json: async () => mockData,
-        } as Response;
+        } as unknown as Response;
       };
 
       const result = await fetchGoldData();
