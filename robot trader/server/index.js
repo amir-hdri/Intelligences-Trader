@@ -19,7 +19,7 @@ const hpoEngine = new HPOEngine();
 import logger from './logger.js';
 const apiMetrics = () => (req, res, next) => next();
 
-import { pinoLogger, sampleLogger } from './pinoLogger.js';
+import { pinoLogger } from './pinoLogger.js';
 import crypto from 'crypto';
 import express from 'express';
 import cors from 'cors';
@@ -28,7 +28,6 @@ dotenv.config();
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import { auditLogger } from './AuditLogger.js';
-import { secretManager } from './SecretManager.js';
 
 import { DayDetails } from 'tsetmc-client';
 import { analyzeMarketMTF, detectMarketRegime, calculateATR } from './analyzer.js';
