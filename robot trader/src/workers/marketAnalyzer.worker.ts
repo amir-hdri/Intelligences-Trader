@@ -20,7 +20,7 @@ self.onmessage = async (e: MessageEvent) => {
 
            result = analyzeMarketMTF(payload.data, payload.symbolId, payload.context, payload.weights);
 
-           // Release the lock (always release since we set it to 1)
+           // Release the lock
            Atomics.store(flagArray, 0, 0);
         } else {
            result = analyzeMarketMTF(payload.data, payload.symbolId, payload.context, payload.weights);
