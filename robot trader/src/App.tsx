@@ -7,16 +7,15 @@ import { MarketCorrelation } from './components/analytics/MarketCorrelation';
 import { SentimentMonitor } from './components/analytics/SentimentMonitor';
 import { ArbitragePanel } from './components/analytics/ArbitragePanel';
 import { LearningDashboard } from './components/analytics/LearningDashboard';
-import { IME_SYMBOLS, DEFAULT_API_CONFIG, INITIAL_METRICS, DEFAULT_RISK_LIMITS } from './constants';
+import { IME_SYMBOLS, DEFAULT_API_CONFIG, API_BASE_URL, INITIAL_METRICS, DEFAULT_RISK_LIMITS } from './constants';
 import { 
   MarketCandle, ExpertForecast, ApiConfig, SystemMetrics, SymbolInfo, TimeFrame, 
-  TradeLogEntry, RiskLimits, RiskStatus, OrderBook as OrderBookType, 
+  TradeLogEntry, RiskLimits, RiskStatus, OrderBook as OrderBookType, WalkForwardResult,
   CorrelationMetrics, SentimentData 
 } from './types';
 import { TseApiClient, StrategyWeights, DEFAULT_WEIGHTS } from './dataUtils';
 import { WorkerPool } from './workers/workerPool';
 import { predictionService } from './services/PredictionHistoryService';
-import { learningEngine } from './services/LearningEngine';
 import { RiskEngine } from './riskEngine';
 import { 
   Activity, Cpu, TrendingUp, Clock, AlertCircle, Play, RefreshCcw, Save, 
@@ -97,7 +96,7 @@ const App: React.FC = () => {
 
   const [riskStatus, setRiskStatus] = useState<RiskStatus>(riskEngine.getStatus());
   
-  const [walkForwardResults, setWalkForwardResults] = useState<any[]>([]);
+  const [walkForwardResults, setWalkForwardResults] = useState<WalkForwardResult[]>([]);
   const [isTraining, setIsTraining] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(0);
   const [strategyWeights, setStrategyWeights] = useState<StrategyWeights>(DEFAULT_WEIGHTS);
@@ -162,7 +161,7 @@ const App: React.FC = () => {
 
       setForecast(analysis);
       
-      const wfResults = await marketAnalyzerPool.executeTask<any>('performWalkForwardBacktest', { candles: data['1h'] });
+      const wfResults = await marketAnalyzerPool.executeTask<WalkForwardResult[]>('performWalkForwardBacktest', { candles: data['1h'] });
       setWalkForwardResults(wfResults);
       
       setLastUpdateTime(Date.now());
@@ -301,7 +300,6 @@ const App: React.FC = () => {
           window.location.reload();
       }
   }
-
 
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -631,7 +629,6 @@ const App: React.FC = () => {
             </div>
           )}
 
-
         {activeTab === 'intelligence' && (
           <div className="p-8">
             <h2 className="text-2xl font-bold mb-6 text-white">Advanced Intelligence (Phase 6)</h2>
@@ -906,7 +903,7 @@ const App: React.FC = () => {
                 <div className="space-y-6">
                    <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-2 tracking-widest">OMS Proxy Server</label>
-                      <input type="text" value={apiConfig.proxyUrl} onChange={e => setApiConfig({...apiConfig, proxyUrl: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="http://localhost:3000" />
+                      <input type="text" value={apiConfig.proxyUrl} onChange={e => setApiConfig({...apiConfig, proxyUrl: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder={API_BASE_URL} />
                    </div>
                    <div className="flex gap-4">
                       <button onClick={() => setApiConfig({...apiConfig, isConnected: !apiConfig.isConnected})} className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${apiConfig.isConnected ? 'bg-rose-500 text-white' : 'bg-emerald-600 text-white'}`}>

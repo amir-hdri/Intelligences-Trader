@@ -66,7 +66,8 @@ export class EnsembleEngine {
     let totalWeight = 0;
     let ensemblePrediction = 0;
 
-    for (const [name, model] of Object.entries(this.models)) {
+    for (const name in this.models) {
+        const model = this.models[name];
         // If a model "fails" (performance drops hard), its weight naturally approaches 0
         const activeWeight = Math.max(0.01, model.weight * Math.pow(model.performance, 2));
         ensemblePrediction += basePreds[name] * activeWeight;
@@ -81,14 +82,17 @@ export class EnsembleEngine {
     else if (ensemblePrediction < -0.3) action = 'SELL';
 
     // Simulate 5% better performance than best single model
-    const bestSinglePerf = Math.max(...Object.values(this.models).map(m => m.performance));
+    let bestSinglePerf = -Infinity;
+    for (const name in this.models) {
+        if (this.models[name].performance > bestSinglePerf) bestSinglePerf = this.models[name].performance;
+    }
     const ensemblePerf = Math.min(0.99, bestSinglePerf * 1.05);
 
     return {
       prediction: action,
       confidence: Math.abs(ensemblePrediction),
       ensemblePerformance: ensemblePerf,
-      modelWeights: Object.fromEntries(Object.entries(this.models).map(([k, v]) => [k, v.weight])),
+      modelWeights: (() => { const w = {}; for(const k in this.models) w[k] = this.models[k].weight; return w; })(),
       correlationMatrix: this.calculateCorrelationMatrix(),
       stabilityStatus: 'STABLE',
       adaptationSpeedMsg: '< 50 samples'
@@ -101,7 +105,8 @@ export class EnsembleEngine {
     // actualOutcome: 1 (BUY was right), -1 (SELL was right), 0 (HOLD was right)
 
     let sumWeights = 0;
-    for (const [name, model] of Object.entries(this.models)) {
+    for (const name in this.models) {
+        const model = this.models[name];
         if (model.predictions.length === 0) continue;
         const lastPred = model.predictions[model.predictions.length - 1];
 
