@@ -245,6 +245,45 @@ describe('TseApiClient', () => {
   });
 
 
+
+  test('fetchMultiTimeframeData falls back to full simulation on API fetch failure', async () => {
+    const config = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+    const client = new TseApiClient(config as any);
+
+    // Mock fetchMarketData to throw an error
+    client.fetchMarketData = async () => {
+      throw new Error('API fetch failed');
+    };
+
+    let warningLogged = false;
+    let loggedWarning = '';
+    const originalConsoleWarn = console.warn;
+    console.warn = (msg) => {
+      if (typeof msg === 'string' && msg.includes('API fetch failed, using full simulation for all timeframes')) {
+        warningLogged = true;
+      }
+      loggedWarning = msg;
+    };
+
+    try {
+      const data = await client.fetchMultiTimeframeData('TEST');
+
+      // Verify fallback behavior
+      assert.ok(data['1d']);
+      assert.ok(data['1h']);
+      assert.ok(data['15m']);
+      assert.ok(data['1m']);
+      assert.strictEqual(warningLogged, true, `Expected warning to be logged, but got: ${loggedWarning}`);
+    } finally {
+      console.warn = originalConsoleWarn;
+    }
+  });
+
   test('fetchAdvancedMetrics handles fetch error and returns null', async () => {
     // Mock fetch failure
     globalThis.fetch = async () => {
