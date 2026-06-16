@@ -483,10 +483,16 @@ app.post('/api/train', async (req, res) => {
     // Create sequences (window size = 20)
     const windowSize = 20;
     const numSequences = Math.max(0, fracDiffClose.length - 1 - windowSize);
+    const X = new Array(numSequences);
     const Y = new Array(numSequences);
 
     for (let i = windowSize; i < fracDiffClose.length - 1; i++) {
       const seqIndex = i - windowSize;
+      // Create feature vector (just fracDiffClose for simplicity in this example)
+      // A full implementation would include Technical Indicators, Order Book Features, etc.
+      const seq = new Array(windowSize);
+      for (let j = 0; j < windowSize; j++) seq[j] = [fracDiffClose[seqIndex + j]];
+      X[seqIndex] = seq;
 
       // Target: 0 (DOWN), 1 (HOLD), 2 (UP)
       const currentPrice = closePrices[i];
