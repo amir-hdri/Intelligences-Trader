@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, calculateRSI } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, calculateSeasonalityFactor } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -580,43 +580,66 @@ describe('calculateIchimoku', () => {
   });
 });
 
-describe('calculateRSI', () => {
-  it('returns 50 if prices length is less than period + 1', () => {
-    const prices = [100, 101];
-    const result = calculateRSI(prices, 14);
-    assert.strictEqual(result, 50);
+describe('calculateSeasonalityFactor', () => {
+  const OriginalDate = globalThis.Date;
+
+  // Define mock class at module scope
+  class GlobalDateMock {
+    private mockMonth: number;
+
+    constructor(mockMonth: number) {
+      this.mockMonth = mockMonth;
+    }
+
+    getMonth() {
+      return this.mockMonth;
+    }
+
+    getTime() {
+      return 1000000;
+    }
+  }
+
+  afterEach(() => {
+    // Restore OriginalDate after each test
+    globalThis.Date = OriginalDate;
   });
 
-  it('calculates correct RSI for an uptrend', () => {
-    // Generate an uptrend: 14 periods of steady increase
-    // period + 1 prices = 15 prices
-    // If every change is positive, avgLoss is 0, so RSI should be 100.
-    const prices = [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114];
-    const result = calculateRSI(prices, 14);
-    assert.strictEqual(result, 100);
+  test('returns 1.25 for SAF symbols in harvest months (Oct/Nov)', () => {
+    globalThis.Date = class extends OriginalDate {
+      getMonth() { return 9; } // Oct
+    } as DateConstructor;
+    assert.strictEqual(calculateSeasonalityFactor('SAF123'), 1.25);
+
+    globalThis.Date = class extends OriginalDate {
+      getMonth() { return 10; } // Nov
+    } as DateConstructor;
+    assert.strictEqual(calculateSeasonalityFactor('SAF123'), 1.25);
   });
 
-  it('calculates correct RSI for a downtrend', () => {
-    // Generate a downtrend: 14 periods of steady decrease
-    // period + 1 prices = 15 prices
-    // If every change is negative, avgGain is 0, rs = 0, RSI should be 0.
-    const prices = [114, 113, 112, 111, 110, 109, 108, 107, 106, 105, 104, 103, 102, 101, 100];
-    const result = calculateRSI(prices, 14);
-    assert.strictEqual(result, 0);
+  test('returns 0.85 for SAF symbols in off-season months (Mar/Apr)', () => {
+    globalThis.Date = class extends OriginalDate {
+      getMonth() { return 2; } // Mar
+    } as DateConstructor;
+    assert.strictEqual(calculateSeasonalityFactor('SAF123'), 0.85);
+
+    globalThis.Date = class extends OriginalDate {
+      getMonth() { return 3; } // Apr
+    } as DateConstructor;
+    assert.strictEqual(calculateSeasonalityFactor('SAF123'), 0.85);
   });
 
-  it('calculates correct RSI for mixed gains and losses', () => {
-    // Let's make a period of 4
-    // prices length should be 5
-    // changes: +2, -1, +2, -1
-    // gains = 4, losses = 2
-    // avgGain = 4 / 4 = 1
-    // avgLoss = 2 / 4 = 0.5
-    // rs = 1 / 0.5 = 2
-    // rsi = 100 - 100 / (1 + 2) = 100 - 33.333 = 66.666...
-    const prices = [100, 102, 101, 103, 102];
-    const result = calculateRSI(prices, 4);
-    // Use closeTo or precision
-    assert.ok(Math.abs(result - 66.66666666666666) < 0.00001);
+  test('returns 1.0 for SAF symbols in other months', () => {
+    globalThis.Date = class extends OriginalDate {
+      getMonth() { return 5; } // Jun
+    } as DateConstructor;
+    assert.strictEqual(calculateSeasonalityFactor('SAF123'), 1.0);
+  });
+
+  test('returns 1.0 for non-SAF symbols in any month', () => {
+    globalThis.Date = class extends OriginalDate {
+      getMonth() { return 9; } // Oct
+    } as DateConstructor;
+    assert.strictEqual(calculateSeasonalityFactor('GOLD'), 1.0);
   });
 });
