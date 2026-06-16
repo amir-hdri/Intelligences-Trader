@@ -10,9 +10,10 @@ dotenv.config();
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 
-const app = express();
+
+export const app = express();
 app.use(apiMetrics());
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
@@ -155,12 +156,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
-const server = app.listen(PORT, () => {
+export const server = app.listen(PORT, () => {
   logger.info(`Proxy Backend listening on port ${PORT}`);
 });
 
 // WebSocket Server
-const wss = new WebSocketServer({ server });
+export const wss = new WebSocketServer({ server });
 
 function noop() {}
 
@@ -182,7 +183,7 @@ wss.on('connection', (ws, req) => {
   // Initial message is optional; we just broadcast periodically
 });
 
-const interval = setInterval(() => {
+export const interval = setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.isAlive === false) return ws.terminate();
     ws.isAlive = false;
@@ -193,7 +194,7 @@ const interval = setInterval(() => {
 let currentPrice = 1200000;
 
 // Broadcast data every 100ms
-setInterval(() => {
+export const broadcastInterval = setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.readyState === 1) { // OPEN
       const symbol = ws.symbol;
