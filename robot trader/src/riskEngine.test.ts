@@ -1,17 +1,24 @@
 import test, { describe, before, after } from 'node:test';
 import assert from 'node:assert';
 import { RiskEngine } from './riskEngine';
-import { ExpertForecast, MarketRegime, RiskLimits, TradeAction } from './types';
+import { ExpertForecast, MarketRegime, RiskLimits, TradeAction, SymbolInfo } from './types';
 
 // Helper to mock global Date
 let originalDate: typeof Date;
 let fixedDate: Date | null = null;
 
+type DateArgs =
+  | []
+  | [value: number | string | Date]
+  | [year: number, month: number, date?: number, hours?: number, minutes?: number, seconds?: number, ms?: number];
+
 // Extracted MockDate class to avoid deep nesting
 class MockDate extends Date {
-  constructor(...args: any[]) {
+  constructor(...args: DateArgs) {
     if (args.length === 0 && fixedDate) {
       super(fixedDate.getTime());
+    } else if (args.length === 1) {
+      super(args[0]);
     } else {
       // @ts-ignore
       super(...args);
@@ -63,7 +70,7 @@ describe('RiskEngine - validateTrade (Weekend Risk)', () => {
       orderBookPressure: 0.1,
       politicalRiskIndex: 50,
       queueDynamicsRatio: 0.6,
-      timeframeAnalysis: { id: 'TEST', name: 'Test', fullName: 'Test', type: 'SPOT', priceLimit: { up: 100, down: 50 } } as any,
+      timeframeAnalysis: undefined,
       indicators: {
         rsi: 50,
         macd: { value: 0, signal: 0, histogram: 0 },
@@ -84,7 +91,7 @@ describe('RiskEngine - validateTrade (Weekend Risk)', () => {
     riskEngine = new RiskEngine(defaultLimits, 10000);
 
     const forecast = { ...defaultForecast, regime: 'TRENDING_UP' as MarketRegime };
-    const result = riskEngine.validateTrade(forecast, 0, { id: 'TEST', name: 'Test', fullName: 'Test', type: 'SPOT', priceLimit: { up: 100, down: 50 } } as any);
+    const result = riskEngine.validateTrade(forecast, 0, { id: 'TEST', name: 'Test', fullName: 'Test', type: 'SPOT', priceLimit: { up: 100, down: 50 } } as unknown as SymbolInfo);
 
     assert.strictEqual(result.allowed, true);
     restoreDate();
@@ -95,7 +102,7 @@ describe('RiskEngine - validateTrade (Weekend Risk)', () => {
     riskEngine = new RiskEngine(defaultLimits, 10000);
 
     const forecast = { ...defaultForecast, regime: 'HIGH_VOLATILITY' as MarketRegime };
-    const result = riskEngine.validateTrade(forecast, 0, { id: 'TEST', name: 'Test', fullName: 'Test', type: 'SPOT', priceLimit: { up: 100, down: 50 } } as any);
+    const result = riskEngine.validateTrade(forecast, 0, { id: 'TEST', name: 'Test', fullName: 'Test', type: 'SPOT', priceLimit: { up: 100, down: 50 } } as unknown as SymbolInfo);
 
     assert.strictEqual(result.allowed, false);
     assert.strictEqual(result.reason, 'Holiday/Weekend risk high. Volatility prevents new positions.');
@@ -107,7 +114,7 @@ describe('RiskEngine - validateTrade (Weekend Risk)', () => {
     riskEngine = new RiskEngine(defaultLimits, 10000);
 
     const forecast = { ...defaultForecast, regime: 'HIGH_VOLATILITY' as MarketRegime };
-    const result = riskEngine.validateTrade(forecast, 0, { id: 'TEST', name: 'Test', fullName: 'Test', type: 'SPOT', priceLimit: { up: 100, down: 50 } } as any);
+    const result = riskEngine.validateTrade(forecast, 0, { id: 'TEST', name: 'Test', fullName: 'Test', type: 'SPOT', priceLimit: { up: 100, down: 50 } } as unknown as SymbolInfo);
 
     assert.strictEqual(result.allowed, false);
     assert.strictEqual(result.reason, 'Holiday/Weekend risk high. Volatility prevents new positions.');
@@ -119,7 +126,7 @@ describe('RiskEngine - validateTrade (Weekend Risk)', () => {
     riskEngine = new RiskEngine(defaultLimits, 10000);
 
     const forecast = { ...defaultForecast, regime: 'HIGH_VOLATILITY' as MarketRegime };
-    const result = riskEngine.validateTrade(forecast, 0, { id: 'TEST', name: 'Test', fullName: 'Test', type: 'SPOT', priceLimit: { up: 100, down: 50 } } as any);
+    const result = riskEngine.validateTrade(forecast, 0, { id: 'TEST', name: 'Test', fullName: 'Test', type: 'SPOT', priceLimit: { up: 100, down: 50 } } as unknown as SymbolInfo);
 
     assert.strictEqual(result.allowed, true);
     restoreDate();
