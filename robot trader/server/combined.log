@@ -1,0 +1,2 @@
+{"level":"info","message":"Tracing terminated","service":"ml-backend-server","timestamp":"2026-06-16T12:44:38.106Z"}
+{"error":{},"level":"error","message":"Error terminating tracing","service":"ml-backend-server","timestamp":"2026-06-16T12:44:38.134Z"}

@@ -72,6 +72,16 @@ const historicalData_1 = require("./historicalData");
             const result = await (0, historicalData_1.fetchHistoricalData)('TEST-SYM');
             node_assert_1.default.deepStrictEqual(result, []);
         });
+        (0, node_test_1.test)('should return empty array when response.json throws an error', async () => {
+            globalThis.fetch = async (url) => {
+                return {
+                    ok: true,
+                    json: async () => { throw new Error('Invalid JSON'); }
+                };
+            };
+            const result = await (0, historicalData_1.fetchHistoricalData)('TEST-SYM');
+            node_assert_1.default.deepStrictEqual(result, []);
+        });
         (0, node_test_1.test)('should use provided proxyUrl', async () => {
             const mockData = [{ close: 50 }];
             globalThis.fetch = async (url) => {

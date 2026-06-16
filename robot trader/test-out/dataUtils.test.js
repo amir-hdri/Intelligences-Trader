@@ -156,6 +156,36 @@ const createCandles = (count, trend) => {
 // ========================================
 // Test Suite: TseApiClient
 // ========================================
+(0, node_test_1.describe)('dataUtils - analyzeMarketMTF', () => {
+    let originalSharedArrayBuffer;
+    let originalConsoleWarn;
+    let warnMessages = [];
+    (0, node_test_1.beforeEach)(() => {
+        originalSharedArrayBuffer = globalThis.SharedArrayBuffer;
+        originalConsoleWarn = console.warn;
+        warnMessages = [];
+        // Mock SharedArrayBuffer to throw an error
+        globalThis.SharedArrayBuffer = class {
+            constructor() {
+                throw new Error('SharedArrayBuffer is not defined');
+            }
+        };
+        // Mock console.warn
+        console.warn = (...args) => {
+            warnMessages.push(args[0]);
+        };
+    });
+    (0, node_test_1.afterEach)(() => {
+        globalThis.SharedArrayBuffer = originalSharedArrayBuffer;
+        console.warn = originalConsoleWarn;
+    });
+    (0, node_test_1.it)('should warn when SharedArrayBuffer is not supported', () => {
+        const mtfData = { '1d': [], '1h': [] };
+        (0, dataUtils_1.analyzeMarketMTF)(mtfData, 'TEST_SYMBOL');
+        node_assert_1.default.strictEqual(warnMessages.length, 1);
+        node_assert_1.default.ok(warnMessages[0].includes('SharedArrayBuffer not supported in this environment.'));
+    });
+});
 (0, node_test_1.describe)('TseApiClient', () => {
     let originalFetch;
     let originalConsoleError;
@@ -168,6 +198,54 @@ const createCandles = (count, trend) => {
     (0, node_test_1.afterEach)(() => {
         globalThis.fetch = originalFetch;
         console.error = originalConsoleError;
+    });
+    (0, node_test_1.test)('fetchOrderBook fetches real data successfully', async () => {
+        const mockOrderBookData = {
+            timestamp: 1234567890,
+            orderBook: {
+                bids: [{ price: 100, quantity: 50, count: 1 }, { price: 90, quantity: 100, count: 2 }],
+                asks: [{ price: 110, quantity: 40, count: 1 }, { price: 120, quantity: 80, count: 2 }]
+            }
+        };
+        globalThis.fetch = async (url) => {
+            if (url.toString().includes('api/tse/info')) {
+                return {
+                    ok: true,
+                    json: async () => mockOrderBookData
+                };
+            }
+            return { ok: false };
+        };
+        const config = {
+            proxyUrl: 'http://proxy.com',
+            apiKey: 'key',
+            isConnected: true,
+            useDigitalTwin: false,
+        };
+        const client = new dataUtils_1.TseApiClient(config);
+        const data = await client.fetchOrderBook('TEST');
+        node_assert_1.default.deepStrictEqual(data.bids, mockOrderBookData.orderBook.bids);
+        node_assert_1.default.deepStrictEqual(data.asks, mockOrderBookData.orderBook.asks);
+        node_assert_1.default.strictEqual(data.timestamp, mockOrderBookData.timestamp);
+        node_assert_1.default.strictEqual(data.queueDynamics.buyVolume, 150);
+        node_assert_1.default.strictEqual(data.queueDynamics.sellVolume, 120);
+        node_assert_1.default.strictEqual(data.queueDynamics.totalVolume, 270);
+    });
+    (0, node_test_1.test)('fetchOrderBook falls back to twin on fetch failure', async () => {
+        globalThis.fetch = async () => {
+            throw new Error('Network error');
+        };
+        const config = {
+            proxyUrl: 'http://proxy.com',
+            apiKey: 'key',
+            isConnected: true,
+            useDigitalTwin: false,
+        };
+        const client = new dataUtils_1.TseApiClient(config);
+        const data = await client.fetchOrderBook('TEST');
+        node_assert_1.default.deepStrictEqual(data.bids, []);
+        node_assert_1.default.deepStrictEqual(data.asks, []);
+        node_assert_1.default.strictEqual(data.queueDynamics.buyVolume, 0);
     });
     (0, node_test_1.test)('fetchMarketData fetches from proxy when configured and connected', async () => {
         const mockResponse = [{
@@ -208,6 +286,66 @@ const createCandles = (count, trend) => {
         const data = await client.fetchMarketData('TEST');
         node_assert_1.default.ok(Array.isArray(data));
         node_assert_1.default.strictEqual(data.length, 0);
+    });
+    (0, node_test_1.test)('fetchOrderBook handles fetch error and returns digital twin data', async () => {
+        const origFetchMarketData = dataUtils_1.TseApiClient.prototype.fetchMarketData;
+        dataUtils_1.TseApiClient.prototype.fetchMarketData = async () => {
+            throw new Error('Network Error');
+        };
+        const config = {
+            proxyUrl: 'http://proxy.com',
+            apiKey: 'key',
+            isConnected: true,
+            useDigitalTwin: true,
+        };
+        const client = new dataUtils_1.TseApiClient(config);
+        const data = await client.fetchOrderBook('TEST');
+        dataUtils_1.TseApiClient.prototype.fetchMarketData = origFetchMarketData;
+        node_assert_1.default.ok(data !== null);
+    });
+    (0, node_test_1.test)('fetchSentiment handles fetch error and returns simulation', async () => {
+        globalThis.fetch = async () => {
+            throw new Error('Network Error');
+        };
+        let errorLogged = false;
+        console.warn = () => {
+            errorLogged = true;
+        };
+        const config = {
+            proxyUrl: 'http://proxy.com',
+            apiKey: 'key',
+            isConnected: true,
+            useDigitalTwin: true,
+        };
+        const client = new dataUtils_1.TseApiClient(config);
+        const data = await client.fetchSentiment();
+        node_assert_1.default.ok(data !== null);
+        node_assert_1.default.strictEqual(typeof data.score, 'number');
+        node_assert_1.default.strictEqual(errorLogged, true, 'console.warn should have been called');
+    });
+    (0, node_test_1.test)('fetchMultiTimeframe handles API failure and returns full simulation', async () => {
+        const origFetchMarketData = dataUtils_1.TseApiClient.prototype.fetchMarketData;
+        dataUtils_1.TseApiClient.prototype.fetchMarketData = async () => {
+            throw new Error('Network Error');
+        };
+        let errorLogged = false;
+        console.warn = () => {
+            errorLogged = true;
+        };
+        const config = {
+            proxyUrl: 'http://proxy.com',
+            apiKey: 'key',
+            isConnected: true,
+            useDigitalTwin: true,
+        };
+        const client = new dataUtils_1.TseApiClient(config);
+        const data = await client.fetchMultiTimeframeData('TEST');
+        dataUtils_1.TseApiClient.prototype.fetchMarketData = origFetchMarketData;
+        node_assert_1.default.ok(data['1d']);
+        node_assert_1.default.ok(data['1h']);
+        node_assert_1.default.ok(data['15m']);
+        node_assert_1.default.ok(data['1m']);
+        node_assert_1.default.strictEqual(errorLogged, true, 'console.warn should have been called');
     });
     (0, node_test_1.test)('fetchAdvancedMetrics handles fetch error and returns null', async () => {
         // Mock fetch failure
@@ -336,5 +474,57 @@ const createCandles = (count, trend) => {
         node_assert_1.default.strictEqual(result.kijun, 146.5);
         node_assert_1.default.strictEqual(result.senkouB, 133.5);
         node_assert_1.default.strictEqual(result.senkouA, (155 + 146.5) / 2);
+    });
+});
+(0, node_test_1.describe)('calculateSeasonalityFactor', () => {
+    const OriginalDate = globalThis.Date;
+    // Define mock class at module scope
+    class GlobalDateMock {
+        mockMonth;
+        constructor(mockMonth) {
+            this.mockMonth = mockMonth;
+        }
+        getMonth() {
+            return this.mockMonth;
+        }
+        getTime() {
+            return 1000000;
+        }
+    }
+    (0, node_test_1.afterEach)(() => {
+        // Restore OriginalDate after each test
+        globalThis.Date = OriginalDate;
+    });
+    (0, node_test_1.test)('returns 1.25 for SAF symbols in harvest months (Oct/Nov)', () => {
+        globalThis.Date = class extends OriginalDate {
+            getMonth() { return 9; } // Oct
+        };
+        node_assert_1.default.strictEqual((0, dataUtils_1.calculateSeasonalityFactor)('SAF123'), 1.25);
+        globalThis.Date = class extends OriginalDate {
+            getMonth() { return 10; } // Nov
+        };
+        node_assert_1.default.strictEqual((0, dataUtils_1.calculateSeasonalityFactor)('SAF123'), 1.25);
+    });
+    (0, node_test_1.test)('returns 0.85 for SAF symbols in off-season months (Mar/Apr)', () => {
+        globalThis.Date = class extends OriginalDate {
+            getMonth() { return 2; } // Mar
+        };
+        node_assert_1.default.strictEqual((0, dataUtils_1.calculateSeasonalityFactor)('SAF123'), 0.85);
+        globalThis.Date = class extends OriginalDate {
+            getMonth() { return 3; } // Apr
+        };
+        node_assert_1.default.strictEqual((0, dataUtils_1.calculateSeasonalityFactor)('SAF123'), 0.85);
+    });
+    (0, node_test_1.test)('returns 1.0 for SAF symbols in other months', () => {
+        globalThis.Date = class extends OriginalDate {
+            getMonth() { return 5; } // Jun
+        };
+        node_assert_1.default.strictEqual((0, dataUtils_1.calculateSeasonalityFactor)('SAF123'), 1.0);
+    });
+    (0, node_test_1.test)('returns 1.0 for non-SAF symbols in any month', () => {
+        globalThis.Date = class extends OriginalDate {
+            getMonth() { return 9; } // Oct
+        };
+        node_assert_1.default.strictEqual((0, dataUtils_1.calculateSeasonalityFactor)('GOLD'), 1.0);
     });
 });

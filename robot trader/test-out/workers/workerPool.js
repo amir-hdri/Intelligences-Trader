@@ -5,6 +5,7 @@ class WorkerPool {
     workers = [];
     taskQueue = [];
     activeWorkers = new Map();
+    idleWorkers = []; // Track idle workers directly
     pendingTasks = new Map();
     messageCounter = 0;
     constructor(workerScriptUrl, poolSize = navigator.hardwareConcurrency || 4) {
@@ -14,6 +15,7 @@ class WorkerPool {
             worker.onerror = (error) => this.handleError(error, worker);
             this.workers.push(worker);
             this.activeWorkers.set(worker, null);
+            this.idleWorkers.push(worker);
         }
     }
     handleMessage(event, worker) {
@@ -29,6 +31,7 @@ class WorkerPool {
             }
         }
         this.activeWorkers.set(worker, null);
+        this.idleWorkers.push(worker);
         this.processQueue();
     }
     handleError(error, worker) {
@@ -40,6 +43,7 @@ class WorkerPool {
                 this.pendingTasks.delete(taskId);
             }
             this.activeWorkers.set(worker, null);
+            this.idleWorkers.push(worker);
         }
         this.processQueue();
     }
@@ -54,19 +58,19 @@ class WorkerPool {
     processQueue() {
         if (this.taskQueue.length === 0)
             return;
-        // Find available worker
-        let availableWorker = null;
-        for (const [worker, taskId] of this.activeWorkers.entries()) {
-            if (taskId === null) {
-                availableWorker = worker;
-                break;
-            }
-        }
-        if (availableWorker) {
-            const task = this.taskQueue.shift();
-            if (task) {
-                this.activeWorkers.set(availableWorker, task.id);
-                availableWorker.postMessage({ id: task.id, type: task.type, payload: task.payload });
+        // Fast check for idle workers
+        if (this.idleWorkers.length > 0) {
+            const availableWorker = this.idleWorkers.shift();
+            if (availableWorker) {
+                const task = this.taskQueue.shift();
+                if (task) {
+                    this.activeWorkers.set(availableWorker, task.id);
+                    availableWorker.postMessage({ id: task.id, type: task.type, payload: task.payload });
+                }
+                else {
+                    // If shift returns undefined for some reason, put worker back
+                    this.idleWorkers.push(availableWorker);
+                }
             }
         }
     }
@@ -74,6 +78,7 @@ class WorkerPool {
         this.workers.forEach(w => w.terminate());
         this.workers = [];
         this.activeWorkers.clear();
+        this.idleWorkers = [];
         for (const [id, task] of this.pendingTasks.entries()) {
             task.reject(new Error("Worker pool terminated"));
         }
