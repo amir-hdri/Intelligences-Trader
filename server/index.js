@@ -46,7 +46,7 @@ const TSETMC_URL = 'http://cdn.tsetmc.com/api/Instrument/GetInstrumentHistory/';
 const getRealMarketData = async (symbolId) => {
   try {
     // Attempt to fetch from TSETMC (Example ID for Gold Futures)
-    const tsetmcId = symbolId.includes('GOLD') ? '35425587644337450' : '65883838195688438';
+    const tsetmcId = symbolId.indexOf('GOLD') !== -1 ? '35425587644337450' : '65883838195688438';
     const response = await axios.get(`${TSETMC_URL}${tsetmcId}`, {
       timeout: 5000,
       headers: { 'User-Agent': 'Mozilla/5.0' }
@@ -166,6 +166,7 @@ wss.on('connection', (ws, req) => {
 
   const url = new URL(req.url, `ws://${req.headers.host}`);
   const symbol = url.searchParams.get('symbol') || 'SAF1403';
+  ws.basePrice = symbol.includes('GOLD') ? 35000000 : 1200000;
   ws.symbol = symbol;
 
   logger.info(`WebSocket connected for symbol: ${symbol}`);
@@ -188,7 +189,8 @@ setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.readyState === 1) { // OPEN
       const symbol = ws.symbol;
-      const basePrice = symbol.includes('GOLD') ? 35000000 : 1200000;
+      const basePrice = ws.basePrice;
+
 
       const change = (Math.random() - 0.5) * 1000;
       currentPrice = basePrice + change;
