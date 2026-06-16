@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket , calculateBollingerBands } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -402,4 +402,41 @@ describe('calculateIchimoku', () => {
     assert.strictEqual(result.senkouB, 133.5);
     assert.strictEqual(result.senkouA, (155 + 146.5) / 2);
   });
+});
+
+
+test('calculateBollingerBands - constant prices result in 0 variance', () => {
+  const prices = new Array(20).fill(100);
+  const result = calculateBollingerBands(prices);
+
+  assert.strictEqual(result.middle, 100);
+  assert.strictEqual(result.upper, 100);
+  assert.strictEqual(result.lower, 100);
+});
+
+test('calculateBollingerBands - calculates correctly with standard parameters', () => {
+  const prices = [10, 20, 30, 40, 50];
+  const result = calculateBollingerBands(prices, 5, 2);
+
+  assert.strictEqual(result.middle, 30);
+  assert.ok(Math.abs(result.upper - 58.2842712) < 0.0001);
+  assert.ok(Math.abs(result.lower - 1.7157288) < 0.0001);
+});
+
+test('calculateBollingerBands - uses only the last `period` prices', () => {
+  const prices = [1000, 2000, 10, 20, 30, 40, 50];
+  const result = calculateBollingerBands(prices, 5, 2);
+
+  assert.strictEqual(result.middle, 30);
+  assert.ok(Math.abs(result.upper - 58.2842712) < 0.0001);
+  assert.ok(Math.abs(result.lower - 1.7157288) < 0.0001);
+});
+
+test('calculateBollingerBands - calculates correctly with custom stdDev', () => {
+  const prices = [10, 20, 30, 40, 50];
+  const result = calculateBollingerBands(prices, 5, 1);
+
+  assert.strictEqual(result.middle, 30);
+  assert.ok(Math.abs(result.upper - 44.1421356) < 0.0001);
+  assert.ok(Math.abs(result.lower - 15.8578644) < 0.0001);
 });
