@@ -232,6 +232,63 @@ describe('TseApiClient', () => {
     globalThis.fetch = originalFetch;
     console.error = originalConsoleError;
   });
+  test('fetchOrderBook fetches real data successfully', async () => {
+    const mockOrderBookData = {
+      timestamp: 1234567890,
+      orderBook: {
+        bids: [{ price: 100, quantity: 50, count: 1 }, { price: 90, quantity: 100, count: 2 }],
+        asks: [{ price: 110, quantity: 40, count: 1 }, { price: 120, quantity: 80, count: 2 }]
+      }
+    };
+
+    globalThis.fetch = async (url) => {
+      if (url.toString().includes('api/tse/info')) {
+        return {
+          ok: true,
+          json: async () => mockOrderBookData
+        } as any;
+      }
+      return { ok: false } as any;
+    };
+
+    const config: ApiConfig = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config);
+    const data = await client.fetchOrderBook('TEST');
+
+    assert.deepStrictEqual(data.bids, mockOrderBookData.orderBook.bids);
+    assert.deepStrictEqual(data.asks, mockOrderBookData.orderBook.asks);
+    assert.strictEqual(data.timestamp, mockOrderBookData.timestamp);
+    assert.strictEqual(data.queueDynamics.buyVolume, 150);
+    assert.strictEqual(data.queueDynamics.sellVolume, 120);
+    assert.strictEqual(data.queueDynamics.totalVolume, 270);
+  });
+
+  test('fetchOrderBook falls back to twin on fetch failure', async () => {
+    globalThis.fetch = async () => {
+      throw new Error('Network error');
+    };
+
+    const config: ApiConfig = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config);
+    const data = await client.fetchOrderBook('TEST');
+
+    assert.deepStrictEqual(data.bids, []);
+    assert.deepStrictEqual(data.asks, []);
+    assert.strictEqual(data.queueDynamics.buyVolume, 0);
+  });
+
 
   test('fetchMarketData fetches from proxy when configured and connected', async () => {
     const mockResponse: MarketCandle[] = [{
