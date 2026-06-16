@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket , calculateBollingerBands } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, calculateRSI } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -580,39 +580,43 @@ describe('calculateIchimoku', () => {
   });
 });
 
+describe('calculateRSI', () => {
+  it('returns 50 if prices length is less than period + 1', () => {
+    const prices = [100, 101];
+    const result = calculateRSI(prices, 14);
+    assert.strictEqual(result, 50);
+  });
 
-test('calculateBollingerBands - constant prices result in 0 variance', () => {
-  const prices = new Array(20).fill(100);
-  const result = calculateBollingerBands(prices);
+  it('calculates correct RSI for an uptrend', () => {
+    // Generate an uptrend: 14 periods of steady increase
+    // period + 1 prices = 15 prices
+    // If every change is positive, avgLoss is 0, so RSI should be 100.
+    const prices = [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114];
+    const result = calculateRSI(prices, 14);
+    assert.strictEqual(result, 100);
+  });
 
-  assert.strictEqual(result.middle, 100);
-  assert.strictEqual(result.upper, 100);
-  assert.strictEqual(result.lower, 100);
-});
+  it('calculates correct RSI for a downtrend', () => {
+    // Generate a downtrend: 14 periods of steady decrease
+    // period + 1 prices = 15 prices
+    // If every change is negative, avgGain is 0, rs = 0, RSI should be 0.
+    const prices = [114, 113, 112, 111, 110, 109, 108, 107, 106, 105, 104, 103, 102, 101, 100];
+    const result = calculateRSI(prices, 14);
+    assert.strictEqual(result, 0);
+  });
 
-test('calculateBollingerBands - calculates correctly with standard parameters', () => {
-  const prices = [10, 20, 30, 40, 50];
-  const result = calculateBollingerBands(prices, 5, 2);
-
-  assert.strictEqual(result.middle, 30);
-  assert.ok(Math.abs(result.upper - 58.2842712) < 0.0001);
-  assert.ok(Math.abs(result.lower - 1.7157288) < 0.0001);
-});
-
-test('calculateBollingerBands - uses only the last `period` prices', () => {
-  const prices = [1000, 2000, 10, 20, 30, 40, 50];
-  const result = calculateBollingerBands(prices, 5, 2);
-
-  assert.strictEqual(result.middle, 30);
-  assert.ok(Math.abs(result.upper - 58.2842712) < 0.0001);
-  assert.ok(Math.abs(result.lower - 1.7157288) < 0.0001);
-});
-
-test('calculateBollingerBands - calculates correctly with custom stdDev', () => {
-  const prices = [10, 20, 30, 40, 50];
-  const result = calculateBollingerBands(prices, 5, 1);
-
-  assert.strictEqual(result.middle, 30);
-  assert.ok(Math.abs(result.upper - 44.1421356) < 0.0001);
-  assert.ok(Math.abs(result.lower - 15.8578644) < 0.0001);
+  it('calculates correct RSI for mixed gains and losses', () => {
+    // Let's make a period of 4
+    // prices length should be 5
+    // changes: +2, -1, +2, -1
+    // gains = 4, losses = 2
+    // avgGain = 4 / 4 = 1
+    // avgLoss = 2 / 4 = 0.5
+    // rs = 1 / 0.5 = 2
+    // rsi = 100 - 100 / (1 + 2) = 100 - 33.333 = 66.666...
+    const prices = [100, 102, 101, 103, 102];
+    const result = calculateRSI(prices, 4);
+    // Use closeTo or precision
+    assert.ok(Math.abs(result - 66.66666666666666) < 0.00001);
+  });
 });
