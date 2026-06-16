@@ -1,4 +1,3 @@
-
 import logger from './logger.js';
 const apiMetrics = () => (req, res, next) => next();
 import express from 'express';
@@ -11,7 +10,6 @@ dotenv.config();
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 
-
 const app = express();
 app.use(apiMetrics());
 const PORT = 3001;
@@ -19,6 +17,7 @@ const PORT = 3001;
 app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
 
+// Fix: Prevent hardcoded JWT_SECRET fallback vulnerability by enforcing existence
 if (!process.env.JWT_SECRET) {
   console.error('FATAL ERROR: JWT_SECRET environment variable is not defined.');
   process.exit(1);
