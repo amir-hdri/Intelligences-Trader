@@ -78,7 +78,7 @@ const app = express();
 app.use(apiMetrics());
 const port = 3000;
 
-app.use(cors({ origin: 'http://localhost:5173' }));
+app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }));
 app.use(express.json());
 
 app.use((req, res, next) => {
