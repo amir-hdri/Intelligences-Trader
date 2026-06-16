@@ -319,6 +319,36 @@ describe('TseApiClient', () => {
     assert.deepStrictEqual(data, mockResponse);
   });
 
+  test('fetchMarketData throws error if proxyUrl is not configured', async () => {
+    const config: ApiConfig = {
+      proxyUrl: '',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config);
+    await assert.rejects(
+      async () => await client.fetchMarketData('TEST'),
+      /API proxy URL is not configured/
+    );
+  });
+
+  test('fetchAdvancedMetrics throws error if proxyUrl is not configured', async () => {
+    const config: ApiConfig = {
+      proxyUrl: '',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config);
+    await assert.rejects(
+      async () => await client.fetchAdvancedMetrics([]),
+      /API proxy URL is not configured/
+    );
+  });
+
   test('fetchMarketData falls back to Digital Twin on fetch error after retries', async () => {
     // Mock fetch failure
     globalThis.fetch = async () => {
