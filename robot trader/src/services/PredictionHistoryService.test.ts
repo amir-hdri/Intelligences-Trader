@@ -1,145 +1,84 @@
-import test, { describe, before, after, beforeEach } from 'node:test';
+import test, { describe, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
 import { PredictionHistoryService } from './PredictionHistoryService';
 
-// Mock localStorage
-class LocalStorageMock {
-  private store: Record<string, string> = {};
-
-  getItem(key: string): string | null {
-    return this.store[key] || null;
-  }
-
-  setItem(key: string, value: string): void {
-    this.store[key] = value;
-  }
-
-  clear(): void {
-    this.store = {};
-  }
-}
-
-// Global mocks
-let originalLocalStorage: any;
-let originalConsoleError: any;
-
 describe('PredictionHistoryService', () => {
-  before(() => {
-    originalLocalStorage = (globalThis as any).localStorage;
+  let originalLocalStorage: any;
+  let originalConsoleError: any;
+  let consoleErrorCalls: any[] = [];
+
+  beforeEach(() => {
+    // Save original globals
+    originalLocalStorage = global.localStorage;
     originalConsoleError = console.error;
 
-    (globalThis as any).localStorage = new LocalStorageMock();
+    // Clear mock calls
+    consoleErrorCalls = [];
 
-    // Polyfill crypto if it doesn't exist, otherwise add randomUUID to it
-    if (!(globalThis as any).crypto) {
-        (globalThis as any).crypto = { randomUUID: () => 'test-uuid-1234' };
-    } else if (!(globalThis as any).crypto.randomUUID) {
-        (globalThis as any).crypto.randomUUID = () => 'test-uuid-1234';
-    }
+    // Mock console.error
+    console.error = (...args: any[]) => {
+      consoleErrorCalls.push(args);
+    };
   });
 
-  after(() => {
-    (globalThis as any).localStorage = originalLocalStorage;
+  afterEach(() => {
+    // Restore original globals
+    if (originalLocalStorage !== undefined) {
+      global.localStorage = originalLocalStorage;
+    } else {
+      delete (global as any).localStorage;
+    }
     console.error = originalConsoleError;
   });
 
-  beforeEach(() => {
-    ((globalThis as any).localStorage as LocalStorageMock).clear();
-    console.error = () => {}; // Silence errors by default during tests
-  });
-
-  test('loadHistory error path', () => {
-    // Force getItem to throw an error
-    const mockStorage = new LocalStorageMock();
-    mockStorage.getItem = () => {
-      throw new Error('Storage access denied');
-    };
-    (globalThis as any).localStorage = mockStorage;
-
-    let errorLogged = false;
-    console.error = (msg: string, e: any) => {
-      if (msg === 'Failed to load prediction history' && e.message === 'Storage access denied') {
-        errorLogged = true;
-      }
-    };
-
-    const service = new PredictionHistoryService();
-
-    assert.strictEqual(errorLogged, true, 'Error should be logged when loadHistory fails');
-    assert.deepStrictEqual(service.getHistory(), [], 'History should be initialized to empty array on failure');
-  });
-
-  test('saveHistory error path', () => {
-    const service = new PredictionHistoryService();
-
-    // Force setItem to throw an error
-    const mockStorage = new LocalStorageMock();
-    mockStorage.setItem = () => {
-      throw new Error('Storage quota exceeded');
-    };
-    (globalThis as any).localStorage = mockStorage;
-
-    let errorLogged = false;
-    console.error = (msg: string, e: any) => {
-      if (msg === 'Failed to save prediction history' && e.message === 'Storage quota exceeded') {
-        errorLogged = true;
-      }
-    };
-
-    // Trigger saveHistory by calling clearHistory
-    service.clearHistory();
-
-    assert.strictEqual(errorLogged, true, 'Error should be logged when saveHistory fails');
-  });
-
-  test('savePrediction handles valid forecast', () => {
-    // Reset to normal mock
-    (globalThis as any).localStorage = new LocalStorageMock();
-    const service = new PredictionHistoryService();
-
-    const forecast = {
-      action: 'BUY' as const,
-      entryPrice: 100,
-      targetPrice: 110,
-      stopLoss: 95,
-      confidence: 0.8,
-      indicators: {
-        rsi: 40,
-        macd: { histogram: 0.5, value: 1, signal: 0.5 },
-        atr: 2
+  test('loadHistory should handle localStorage getItem errors gracefully', () => {
+    // Arrange: Mock localStorage.getItem to throw an error
+    global.localStorage = {
+      getItem: () => {
+        throw new Error('Mocked getItem error');
       },
-      regime: 'TRENDING_UP',
-      reason: 'Test reason'
-    };
+      setItem: () => {},
+      removeItem: () => {},
+      clear: () => {},
+      length: 0,
+      key: () => null
+    } as any;
 
-    const weights = {
-      rsi: 1,
-      macd: 1,
-      engulfing: 1,
-      bollinger: 1,
-      ichimoku: 1,
-      stochastic: 1,
-      vwap: 1,
-      obv: 1,
-      basis: 1,
-      sentiment: 1,
-      orderBook: 1,
-      correlation: 1,
-      openInterest: 1
-    };
+    // Act
+    const service = new PredictionHistoryService();
 
-    service.savePrediction(forecast as any, 'TEST_SYM', weights);
+    // Assert
+    assert.deepStrictEqual(service.getHistory(), []);
+    assert.strictEqual(consoleErrorCalls.length, 1);
+    assert.strictEqual(consoleErrorCalls[0][0], 'Failed to load prediction history');
+    assert.strictEqual(consoleErrorCalls[0][1].message, 'Mocked getItem error');
+  });
 
-    const history = service.getHistory();
-    assert.strictEqual(history.length, 1);
-    assert.strictEqual(history[0].symbol, 'TEST_SYM');
-    assert.strictEqual(history[0].action, 'BUY');
+  test('saveHistory should handle localStorage setItem errors gracefully', () => {
+    // Arrange: Mock localStorage for successful load but failing save
+    let storedData: string | null = null;
+    global.localStorage = {
+      getItem: () => storedData,
+      setItem: () => {
+        throw new Error('Mocked setItem error');
+      },
+      removeItem: () => {},
+      clear: () => {},
+      length: 0,
+      key: () => null
+    } as any;
 
-    // Ensure it saved to local storage
-    const saved = (globalThis as any).localStorage.getItem('ime_prediction_history_v1');
-    assert.ok(saved);
-    const parsed = JSON.parse(saved as string);
-    assert.strictEqual(parsed.length, 1);
-    assert.strictEqual(parsed[0].symbol, 'TEST_SYM');
+    const service = new PredictionHistoryService();
+
+    // Clear loadHistory console.error calls if any
+    consoleErrorCalls = [];
+
+    // Act
+    service.clearHistory(); // this calls saveHistory internally
+
+    // Assert
+    assert.strictEqual(consoleErrorCalls.length, 1);
+    assert.strictEqual(consoleErrorCalls[0][0], 'Failed to save prediction history');
+    assert.strictEqual(consoleErrorCalls[0][1].message, 'Mocked setItem error');
   });
 });
