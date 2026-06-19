@@ -7,18 +7,21 @@ describe('logger', () => {
   let sigtermCallback;
   let originalOn;
   let originalExit;
+
   let originalShutdown;
 
   before(() => {
     // We mock these global methods before the logger module is imported.
     originalOn = process.on;
     originalExit = process.exit;
+
     originalShutdown = NodeSDK.prototype.shutdown;
   });
 
   after(() => {
     process.on = originalOn;
     process.exit = originalExit;
+
     NodeSDK.prototype.shutdown = originalShutdown;
   });
 
@@ -34,6 +37,7 @@ describe('logger', () => {
       exitCode = code;
     });
 
+
     // Mock shutdown to resolve
     t.mock.method(NodeSDK.prototype, 'shutdown', () => Promise.resolve());
 
@@ -46,7 +50,6 @@ describe('logger', () => {
         hasSuccessLog = true;
       }
     });
-
     assert.ok(logger.transports.length > 0, 'Logger initialized with transports');
     assert.ok(sigtermCallback, 'SIGTERM callback was registered');
 
@@ -69,6 +72,7 @@ describe('logger', () => {
     t.mock.method(process, 'exit', (code) => {
       exitCode = code;
     });
+
 
     const testError = new Error('simulated shutdown failure');
     // Mock shutdown to reject
