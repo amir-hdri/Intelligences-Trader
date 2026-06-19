@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "test": "jest"
+    "test": "node --test"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
