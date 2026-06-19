@@ -235,14 +235,13 @@ describe('TseApiClient', () => {
   test('fetchOrderBook fetches real data successfully', async () => {
     const mockOrderBookData = {
       timestamp: 1234567890,
-      orderBook: {
-        bids: [{ price: 100, quantity: 50, count: 1 }, { price: 90, quantity: 100, count: 2 }],
-        asks: [{ price: 110, quantity: 40, count: 1 }, { price: 120, quantity: 80, count: 2 }]
-      }
+      bids: [{ price: 100, quantity: 50, count: 1 }, { price: 90, quantity: 100, count: 2 }],
+      asks: [{ price: 110, quantity: 40, count: 1 }, { price: 120, quantity: 80, count: 2 }],
+      isSpoofing: false
     };
 
     globalThis.fetch = async (url) => {
-      if (url.toString().includes('api/tse/info')) {
+      if (url.toString().includes('api/orderbook/')) {
         return {
           ok: true,
           json: async () => mockOrderBookData
@@ -261,8 +260,8 @@ describe('TseApiClient', () => {
     const client = new TseApiClient(config);
     const data = await client.fetchOrderBook('TEST');
 
-    assert.deepStrictEqual(data.bids, mockOrderBookData.orderBook.bids);
-    assert.deepStrictEqual(data.asks, mockOrderBookData.orderBook.asks);
+    assert.deepStrictEqual(data.bids, mockOrderBookData.bids);
+    assert.deepStrictEqual(data.asks, mockOrderBookData.asks);
     assert.strictEqual(data.timestamp, mockOrderBookData.timestamp);
     assert.strictEqual(data.queueDynamics.buyVolume, 150);
     assert.strictEqual(data.queueDynamics.sellVolume, 120);
@@ -284,9 +283,9 @@ describe('TseApiClient', () => {
     const client = new TseApiClient(config);
     const data = await client.fetchOrderBook('TEST');
 
-    assert.deepStrictEqual(data.bids, []);
-    assert.deepStrictEqual(data.asks, []);
-    assert.strictEqual(data.queueDynamics.buyVolume, 0);
+    assert.strictEqual(data.bids.length, 50);
+    assert.strictEqual(data.asks.length, 50);
+    assert.ok(data.queueDynamics.buyVolume > 0);
   });
 
 

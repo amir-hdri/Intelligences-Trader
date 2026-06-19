@@ -40,8 +40,18 @@ avg_over_time(shadow_mode_confidence_deviation_percent[5m])
 rate(process_resident_memory_bytes{job="web_worker"}[5m])
 ```
 
-### هـ) زمان Reconnection (Websocket)
-میانگین زمان سپری شده برای اتصال مجدد کلاینت‌های وب‌سوکت قطع شده:
+### و) پایداری آموزش و اکتشاف (PPO Entropy)
+مانیتورینگ میزان Entropy در مدل PPO برای اطمینان از ادامه فرآیند اکتشاف (Exploration) و جلوگیری از همگرایی زودهنگام:
 ```promql
-avg_over_time(websocket_reconnection_time_seconds[5m])
+avg_over_time(ppo_actor_entropy[10m])
 ```
+
+### ز) خطای کالیبراسیون مدل (Expected Calibration Error)
+رصد میزان انحراف احتمال‌های پیش‌بینی شده از واقعیت (ECE) برای اطمینان از Reliability خروجی‌های مدل TCN:
+```promql
+rate(tcn_calibration_error_total[1h])
+```
+
+## ۵. Retraining Pipeline Tracer
+با استفاده از لاگ‌های sequencer جدید در `ModelManager` (مانند `Retraining: Data preparation...`)، می‌توان کل چرخه حیات بازآموزی مدل را در پلتفرم‌های Log Aggregation (مانند ELK یا Loki) با یک Query ساده ردیابی کرد:
+`{job="ai-backend"} |= "Retraining:"`

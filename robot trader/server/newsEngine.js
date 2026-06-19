@@ -41,19 +41,31 @@ const generateNews = (count = 5) => {
     if (Math.abs(comparative) > 0.5) impact = 'HIGH';
     else if (Math.abs(comparative) > 0.2) impact = 'MEDIUM';
 
+    // Mock Named Entity Recognition (NER)
+    const entities = [];
+    if (randomHeadline.includes("Iran")) entities.push({ type: 'GPE', text: 'Iran' });
+    if (randomHeadline.includes("OPEC")) entities.push({ type: 'ORG', text: 'OPEC' });
+    if (randomHeadline.includes("Central Bank")) entities.push({ type: 'ORG', text: 'Central Bank' });
+
     // Override impact based on keywords (Rule-based NLP layer)
-    if (randomHeadline.includes("Sanctions") || randomHeadline.includes("OPEC") || randomHeadline.includes("Central Bank")) {
+    let adjustedComparative = comparative;
+    if (entities.some(e => e.type === 'ORG') || randomHeadline.includes("Sanctions")) {
       impact = 'HIGH';
+      adjustedComparative *= 1.5; // Amplify sentiment for high-impact entities
     }
+    
+    // Bound comparative
+    adjustedComparative = Math.max(-1, Math.min(1, adjustedComparative));
 
     news.push({
       id: Math.random().toString(36).substring(7),
       title: randomHeadline,
       source: randomSource,
       timestamp: now - timeOffset,
-      sentimentScore: comparative, // Normalized -1 to 1 approx
-      sentimentLabel: score > 0 ? 'POSITIVE' : score < 0 ? 'NEGATIVE' : 'NEUTRAL',
+      sentimentScore: adjustedComparative, // Normalized -1 to 1 approx
+      sentimentLabel: adjustedComparative > 0.1 ? 'POSITIVE' : adjustedComparative < -0.1 ? 'NEGATIVE' : 'NEUTRAL',
       impact,
+      entities,
       analysis: {
         score,
         positiveWords: analysis.positive,

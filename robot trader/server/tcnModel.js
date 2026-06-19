@@ -14,25 +14,58 @@ export function focalLoss(alpha = 0.25, gamma = 2.0) {
   };
 }
 
-// Build Temporal Convolutional Network
+// Build Temporal Convolutional Network with Residual Blocks and Attention
 export function buildTCN(inputShape, numClasses) {
   const input = tf.input({ shape: inputShape });
 
   let x = input;
-  const dilations = [1, 2, 4];
+  const dilations = [1, 2, 4, 8];
+  const numFilters = 32;
 
   for (const dilation of dilations) {
-    const conv = tf.layers.conv1d({
-      filters: 32,
+    // Residual block
+    const shortcut = tf.layers.conv1d({
+      filters: numFilters,
+      kernelSize: 1,
+      padding: 'same'
+    }).apply(x);
+
+    let res = tf.layers.conv1d({
+      filters: numFilters,
       kernelSize: 3,
       padding: 'same',
-      dilationRate: 1,
+      dilationRate: dilation,
       activation: 'relu'
     }).apply(x);
-    x = conv;
+    
+    res = tf.layers.batchNormalization().apply(res);
+    
+    res = tf.layers.conv1d({
+      filters: numFilters,
+      kernelSize: 3,
+      padding: 'same',
+      dilationRate: dilation,
+      activation: 'relu'
+    }).apply(res);
+    
+    res = tf.layers.batchNormalization().apply(res);
+    
+    // Add shortcut to residue
+    x = tf.layers.add().apply([shortcut, res]);
+    x = tf.layers.dropout({ rate: 0.1 }).apply(x);
   }
 
-  const flatten = tf.layers.flatten().apply(x);
+  // Simple Global Attention Mechanism
+  // x shape: [batch, time, filters]
+  const query = tf.layers.dense({ units: numFilters }).apply(x);
+  const key = tf.layers.dense({ units: numFilters }).apply(x);
+  const value = tf.layers.dense({ units: numFilters }).apply(x);
+  
+  const score = tf.layers.dot({ axes: [2, 2] }).apply([query, key]);
+  const weights = tf.layers.activation({ activation: 'softmax' }).apply(score);
+  const attention = tf.layers.dot({ axes: [2, 1] }).apply([weights, value]);
+  
+  const flatten = tf.layers.flatten().apply(attention);
   const dense = tf.layers.dense({ units: 64, activation: 'relu' }).apply(flatten);
   const output = tf.layers.dense({ units: numClasses, activation: 'softmax' }).apply(dense);
 
@@ -129,32 +162,30 @@ export function calculateCalibrationError(yTrue, yPredProbs) {
   // A simple ECE (Expected Calibration Error) approximation
   const numBins = 10;
   let calibrationError = 0;
+  
+  const bins = Array.from({ length: numBins }, () => ({ count: 0, confSum: 0, correct: 0 }));
+
+  for (let j = 0; j < yPredProbs.length; j++) {
+    const maxProb = Math.max(...yPredProbs[j]);
+    const predClass = yPredProbs[j].indexOf(maxProb);
+    
+    // Determine which bin the probability falls into
+    let binIdx = Math.floor(maxProb * numBins);
+    if (binIdx === numBins) binIdx = numBins - 1; // Handle prob = 1.0
+
+    bins[binIdx].count++;
+    bins[binIdx].confSum += maxProb;
+    if (predClass === yTrue[j]) {
+      bins[binIdx].correct++;
+    }
+  }
 
   for (let i = 0; i < numBins; i++) {
-    const binStart = i / numBins;
-    const binEnd = (i + 1) / numBins;
-
-    let binCount = 0;
-    let binConfSum = 0;
-    let binCorrect = 0;
-
-    for (let j = 0; j < yPredProbs.length; j++) {
-      const maxProb = Math.max(...yPredProbs[j]);
-      const predClass = yPredProbs[j].indexOf(maxProb);
-
-      if (maxProb >= binStart && maxProb < binEnd) {
-        binCount++;
-        binConfSum += maxProb;
-        if (predClass === yTrue[j]) {
-          binCorrect++;
-        }
-      }
-    }
-
-    if (binCount > 0) {
-      const binAccuracy = binCorrect / binCount;
-      const binConfidence = binConfSum / binCount;
-      calibrationError += (binCount / yPredProbs.length) * Math.abs(binAccuracy - binConfidence);
+    const { count, confSum, correct } = bins[i];
+    if (count > 0) {
+      const binAccuracy = correct / count;
+      const binConfidence = confSum / count;
+      calibrationError += (count / yPredProbs.length) * Math.abs(binAccuracy - binConfidence);
     }
   }
 

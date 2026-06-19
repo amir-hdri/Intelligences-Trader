@@ -7,37 +7,37 @@ interface MarketCorrelationProps {
 
 export const MarketCorrelation: React.FC<MarketCorrelationProps> = ({ data }) => {
   const items = [
-    { label: 'USD Free', value: data.usdFree, color: 'text-indigo-400', suffix: 'IRR' },
-    { label: 'USD Nima', value: data.usdNima, color: 'text-sky-400', suffix: 'IRR' },
-    { label: 'Global Gold', value: data.globalGold, color: 'text-amber-400', suffix: 'USD/oz' },
-    { label: 'LME Copper', value: data.globalCopper, color: 'text-orange-400', suffix: 'USD/MT' },
+    { label: 'USD Free', value: data.usdFree, color: 'text-indigo-400', suffix: 'IRR', shadow: 'shadow-indigo-500/10' },
+    { label: 'USD Nima', value: data.usdNima, color: 'text-sky-400', suffix: 'IRR', shadow: 'shadow-sky-500/10' },
+    { label: 'Global Gold', value: data.globalGold, color: 'text-amber-400', suffix: 'USD/oz', shadow: 'shadow-amber-500/10' },
+    { label: 'LME Copper', value: data.globalCopper, color: 'text-orange-400', suffix: 'USD/MT', shadow: 'shadow-orange-500/10' },
   ];
 
   return (
-    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-      <h3 className="text-slate-400 font-bold text-xs uppercase tracking-wider mb-4">Dynamic Covariates</h3>
+    <div className="glass-panel p-5 rounded-2xl">
+      <h3 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] mb-5">Macro Covariates</h3>
       
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-2 gap-3.5 mb-8">
         {items.map((item, i) => (
-          <div key={i} className="bg-slate-800/30 p-2 rounded border border-slate-700/50">
-            <div className="text-[10px] text-slate-500 uppercase">{item.label}</div>
-            <div className={`text-sm font-bold ${item.color}`}>
-              {item.value.toLocaleString(undefined, { maximumFractionDigits: 1 })} <span className="text-[9px] font-normal opacity-50">{item.suffix}</span>
+          <div key={i} className={`glass-card p-3.5 rounded-xl border-slate-700/30 ${item.shadow}`}>
+            <div className="text-[9px] text-slate-500 font-black uppercase tracking-widest mb-1.5">{item.label}</div>
+            <div className={`text-base font-black ${item.color} tracking-tight`}>
+              {item.value.toLocaleString(undefined, { maximumFractionDigits: 0 })} <span className="text-[8px] font-bold text-slate-500 ml-0.5 uppercase tracking-tighter">{item.suffix}</span>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {Object.entries(data.correlations).map(([key, val], i) => (
-          <div key={i} className="flex flex-col">
-            <div className="flex justify-between text-[10px] mb-1 uppercase tracking-tighter">
-              <span className="text-gray-500">{key.replace('_', ' vs ')}</span>
-              <span className="text-gray-300">{(val * 100).toFixed(0)}% Match</span>
+          <div key={i} className="flex flex-col group">
+            <div className="flex justify-between text-[10px] mb-2 font-black uppercase tracking-widest">
+              <span className="text-slate-500 group-hover:text-indigo-400 transition-colors">{key.replace('_', ' vs ')}</span>
+              <span className="text-slate-300">{(val * 100).toFixed(0)}% Intensity</span>
             </div>
-            <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-slate-800/50 rounded-full overflow-hidden border border-slate-700/20">
               <div 
-                className="h-full bg-indigo-500"
+                className="h-full bg-gradient-to-r from-indigo-600 to-sky-400 transition-all duration-1000"
                 style={{ width: `${val * 100}%` }}
               />
             </div>

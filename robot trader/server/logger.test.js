@@ -7,21 +7,18 @@ describe('logger', () => {
   let sigtermCallback;
   let originalOn;
   let originalExit;
-  let originalLog;
   let originalShutdown;
 
   before(() => {
     // We mock these global methods before the logger module is imported.
     originalOn = process.on;
     originalExit = process.exit;
-    originalLog = console.log;
     originalShutdown = NodeSDK.prototype.shutdown;
   });
 
   after(() => {
     process.on = originalOn;
     process.exit = originalExit;
-    console.log = originalLog;
     NodeSDK.prototype.shutdown = originalShutdown;
   });
 
@@ -37,18 +34,18 @@ describe('logger', () => {
       exitCode = code;
     });
 
-    let hasSuccessLog = false;
-    t.mock.method(console, 'log', (...args) => {
-      if (args[0] === 'Tracing terminated') {
-        hasSuccessLog = true;
-      }
-    });
-
     // Mock shutdown to resolve
     t.mock.method(NodeSDK.prototype, 'shutdown', () => Promise.resolve());
 
     // Import logger dynamically to trigger setup
     const { default: logger } = await import('./logger.js');
+
+    let hasSuccessLog = false;
+    t.mock.method(logger, 'info', (msg) => {
+      if (msg === 'Tracing terminated') {
+        hasSuccessLog = true;
+      }
+    });
 
     assert.ok(logger.transports.length > 0, 'Logger initialized with transports');
     assert.ok(sigtermCallback, 'SIGTERM callback was registered');
@@ -73,21 +70,21 @@ describe('logger', () => {
       exitCode = code;
     });
 
-    let hasErrorLog = false;
-    let loggedError = null;
-    t.mock.method(console, 'log', (...args) => {
-      if (args[0] === 'Error terminating tracing') {
-        hasErrorLog = true;
-        loggedError = args[1];
-      }
-    });
-
     const testError = new Error('simulated shutdown failure');
     // Mock shutdown to reject
     t.mock.method(NodeSDK.prototype, 'shutdown', () => Promise.reject(testError));
 
     // Append a query param to bypass module cache so it runs setup again
-    await import(`./logger.js?bypassCache=${Date.now()}`);
+    const { default: logger } = await import(`./logger.js?bypassCache=${Date.now()}`);
+
+    let hasErrorLog = false;
+    let loggedError = null;
+    t.mock.method(logger, 'error', (msg, meta) => {
+      if (msg === 'Error terminating tracing') {
+        hasErrorLog = true;
+        loggedError = meta.error;
+      }
+    });
 
     assert.ok(sigtermCallback, 'SIGTERM callback was registered');
 

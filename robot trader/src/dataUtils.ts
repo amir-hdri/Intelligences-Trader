@@ -98,6 +98,43 @@ export class TseApiClient {
       return cached.data;
     }
 
+    const apiUrl = this.config.proxyUrl;
+    if (apiUrl && this.config.isConnected) {
+      try {
+        const response = await fetch(`${apiUrl}/api/orderbook/${symbolId}`);
+        if (response.ok) {
+          const json = await response.json();
+          if (json.bids && json.asks) {
+            const buyVolume = json.bids.reduce((sum: number, item: OrderBookItem) => sum + item.quantity, 0);
+            const sellVolume = json.asks.reduce((sum: number, item: OrderBookItem) => sum + item.quantity, 0);
+            const totalVolume = buyVolume + sellVolume;
+            const pressure = totalVolume > 0 ? (buyVolume - sellVolume) / totalVolume : 0;
+            const buyRatio = totalVolume > 0 ? buyVolume / totalVolume : 0.5;
+
+            const result: OrderBook = {
+              bids: json.bids,
+              asks: json.asks,
+              timestamp: json.timestamp || now,
+              isSpoofingDetected: json.isSpoofing || false,
+              pressure,
+              queueDynamics: {
+                buyVolume,
+                sellVolume,
+                totalVolume,
+                buyRatio,
+                isHerdingDetected: buyRatio > 0.5,
+                momentumMultiplier: buyRatio > 0.5 ? 1.5 : 1.0
+              }
+            };
+            this.orderBookCache.set(symbolId, { timestamp: now, data: result });
+            return result;
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to fetch real order book, falling back to digital twin", error);
+      }
+    }
+
     // Simulated Order Book with Spoofing detection logic
     let lastPrice: number;
     try {
@@ -457,9 +494,29 @@ export class TseApiClient {
     const trendComponent =
       Math.sin(timestamp / (1000 * 60 * 60 * 24 * 7)) * 0.001;
 
-    const epsilon = Math.random() * 2 - 1;
+    // Box-Muller transform for standard normal distribution N(0, 1)
+    let u = 0, v = 0;
+    while(u === 0) u = Math.random(); // Converting [0,1) to (0,1)
+    while(v === 0) v = Math.random();
+    const epsilon = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+
+    // Merton Jump Diffusion component
+    // Simulates sudden market shocks (e.g. news events, large orders)
+    const jumpIntensity = timeframe === "1m" ? 0.01 : 0.05; // 1% chance per minute, 5% per larger timeframe
+    const jumpMean = 0;
+    const jumpStd = sigma * 3; // Jumps are typically 3x normal volatility
+    
+    let jump = 0;
+    if (Math.random() < jumpIntensity) {
+       let j_u = 0, j_v = 0;
+       while(j_u === 0) j_u = Math.random();
+       while(j_v === 0) j_v = Math.random();
+       let j_eps = Math.sqrt(-2.0 * Math.log(j_u)) * Math.cos(2.0 * Math.PI * j_v);
+       jump = jumpMean + jumpStd * j_eps;
+    }
+
     const change =
-      prevClose * (mu * dt + trendComponent + sigma * epsilon * Math.sqrt(dt));
+      prevClose * (mu * dt + trendComponent + sigma * epsilon * Math.sqrt(dt) + jump);
     const close = prevClose + change;
 
     const high = Math.max(prevClose, close) * (1 + Math.random() * (sigma / 2));
@@ -868,7 +925,39 @@ export const analyzeMarketMTF = (
 
   // 6. Macro & Political Engineering (Hedge Fund Fusion Layer)
   let bubbleGap = 0;
-  let politicalRiskIndex = externalMetrics?.sentiment?.politicalRiskIndex || 50;
+  let politicalRiskIndex = 50;
+  const now = Date.now();
+
+  if (externalMetrics?.sentiment?.news) {
+    const newsWeightSum = externalMetrics.sentiment.news.reduce((sum, n) => {
+       // Time-decay: older news has less impact
+       const hoursAgo = (now - n.timestamp) / 3600000;
+       const timeDecay = Math.exp(-hoursAgo / 24); // 24-hour half-life
+       
+       let impact = n.impactEffect === "DOLLAR_BULLISH" ? 15 : n.impactEffect === "DOLLAR_BEARISH" ? -15 : 0;
+       return sum + (impact * timeDecay);
+    }, 0);
+    
+    politicalRiskIndex = Math.max(0, Math.min(100, 50 + newsWeightSum));
+  } else {
+    politicalRiskIndex = externalMetrics?.sentiment?.politicalRiskIndex || 50;
+  }
+
+  // Local Volatility Index (VIX-style) calculation
+  const tfMs: Record<TimeFrame, number> = {
+    "1m": 60 * 1000,
+    "15m": 15 * 60 * 1000,
+    "1h": 60 * 60 * 1000,
+    "1d": 24 * 60 * 60 * 1000,
+  };
+  const logReturns = [];
+  for (let i = 1; i < hPrices.length; i++) {
+     if (hPrices[i-1] > 0) logReturns.push(Math.log(hPrices[i] / hPrices[i-1]));
+  }
+  const variance = logReturns.length > 0 ? logReturns.reduce((s, r) => s + r*r, 0) / logReturns.length : 0;
+  // Use '1h' as default if timeframe is not explicitly passed, though analyzeMarketMTF knows mtfData
+  const localVix = Math.sqrt(variance * 252 * (tfMs["1h"] / tfMs["1d"])) * 100;
+
   let queueDynamicsRatio =
     externalMetrics?.orderBook?.queueDynamics?.buyRatio || 0.5;
 
@@ -904,11 +993,17 @@ export const analyzeMarketMTF = (
   if (politicalRiskIndex > 70) {
     score += 4; // High tension = Dollar Bullish = Commodity Bullish
     reasons.push(
-      "High Political Risk Index -> Expecting USD/Commodity inflation leap.",
+      `High Political Risk Index (${politicalRiskIndex.toFixed(0)}) -> Expecting USD/Commodity inflation leap.`,
     );
   } else if (politicalRiskIndex < 30) {
     score -= 3;
-    reasons.push("Low Political Risk Index -> Bearish for USD-pegged assets.");
+    reasons.push(`Low Political Risk Index (${politicalRiskIndex.toFixed(0)}) -> Bearish for USD-pegged assets.`);
+  }
+
+  // Apply Local VIX Filter (Risk-Off during extreme volatility)
+  if (localVix > 40) {
+     score *= 0.5;
+     reasons.push(`Extreme Market Volatility (VIX: ${localVix.toFixed(1)}%). Reducing position size/confidence.`);
   }
 
   // Apply Queue Dynamics Momentum (Herding behavior overrides technicals)

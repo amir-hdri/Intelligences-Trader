@@ -1,15 +1,18 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert';
 
-// We need to mock process.env before importing SecretManager
-const originalEnv = process.env.MASTER_ENCRYPTION_KEY;
-const testKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-process.env.MASTER_ENCRYPTION_KEY = testKey;
-
-// Now import it
-import { SecretManager, secretManager } from './SecretManager.js';
-
 describe('SecretManager', () => {
+  const originalEnv = process.env.MASTER_ENCRYPTION_KEY;
+  const testKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  let SecretManager, secretManager;
+
+  before(async () => {
+    process.env.MASTER_ENCRYPTION_KEY = testKey;
+    const module = await import('./SecretManager.js');
+    SecretManager = module.SecretManager;
+    secretManager = module.secretManager;
+  });
+
   after(() => {
     process.env.MASTER_ENCRYPTION_KEY = originalEnv;
   });

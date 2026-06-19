@@ -128,7 +128,14 @@ describe('EnsembleEngine', () => {
     assert.ok(result.confidence >= 0 && result.confidence <= 1);
     assert.ok(typeof result.ensemblePerformance === 'number');
     assert.ok(typeof result.modelWeights === 'object');
-    assert.strictEqual(result.stabilityStatus, 'STABLE');
+    assert.strictEqual(result.stabilityStatus, 'UNSTABLE');
+
+    // After warming up, it should be STABLE
+    for (let i = 0; i < 25; i++) {
+       engine.generateBasePredictions([1]);
+    }
+    const warmedResult = engine.predictEnsemble([1]);
+    assert.strictEqual(warmedResult.stabilityStatus, 'STABLE');
   });
 
   test('updateWeights properly adjusts weights based on actual outcome', () => {
