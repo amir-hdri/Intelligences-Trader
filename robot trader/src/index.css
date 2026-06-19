@@ -2,35 +2,72 @@
 
 @theme {
   --font-sans: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-200 antialiased;
+    @apply bg-[#030712] text-slate-200 antialiased selection:bg-indigo-500/30 selection:text-indigo-200;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-slate-900/60 backdrop-blur-xl border border-slate-800/50 shadow-2xl;
+  }
+  
+  .glass-card {
+    @apply bg-slate-800/40 backdrop-blur-md border border-slate-700/50 shadow-lg transition-all hover:bg-slate-800/60 hover:border-slate-600/50;
+  }
+
+  .text-glow {
+    text-shadow: 0 0 20px theme('colors.indigo.500 / 50%');
   }
 }
 
 @keyframes spin-slow {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
 }
 
 .animate-spin-slow {
-  animation: spin-slow 3s linear infinite;
+  animation: spin-slow 4s linear infinite;
 }
 
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Modern Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-slate-900;
+  @apply bg-transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-800 rounded-full hover:bg-slate-700;
+  @apply bg-slate-700/50 rounded-full hover:bg-slate-600/80 transition-colors;
+}
+
+/* Focus outline globally */
+*:focus-visible {
+  @apply outline-none ring-2 ring-indigo-500/50 ring-offset-2 ring-offset-slate-950 rounded-sm transition-shadow;
 }

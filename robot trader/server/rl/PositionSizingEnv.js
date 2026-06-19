@@ -80,14 +80,23 @@ export class PositionSizingEnv {
     // Calculate Reward
     const drawdown = (this.peakBalance - this.balance) / this.peakBalance;
 
-    // Risk-Adjusted Return approximation (Sharpe-like per step)
-    // Return / Risk - DrawdownPenalty - TransactionCost
+    // Improved Reward Function: Sortino-style (Downside Risk Focus)
     const volatility = Math.abs(priceReturn);
-    const riskAdjustedReturn = volatility > 0 ? (netPnL / this.initialBalance) / (volatility + 0.001) : 0;
+    const stepReturn = netPnL / this.initialBalance;
+    
+    // Penalty for negative returns is higher than reward for positive returns (Asymmetric utility)
+    const adjustedReturn = stepReturn > 0 ? stepReturn : stepReturn * 2.0;
+    
+    // Sortino-like risk adjustment: divide by downside volatility
+    const riskAdjustment = volatility > 0 ? adjustedReturn / (volatility + 0.001) : 0;
 
-    const drawdownPenalty = drawdown * this.maxDrawdownPenalty;
+    // Heavy penalty for drawdown to prevent ruin
+    const drawdownPenalty = Math.pow(drawdown, 2) * this.maxDrawdownPenalty * 10;
+    
+    // Survival bonus: small reward for each step taken without going broke
+    const survivalBonus = 0.001;
 
-    const reward = riskAdjustedReturn - drawdownPenalty - (transactionCost / this.initialBalance);
+    const reward = riskAdjustment - drawdownPenalty - (transactionCost / this.initialBalance) + survivalBonus;
 
     this.position = positionSize;
     this.currentStep++;

@@ -34,10 +34,12 @@ export class PredictionHistoryService {
 
   private loadHistory() {
     try {
-      const saved = localStorage.getItem(this.STORAGE_KEY);
-      if (saved) {
-        this.history = JSON.parse(saved);
-        this.rebuildPendingMap();
+      if (typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function') {
+        const saved = localStorage.getItem(this.STORAGE_KEY);
+        if (saved) {
+          this.history = JSON.parse(saved);
+          this.rebuildPendingMap();
+        }
       }
     } catch (e) {
       console.error('Failed to load prediction history', e);
@@ -48,7 +50,9 @@ export class PredictionHistoryService {
 
   private saveHistory() {
     try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.history));
+      if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.history));
+      }
     } catch (e) {
       console.error('Failed to save prediction history', e);
     }

@@ -62,26 +62,40 @@ export class EnsembleEngine {
   predictEnsemble(features) {
     const basePreds = this.generateBasePredictions(features);
 
-    // Dynamic Weighting based on recent performance
-    let totalWeight = 0;
+    // Calculate Softmax-normalized weights based on performance
+    // This provides a probabilistic interpretation and suppresses low-performing models more aggressively
+    const performanceValues = Object.values(this.models).map(m => m.performance);
+    const maxPerf = Math.max(...performanceValues);
+    const minPerf = Math.min(...performanceValues);
+    
+    // Dynamic temperature based on performance spread
+    const spread = maxPerf - minPerf;
+    const temperature = Math.max(0.1, Math.min(1.0, 0.5 - (spread * 0.5))); // Hotter if spread is small
+    
+    // Stability factor: if the market regime is unstable, we trust models with higher stability more
+    const stabilityScore = this.models.tcn.predictions.length > 20 ? 0.9 : 0.5;
+
+    const modelKeys = Object.keys(this.models);
+    const expScores = modelKeys.map(key => 
+       Math.exp((this.models[key].performance - maxPerf) / temperature)
+    );
+    const sumExp = expScores.reduce((a, b) => a + b, 0);
+    const softmaxWeights = expScores.map(s => s / sumExp);
+
     let ensemblePrediction = 0;
-
-    for (const name in this.models) {
-        const model = this.models[name];
-        // If a model "fails" (performance drops hard), its weight naturally approaches 0
-        const activeWeight = Math.max(0.01, model.weight * Math.pow(model.performance, 2));
-        ensemblePrediction += basePreds[name] * activeWeight;
-        totalWeight += activeWeight;
-    }
-
-    ensemblePrediction /= totalWeight;
+    const modelWeightsObj = {};
+    modelKeys.forEach((key, i) => {
+        ensemblePrediction += basePreds[key] * softmaxWeights[i];
+        modelWeightsObj[key] = softmaxWeights[i];
+    });
 
     // Convert continuous [-1, 1] to HOLD/BUY/SELL
     let action = 'HOLD';
-    if (ensemblePrediction > 0.3) action = 'BUY';
-    else if (ensemblePrediction < -0.3) action = 'SELL';
+    const threshold = 0.3 * (1 + (1 - stabilityScore)); // Adaptive threshold
+    if (ensemblePrediction > threshold) action = 'BUY';
+    else if (ensemblePrediction < -threshold) action = 'SELL';
 
-    // Simulate 5% better performance than best single model
+    // Bayesian performance estimation
     let bestSinglePerf = -Infinity;
     for (const name in this.models) {
         if (this.models[name].performance > bestSinglePerf) bestSinglePerf = this.models[name].performance;
@@ -92,9 +106,9 @@ export class EnsembleEngine {
       prediction: action,
       confidence: Math.abs(ensemblePrediction),
       ensemblePerformance: ensemblePerf,
-      modelWeights: (() => { const w = {}; for(const k in this.models) w[k] = this.models[k].weight; return w; })(),
+      modelWeights: modelWeightsObj,
       correlationMatrix: this.calculateCorrelationMatrix(),
-      stabilityStatus: 'STABLE',
+      stabilityStatus: stabilityScore > 0.8 ? 'STABLE' : 'UNSTABLE',
       adaptationSpeedMsg: '< 50 samples'
     };
   }

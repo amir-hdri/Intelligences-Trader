@@ -16,16 +16,29 @@ export class HPOEngine {
     let bestParams = null;
 
     for (let i = 0; i < iterations; i++) {
-      // Optuna Search Space
-      const params = {
-        atrMultiplier: 1.5 + Math.random() * 2.5, // 1.5 to 4.0
-        fractionalKelly: 0.1 + Math.random() * 0.4, // 0.1 to 0.5
-        varThreshold: 0.02 + Math.random() * 0.06, // 0.02 to 0.08
-        // Standard weights for analysis engine
-        rsi: Math.random() * 5,
-        macd: Math.random() * 5,
-        sentiment: Math.random() * 5
-      };
+      let params;
+      // Simulate TPE: after 10 iterations, start biasing towards bestParams
+      if (i > 10 && bestParams && Math.random() > 0.3) {
+        // Exploit: sample around best known params
+        params = {
+          atrMultiplier: Math.max(1.0, bestParams.atrMultiplier + (Math.random() * 0.4 - 0.2)),
+          fractionalKelly: Math.max(0.01, Math.min(0.99, bestParams.fractionalKelly + (Math.random() * 0.1 - 0.05))),
+          varThreshold: Math.max(0.01, bestParams.varThreshold + (Math.random() * 0.02 - 0.01)),
+          rsi: Math.max(0, bestParams.rsi + (Math.random() * 1.0 - 0.5)),
+          macd: Math.max(0, bestParams.macd + (Math.random() * 1.0 - 0.5)),
+          sentiment: Math.max(0, bestParams.sentiment + (Math.random() * 1.0 - 0.5))
+        };
+      } else {
+        // Explore: random uniform sampling
+        params = {
+          atrMultiplier: 1.5 + Math.random() * 2.5, // 1.5 to 4.0
+          fractionalKelly: 0.1 + Math.random() * 0.4, // 0.1 to 0.5
+          varThreshold: 0.02 + Math.random() * 0.06, // 0.02 to 0.08
+          rsi: Math.random() * 5,
+          macd: Math.random() * 5,
+          sentiment: Math.random() * 5
+        };
+      }
 
       // Objective Function: Maximize Calmar Ratio with Penalty
       const metrics = evaluateStrategy(candles, params);

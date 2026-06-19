@@ -121,7 +121,11 @@ export class PPOAgent {
       const surr1 = ratio.mul(normAdvT.expandDims(1));
       const surr2 = tf.clipByValue(ratio, 1 - this.clipRatio, 1 + this.clipRatio).mul(normAdvT.expandDims(1));
 
-      const actorLoss = tf.neg(tf.mean(tf.minimum(surr1, surr2)));
+      // Calculate Entropy: 0.5 + 0.5 * log(2 * pi) + log(std)
+      const entropy = tf.mean(tf.add(tf.scalar(0.5 + 0.5 * Math.log(2 * Math.PI)), tf.log(std)));
+      const entropyCoef = 0.01; // Entropy bonus coefficient
+
+      const actorLoss = tf.neg(tf.mean(tf.minimum(surr1, surr2))).sub(entropy.mul(entropyCoef));
       return actorLoss;
     };
 

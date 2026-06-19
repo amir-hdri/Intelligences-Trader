@@ -2,6 +2,9 @@ export class FederatedEngine {
   constructor() {
     this.clients = ['Client_A', 'Client_B', 'Client_C', 'Client_D', 'Client_E'];
     this.globalModelWeights = Array(10).fill(0.1); // Simulated 10-parameter model
+    this.clientMomentums = this.clients.map(() => Array(10).fill(0));
+    this.learningRate = 0.05;
+    this.momentumRate = 0.9;
     this.round = 0;
   }
 
@@ -21,10 +24,18 @@ export class FederatedEngine {
     });
   }
 
-  // Simulate training on a client
-  clientUpdate(client, currentWeights) {
-    // Simulate training step: move slightly towards random target
-    return currentWeights.map(w => w + (Math.random() * 0.02 - 0.01));
+  // Simulate training on a client with momentum
+  clientUpdate(clientIndex, currentWeights) {
+    const momentum = this.clientMomentums[clientIndex];
+    return currentWeights.map((w, i) => {
+      // Simulate gradient for this batch/client (normally derived from loss)
+      const simulatedGradient = (Math.random() * 0.02 - 0.01);
+      
+      // Update momentum
+      momentum[i] = (this.momentumRate * momentum[i]) + (this.learningRate * simulatedGradient);
+      
+      return w + momentum[i];
+    });
   }
 
   // Simulate Federated Averaging (FedAvg) with Secure Aggregation
@@ -34,8 +45,8 @@ export class FederatedEngine {
     // Client Selection (all clients in this simulation)
     const activeClients = this.clients;
 
-    const clientUpdates = activeClients.map(client => {
-      const updatedWeights = this.clientUpdate(client, this.globalModelWeights);
+    const clientUpdates = activeClients.map((client, index) => {
+      const updatedWeights = this.clientUpdate(index, this.globalModelWeights);
       // Apply Differential Privacy before sending to server
       return this.addGaussianNoise(updatedWeights, 0.8);
     });

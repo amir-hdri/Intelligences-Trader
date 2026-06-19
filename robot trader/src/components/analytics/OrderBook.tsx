@@ -8,62 +8,67 @@ interface OrderBookProps {
 export const OrderBook: React.FC<OrderBookProps> = ({ data }) => {
   const maxQty = Math.max(
     ...data.bids.map(b => b.quantity),
-    ...data.asks.map(a => a.quantity)
+    ...data.asks.map(a => a.quantity),
+    1
   );
 
   return (
-    <div className="bg-gray-900 p-4 rounded-xl border border-gray-800 font-mono text-xs">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-gray-400 font-bold uppercase tracking-wider">Market Depth (Level 2)</h3>
+    <div className="glass-panel p-5 rounded-2xl font-mono">
+      <div className="flex justify-between items-center mb-5">
+        <h3 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+          Market Depth L2
+        </h3>
         {data.isSpoofingDetected && (
-          <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded animate-pulse border border-red-500/50">
-            SPOOFING ALERT
-          </span>
+          <div className="flex items-center gap-1.5 bg-rose-500/10 text-rose-400 px-2.5 py-1 rounded-md animate-pulse border border-rose-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Spoofing Detection</span>
+          </div>
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-6">
         {/* Asks (Sells) */}
         <div className="flex flex-col-reverse">
-          {data.asks.map((ask, i) => (
-            <div key={i} className="relative flex justify-between py-1 px-2 mb-0.5 group">
+          {data.asks.slice(0, 10).map((ask, i) => (
+            <div key={i} className="relative flex justify-between py-1 px-2 mb-0.5 group rounded transition-colors hover:bg-white/5">
               <div 
-                className="absolute right-0 top-0 bottom-0 bg-red-500/10 transition-all"
+                className="absolute right-0 top-0 bottom-0 bg-rose-500/10 transition-all duration-500 rounded-sm"
                 style={{ width: `${(ask.quantity / maxQty) * 100}%` }}
               />
-              <span className="text-red-400 z-10">{ask.price.toLocaleString()}</span>
-              <span className="text-gray-300 z-10">{ask.quantity.toLocaleString()}</span>
+              <span className="text-rose-400 text-[11px] font-bold z-10">{ask.price.toLocaleString()}</span>
+              <span className="text-slate-300 text-[11px] z-10">{ask.quantity.toLocaleString()}</span>
             </div>
           ))}
-          <div className="text-center text-gray-500 mb-2 border-b border-gray-800 pb-1 uppercase tracking-tighter">Asks</div>
+          <div className="text-center text-slate-500 text-[9px] font-black mb-3 uppercase tracking-widest border-b border-slate-800/50 pb-1.5">Asks / Sells</div>
         </div>
 
         {/* Bids (Buys) */}
         <div>
-          <div className="text-center text-gray-500 mb-2 border-b border-gray-800 pb-1 uppercase tracking-tighter">Bids</div>
-          {data.bids.map((bid, i) => (
-            <div key={i} className="relative flex justify-between py-1 px-2 mb-0.5 group">
+          <div className="text-center text-slate-500 text-[9px] font-black mb-3 uppercase tracking-widest border-b border-slate-800/50 pb-1.5">Bids / Buys</div>
+          {data.bids.slice(0, 10).map((bid, i) => (
+            <div key={i} className="relative flex justify-between py-1 px-2 mb-0.5 group rounded transition-colors hover:bg-white/5">
               <div 
-                className="absolute left-0 top-0 bottom-0 bg-green-500/10 transition-all"
+                className="absolute left-0 top-0 bottom-0 bg-emerald-500/10 transition-all duration-500 rounded-sm"
                 style={{ width: `${(bid.quantity / maxQty) * 100}%` }}
               />
-              <span className="text-gray-300 z-10">{bid.quantity.toLocaleString()}</span>
-              <span className="text-green-400 z-10">{bid.price.toLocaleString()}</span>
+              <span className="text-slate-300 text-[11px] z-10">{bid.quantity.toLocaleString()}</span>
+              <span className="text-emerald-400 text-[11px] font-bold z-10">{bid.price.toLocaleString()}</span>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-gray-800">
-        <div className="flex justify-between items-center mb-1 text-[10px]">
-          <span className="text-gray-500 uppercase">Order Pressure</span>
-          <span className={data.pressure > 0 ? 'text-green-400' : 'text-red-400'}>
-            {(data.pressure * 100).toFixed(1)}%
+      <div className="mt-6 pt-5 border-t border-slate-800/50">
+        <div className="flex justify-between items-center mb-2.5 text-[10px] font-black uppercase tracking-widest">
+          <span className="text-slate-500">Order Pressure</span>
+          <span className={data.pressure > 0 ? 'text-emerald-400 text-glow' : 'text-rose-400 text-glow'}>
+            {(data.pressure * 100).toFixed(1)}% {data.pressure > 0 ? 'BULL' : 'BEAR'}
           </span>
         </div>
-        <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden flex">
+        <div className="w-full h-2 bg-slate-800/50 rounded-full overflow-hidden flex border border-slate-700/30">
           <div 
-            className="h-full bg-green-500 transition-all duration-500"
+            className="h-full bg-gradient-to-r from-emerald-500 to-indigo-500 transition-all duration-700 ease-out"
             style={{ width: `${(data.pressure + 1) * 50}%` }}
           />
         </div>

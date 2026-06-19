@@ -37,12 +37,50 @@ export class PortfolioOptimizer {
     return weights.map(w => w / sum);
   }
 
-  // Simulate Hierarchical Risk Parity (HRP)
+  // Recursive Bisection for Hierarchical Risk Parity
+  getHRPWeights(cov, assets) {
+    if (assets.length === 1) {
+      return { [assets[0]]: 1.0 };
+    }
+
+    // Split assets into two clusters (simulated simple split for this JS implementation)
+    const mid = Math.floor(assets.length / 2);
+    const clusterA = assets.slice(0, mid);
+    const clusterB = assets.slice(mid);
+
+    // Calculate cluster variance
+    const getClusterVar = (cluster) => {
+      let v = 0;
+      cluster.forEach(a1 => {
+        cluster.forEach(a2 => {
+          const i = this.assets.indexOf(a1);
+          const j = this.assets.indexOf(a2);
+          v += this.covarianceMatrix[i][j];
+        });
+      });
+      return v / (cluster.length * cluster.length);
+    };
+
+    const varA = getClusterVar(clusterA);
+    const varB = getClusterVar(clusterB);
+
+    // Allocate across clusters based on inverse variance
+    const alpha = 1 - (varA / (varA + varB));
+
+    const weightsA = this.getHRPWeights(cov, clusterA);
+    const weightsB = this.getHRPWeights(cov, clusterB);
+
+    const result = {};
+    for (const a in weightsA) result[a] = weightsA[a] * alpha;
+    for (const b in weightsB) result[b] = weightsB[b] * (1 - alpha);
+    
+    return result;
+  }
+
+  // Hierarchical Risk Parity (HRP)
   hrpOptimization() {
-    // Clusters assets then allocates. Simulated output.
-    const weights = this.assets.map(() => Math.random() + 0.5); // Smoother distribution
-    const sum = weights.reduce((a, b) => a + b, 0);
-    return weights.map(w => w / sum);
+    const weightsMap = this.getHRPWeights(this.covarianceMatrix, this.assets);
+    return this.assets.map(a => weightsMap[a]);
   }
 
   optimizePortfolio(method = 'HRP') {

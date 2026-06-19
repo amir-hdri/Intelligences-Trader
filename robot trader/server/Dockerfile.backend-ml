@@ -16,7 +16,7 @@ RUN npm install -g pm2 && addgroup -g 1001 nodejs && adduser -S -u 1001 -G nodej
 
 COPY --from=builder --chown=nodejs:nodejs /app ./
 
-RUN --mount=type=cache,target=/root/.npm npm ci --only=production || npm install --only=production --no-audit --no-fund
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev || npm install --omit=dev --no-audit --no-fund
 
 USER nodejs
 EXPOSE 3000

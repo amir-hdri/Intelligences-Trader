@@ -58,7 +58,7 @@ const getRealMarketData = async (symbolId) => {
     });
     return response.data;
   } catch (error) {
-    logger.error(`Failed to fetch real data for ${symbolId}:`, error.message);
+    logger.warn(`Failed to fetch real data for ${symbolId}. Using fallback simulation. Error: ${error.message}`);
     return null;
   }
 };

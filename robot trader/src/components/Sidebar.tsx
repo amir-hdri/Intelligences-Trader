@@ -1,13 +1,15 @@
 import React from 'react';
-import { LayoutDashboard, Database, BrainCircuit, Settings, Activity, ShieldAlert, History, Zap, Layers, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, Database, BrainCircuit, Settings, Activity, ShieldAlert, History, Zap, Layers, TrendingUp, X } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   status: 'OPERATIONAL' | 'WARNING' | 'CRITICAL' | 'KILL_SWITCH_ACTIVE';
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, status }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, status, isOpen, setIsOpen }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'intelligence', label: 'Intelligence', icon: Layers },
@@ -21,54 +23,91 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, status }) =>
   ];
 
   return (
-    <div className="w-64 bg-slate-900 h-screen border-r border-slate-800 flex flex-col">
-      <div className="p-6 flex items-center gap-3">
-        <div className="bg-indigo-600 p-2 rounded-lg">
-          <Zap className="w-6 h-6 text-white" />
-        </div>
-        <h1 className="text-xl font-bold text-white tracking-tight">KalayBot AI</h1>
-      </div>
+    <>
+      {/* Mobile Overlay */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
       
-      <nav className="flex-1 px-4 space-y-1 mt-4">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all ${
-                isActive 
-                ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-600/20' 
-                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <Icon className="w-5 h-5" />
-              <span className="font-medium">{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="p-4 border-t border-slate-800">
-        <div className={`rounded-xl p-4 ${
-          status === 'OPERATIONAL' ? 'bg-emerald-500/5' : 
-          status === 'KILL_SWITCH_ACTIVE' ? 'bg-rose-500/10' : 'bg-amber-500/10'
-        }`}>
-          <div className="flex items-center gap-2 mb-2">
-            <div className={`w-2 h-2 rounded-full animate-pulse ${
-              status === 'OPERATIONAL' ? 'bg-emerald-500' : 
-              status === 'KILL_SWITCH_ACTIVE' ? 'bg-rose-500' : 'bg-amber-500'
-            }`}></div>
-            <span className={`text-[10px] font-bold uppercase tracking-wider ${
-              status === 'OPERATIONAL' ? 'text-emerald-500' : 
-              status === 'KILL_SWITCH_ACTIVE' ? 'text-rose-500' : 'text-amber-500'
-            }`}>{status.replace('_', ' ')}</span>
+      {/* Sidebar Container */}
+      <div className={`fixed lg:static inset-y-0 left-0 w-72 glass-panel lg:border-r border-slate-800/50 flex flex-col z-50 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className="p-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/20">
+              <Zap className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 tracking-tight">KalayBot</h1>
+              <span className="text-[10px] font-bold text-indigo-400 tracking-widest uppercase">AI Engine v2.5</span>
+            </div>
           </div>
-          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Secure Connection v2.5.0</p>
+          <button onClick={() => setIsOpen(false)} className="lg:hidden p-2 text-slate-400 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <div className="px-6 mb-4">
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-700/50 to-transparent" />
+        </div>
+
+        <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  if (window.innerWidth < 1024) setIsOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
+                  isActive 
+                  ? 'bg-gradient-to-r from-indigo-600/20 to-purple-600/5 text-white border border-indigo-500/20 shadow-lg shadow-indigo-500/10' 
+                  : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                }`}
+              >
+                <Icon className={`w-5 h-5 transition-transform duration-300 ${isActive ? 'text-indigo-400 scale-110' : 'group-hover:scale-110'}`} />
+                <span className={`font-semibold tracking-wide text-sm ${isActive ? 'text-white' : ''}`}>{item.label}</span>
+                {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse shadow-[0_0_8px_rgba(129,140,248,0.8)]" />}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="p-6 mt-auto">
+          <div className={`rounded-2xl p-4 border relative overflow-hidden group ${
+            status === 'OPERATIONAL' ? 'bg-emerald-500/5 border-emerald-500/20' : 
+            status === 'KILL_SWITCH_ACTIVE' ? 'bg-rose-500/10 border-rose-500/30' : 'bg-amber-500/10 border-amber-500/30'
+          }`}>
+            <div className={`absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-500 bg-gradient-to-tr ${
+              status === 'OPERATIONAL' ? 'from-emerald-500 to-transparent' : 
+              status === 'KILL_SWITCH_ACTIVE' ? 'from-rose-500 to-transparent' : 'from-amber-500 to-transparent'
+            }`} />
+            <div className="relative z-10 flex items-center gap-3 mb-2">
+              <div className="relative flex h-3 w-3">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  status === 'OPERATIONAL' ? 'bg-emerald-400' : 
+                  status === 'KILL_SWITCH_ACTIVE' ? 'bg-rose-400' : 'bg-amber-400'
+                }`}></span>
+                <span className={`relative inline-flex rounded-full h-3 w-3 ${
+                  status === 'OPERATIONAL' ? 'bg-emerald-500' : 
+                  status === 'KILL_SWITCH_ACTIVE' ? 'bg-rose-500' : 'bg-amber-500'
+                }`}></span>
+              </div>
+              <span className={`text-xs font-black uppercase tracking-widest ${
+                status === 'OPERATIONAL' ? 'text-emerald-400 text-glow' : 
+                status === 'KILL_SWITCH_ACTIVE' ? 'text-rose-400 text-glow' : 'text-amber-400'
+              }`}>{status.replace('_', ' ')}</span>
+            </div>
+            <p className="relative z-10 text-[10px] text-slate-500 uppercase tracking-widest font-bold">Secure Connection Active</p>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

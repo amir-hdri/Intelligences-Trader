@@ -70,13 +70,20 @@ export class AltDataEngine {
     const macroData = this.getMacroIndicators();
     const macroImpact = this.calculateMacroImpact(macroData);
 
-    // Attention Mechanism (simulated by dynamically adjusting weights based on absolute signal strength)
-    const sumStrength = Math.abs(newsSentiment) + Math.abs(socialSentiment) + Math.abs(macroImpact);
-    if (sumStrength > 0) {
-      this.attentionWeights.news = Math.abs(newsSentiment) / sumStrength;
-      this.attentionWeights.socialMedia = Math.abs(socialSentiment) / sumStrength;
-      this.attentionWeights.macro = Math.abs(macroImpact) / sumStrength;
-    }
+    // Attention Mechanism (simulated by dynamically adjusting weights based on softmax of absolute signal strength)
+    const rawNews = Math.abs(newsSentiment);
+    const rawSocial = Math.abs(socialSentiment);
+    const rawMacro = Math.abs(macroImpact);
+    
+    // Softmax for attention
+    const expNews = Math.exp(rawNews);
+    const expSocial = Math.exp(rawSocial);
+    const expMacro = Math.exp(rawMacro);
+    const sumExp = expNews + expSocial + expMacro;
+
+    this.attentionWeights.news = expNews / sumExp;
+    this.attentionWeights.socialMedia = expSocial / sumExp;
+    this.attentionWeights.macro = expMacro / sumExp;
 
     const finalSignal =
       (newsSentiment * this.attentionWeights.news) +

@@ -70,7 +70,7 @@ describe('RiskEngine - validateTrade (Weekend Risk)', () => {
       orderBookPressure: 0.1,
       politicalRiskIndex: 50,
       queueDynamicsRatio: 0.6,
-      timeframeAnalysis: undefined,
+      timeframeAnalysis: {},
       indicators: {
         rsi: 50,
         macd: { value: 0, signal: 0, histogram: 0 },
