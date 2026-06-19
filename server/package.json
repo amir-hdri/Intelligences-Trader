@@ -5,31 +5,30 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "node --test",
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "jest"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/auto-instrumentations-node": "^0.77.0",
-    "@opentelemetry/sdk-node": "^0.219.0",
-    "@types/jest": "^30.0.0",
-    "@types/supertest": "^7.2.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.76.0",
+    "@opentelemetry/sdk-node": "^0.218.0",
     "axios": "^1.17.0",
     "cheerio": "^1.0.0-rc.12",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
-    "fast-check": "^4.8.0",
-    "jest": "^30.4.2",
     "jsonwebtoken": "^9.0.3",
     "pino": "^10.3.1",
     "prometheus-api-metrics": "^4.0.0",
-    "supertest": "^7.2.2",
     "winston": "^3.19.0",
     "ws": "^8.21.0"
   },
   "devDependencies": {
-    "nock": "^14.0.15"
+    "@types/jest": "^30.0.0",
+    "@types/supertest": "^7.2.0",
+    "fast-check": "^4.8.0",
+    "jest": "^30.4.2",
+    "supertest": "^7.2.2"
   }
 }
