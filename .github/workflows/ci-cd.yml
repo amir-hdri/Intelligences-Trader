@@ -2,9 +2,9 @@ name: Enterprise GitOps CI/CD
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
   pull_request:
-    branches: ["main"]
+    branches: [ "main" ]
 
 env:
   REGISTRY: ghcr.io
@@ -39,10 +39,23 @@ jobs:
     needs: test-and-build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # Required for Cosign keyless signing
     strategy:
       matrix:
         service: [frontend, backend-ml, backend-proxy]
-
+        include:
+          - service: frontend
+            context: "robot trader"
+            dockerfile: "robot trader/Dockerfile.frontend"
+          - service: backend-ml
+            context: "robot trader/server"
+            dockerfile: "robot trader/server/Dockerfile.backend-ml"
+          - service: backend-proxy
+            context: "server"
+            dockerfile: "server/Dockerfile.backend-proxy"
     steps:
     - uses: actions/checkout@v4
 
@@ -57,21 +70,44 @@ jobs:
         rm -f package-lock.json
         npm install --no-audit --no-fund
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Log in to Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push Image
-        id: build-and-push
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/intelligences-trader-${{ matrix.service }}:latest
+    - name: Build and Push Image
+      id: build-and-push
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ matrix.context }}
+        file: ${{ matrix.dockerfile }}
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Generate SBOM (Syft)
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:${{ github.sha }}
+        format: spdx-json
+        output-file: ${{ matrix.service }}-sbom.spdx.json
+
+    - name: Vulnerability Scan (Trivy)
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:${{ github.sha }}
+        format: 'table'
+        exit-code: '1' # Fail pipeline on CRITICAL
+        severity: 'CRITICAL,HIGH'
+
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@v3
+
+    - name: Sign Image
+      run: cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}@${{ steps.build-and-push.outputs.digest }}
