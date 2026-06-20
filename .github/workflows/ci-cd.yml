@@ -87,10 +87,10 @@ jobs:
         context: ${{ matrix.context }}
         file: ${{ matrix.dockerfile }}
         push: true
-        tags: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:${{ github.sha }}
+        tags: ${{ env.REGISTRY }}/${{ github.repository | lower }}/${{ matrix.service }}:${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-
+    
     - name: Generate SBOM (Syft)
       uses: anchore/sbom-action@v0
       with:
