@@ -82,5 +82,3 @@ describe('PredictionHistoryService', () => {
     assert.strictEqual(consoleErrorCalls[0][1].message, 'Mocked setItem error');
   });
 });
-  });
-});
