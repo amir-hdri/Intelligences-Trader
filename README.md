@@ -10,7 +10,33 @@ An end-to-end, high-frequency algorithmic trading and analysis ecosystem specifi
 
 ## 🏛 System Architecture
 
-The ecosystem is divided into three primary layers:
+The ecosystem consists of three primary layers structured to isolate data ingestion, quantitative inference, and terminal interaction:
+
+```mermaid
+graph TD
+    subgraph Client Layer [Intelligent Trading Terminal]
+        FE[React & TypeScript UI]
+        WW[Background Web Workers]
+        FE <-->|Offload heavy computations| WW
+    end
+
+    subgraph Service Layer [Financial Data Proxy]
+        DP[Proxy Gateway - Port 3002]
+        TSE[TSETMC / IME API]
+        DP <-->|Region-restricted data fetch| TSE
+    end
+
+    subgraph Quant Layer [AI & ML Analysis Engine]
+        AE[AI Backend - Port 3000]
+        TCN[Temporal Convolutional Net]
+        PPO[PPO RL Agent]
+        AE --- TCN
+        AE --- PPO
+    end
+
+    FE <-->|Real-time L2 WebSockets| DP
+    FE <-->|Quantitative inference API| AE
+```
 
 ### 1. **Advanced AI & ML Engine (`/robot trader/server`)**
 A high-performance Node.js backend specialized in deep learning and quantitative analysis.
@@ -57,7 +83,8 @@ cd server
 npm install
 npm start
 ```
-*Runs on `http://localhost:3001`*
+> [!NOTE]
+> The Data Proxy Server runs on `http://localhost:3002` by default.
 
 ### Step 2: AI Analysis Backend
 ```bash
@@ -65,7 +92,8 @@ cd "robot trader/server"
 npm install
 npm start
 ```
-*Runs on `http://localhost:3000`*
+> [!NOTE]
+> The AI Analysis Backend runs on `http://localhost:3000` by default.
 
 ### Step 3: Frontend Terminal
 ```bash
@@ -73,19 +101,24 @@ cd "robot trader"
 npm install
 npm run dev
 ```
-*Runs on `http://localhost:5173`*
+> [!NOTE]
+> The Trading Terminal runs on `http://localhost:5173` by default.
 
 ---
 
 ## 🧪 Testing & Validation
 
 The system includes a comprehensive test suite for both AI models and trading logic.
+
 ```bash
-# To run AI/Server tests
+# Run tests across all workspaces (Monorepo root)
+npm test --workspaces --if-present
+
+# To run AI/Server tests specifically
 cd "robot trader/server"
 npm test
 
-# To run E2E/Audit tests
+# To run E2E/Audit tests specifically
 cd "robot trader"
 npm test
 ```
@@ -93,8 +126,8 @@ npm test
 ---
 
 ## 📜 Documentation Reference
-- [Debugging Strategy](./DEBUGGING_STRATEGY.md): Non-deterministic debugging and PromQL monitoring.
-- [AI Engine Details](./robot%20trader/server/README.md): In-depth look at model architectures.
+- [Debugging Strategy](./DEBUGGING_STRATEGY.md): Non-deterministic debugging, Atomics, and PromQL monitoring.
+- [AI Engine Details](./robot%20trader/server/README.md): In-depth look at model architectures and mathematical formulations.
 
 ---
 
