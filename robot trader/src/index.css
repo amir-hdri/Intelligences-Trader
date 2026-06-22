@@ -21,7 +21,21 @@
   }
 
   .text-glow {
-    text-shadow: 0 0 20px theme('colors.indigo.500 / 50%');
+    text-shadow: 0 0 20px rgba(129, 140, 248, 0.6);
+  }
+
+  .text-glow-emerald {
+    text-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
+  }
+
+  .text-glow-rose {
+    text-shadow: 0 0 20px rgba(244, 63, 94, 0.6);
+  }
+
+  .bg-grid-mesh {
+    background-size: 50px 50px;
+    background-image: linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
   }
 }
 

@@ -9,6 +9,10 @@ import { ArbitragePanel } from './components/analytics/ArbitragePanel';
 import { LearningDashboard } from './components/analytics/LearningDashboard';
 import { TradePanel } from './components/dashboard/TradePanel';
 import { DashboardHeader } from './components/dashboard/DashboardHeader';
+import { RiskControlPanel } from './components/dashboard/RiskControlPanel';
+import { TradeLogsPanel } from './components/dashboard/TradeLogsPanel';
+import { SystemHealthMonitor } from './components/dashboard/SystemHealthMonitor';
+import { ApiSettingsPanel } from './components/dashboard/ApiSettingsPanel';
 import { IME_SYMBOLS, DEFAULT_API_CONFIG, INITIAL_METRICS, DEFAULT_RISK_LIMITS } from './constants';
 import { 
   ApiConfig, SystemMetrics, TradeLogEntry, RiskLimits, RiskStatus 
@@ -135,7 +139,7 @@ const App: React.FC = () => {
   }, [selectedSymbolId, apiConfig, loadData]);
 
   return (
-    <div className="flex h-screen bg-[#030712] overflow-hidden text-slate-200 font-sans selection:bg-indigo-500/30">
+    <div className="flex h-screen bg-[#030712] bg-grid-mesh overflow-hidden text-slate-200 font-sans selection:bg-indigo-500/30">
       <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-900/20 blur-[120px] pointer-events-none" />
       <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-900/10 blur-[120px] pointer-events-none" />
 
@@ -320,6 +324,34 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === 'risk' && (
+            <RiskControlPanel 
+              riskLimits={riskLimits} 
+              setRiskLimits={setRiskLimits} 
+              riskStatus={riskStatus} 
+            />
+          )}
+
+          {activeTab === 'logs' && (
+            <TradeLogsPanel 
+              tradeLogs={tradeLogs} 
+            />
+          )}
+
+          {activeTab === 'monitoring' && (
+            <SystemHealthMonitor 
+              metrics={metrics} 
+              connectionState={connectionState} 
+            />
+          )}
+
+          {activeTab === 'settings' && (
+            <ApiSettingsPanel 
+              apiConfig={apiConfig} 
+              setApiConfig={setApiConfig} 
+            />
           )}
         </div>
       </main>
