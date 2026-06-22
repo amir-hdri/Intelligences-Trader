@@ -1,3 +1,0 @@
-{"level":"info","message":"Proxy Backend listening on port 3002","service":"tse-proxy-server","timestamp":"2026-06-20T14:51:12.276Z"}
-{"level":"warn","message":"Failed to fetch real data for SAF1403. Using fallback simulation. Error: API down","service":"tse-proxy-server","timestamp":"2026-06-20T14:51:12.324Z"}
-{"level":"info","message":"WebSocket connected for symbol: GOLD","service":"tse-proxy-server","timestamp":"2026-06-20T14:51:12.339Z"}
