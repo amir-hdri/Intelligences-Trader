@@ -152,6 +152,10 @@ app.get('/api/orderbook/:symbol', (req, res) => {
   });
 });
 
+app.get('/api/status', (req, res) => {
+  res.json({ status: 'Online', service: 'TSE Proxy Gateway Server', version: '1.0.0' });
+});
+
 app.use((err, req, res, next) => {
   logger.error(err.stack);
   res.status(500).json({ error: 'Internal Server Error' });

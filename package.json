@@ -7,7 +7,7 @@
     "server"
   ],
   "scripts": {
-    "test": "cd \"robot trader\" && npm test"
+    "test": "npm test --workspaces --if-present"
   },
   "dependencies": {
     "ws": "^8.21.0",

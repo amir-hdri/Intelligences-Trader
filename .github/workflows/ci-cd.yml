@@ -21,19 +21,13 @@ jobs:
         node-version: '22'
 
     - name: Install Dependencies
-      run: |
-        npm install --no-audit --no-fund
-        cd "robot trader/server" && npm install --no-audit --no-fund --force
-        cd ../../server && npm install --no-audit --no-fund
+      run: npm install --no-audit --no-fund
 
     - name: Run Tests
-      run: npm test
+      run: npm test --workspaces --if-present
 
     - name: Security Scan (npm audit)
-      run: |
-        npm audit --audit-level=high || true
-        cd "robot trader/server" && npm audit --audit-level=high || true
-        cd ../../server && npm audit --audit-level=high || true
+      run: npm audit --audit-level=high || true
 
   docker-build:
     needs: test-and-build
@@ -109,4 +103,4 @@ jobs:
       uses: sigstore/cosign-installer@v3
 
     - name: Sign Image
-      run: cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}@${{ steps.build-and-push.outputs.digest }}
+      run: cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository | lower }}/${{ matrix.service }}@${{ steps.build-and-push.outputs.digest }}

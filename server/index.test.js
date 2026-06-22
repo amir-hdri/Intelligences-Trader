@@ -28,6 +28,13 @@ describe('Server Integration Tests', () => {
     nock.cleanAll();
   });
 
+  test('GET /api/status should return status', async () => {
+    const response = await request(app).get('/api/status');
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.status, 'Online');
+    assert.strictEqual(response.body.service, 'TSE Proxy Gateway Server');
+  });
+
   test('GET /api/market/:symbol should return market data from API', async () => {
     const response = await request(app).get('/api/market/SAF1403');
     assert.strictEqual(response.status, 200);

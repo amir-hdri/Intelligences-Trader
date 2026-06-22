@@ -21,11 +21,21 @@ app.get('/api/orderbook/:symbol', (req, res) => {
     res.json({ symbol: req.params.symbol, bids: [], asks: [] });
 });
 
+app.get('/api/status', (req, res) => {
+    res.json({ status: 'Online', service: 'TSE Proxy Gateway Server', version: '1.0.0' });
+});
+
 describe('Proxy Server API Integration Tests', () => {
     test('GET /metrics should return prometheus metrics', async () => {
         const response = await request(app).get('/metrics');
         assert.strictEqual(response.status, 200);
         assert.ok(response.text.includes('http_requests_total'));
+    });
+
+    test('GET /api/status should return status', async () => {
+        const response = await request(app).get('/api/status');
+        assert.strictEqual(response.status, 200);
+        assert.strictEqual(response.body.status, 'Online');
     });
 
     test('GET /api/market/:symbol should return market data', async () => {
