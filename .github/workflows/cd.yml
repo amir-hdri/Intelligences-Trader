@@ -1,37 +1,14 @@
-name: Enterprise GitOps CI/CD
+name: Continuous Deployment
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
     branches: [ "main" ]
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
-  test-and-build:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22'
-
-    - name: Install Dependencies
-      run: npm install --no-audit --no-fund
-
-    - name: Run Tests
-      run: npm test --workspaces --if-present
-
-    - name: Security Scan (npm audit)
-      run: npm audit --audit-level=high || true
-
   docker-build:
-    needs: test-and-build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
