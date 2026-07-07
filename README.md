@@ -21,7 +21,7 @@ graph TD
     end
 
     subgraph Service Layer [Financial Data Proxy]
-        DP[Proxy Gateway - Port 3002]
+        DP[Proxy Gateway - Port 3001]
         TSE[TSETMC / IME API]
         DP <-->|Region-restricted data fetch| TSE
     end
@@ -84,7 +84,7 @@ npm install
 npm start
 ```
 > [!NOTE]
-> The Data Proxy Server runs on `http://localhost:3002` by default.
+> The Data Proxy Server runs on `http://localhost:3001` by default.
 
 ### Step 2: AI Analysis Backend
 ```bash

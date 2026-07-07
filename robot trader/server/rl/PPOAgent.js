@@ -153,7 +153,7 @@ export class PPOAgent {
   getValues(states) {
     return tf.tidy(() => {
       const statesT = tf.tensor2d(states);
-      return this.critic.predict(statesT).squeeze().arraySync();
+      return this.critic.predict(statesT).reshape([states.length]).arraySync();
     });
   }
 }

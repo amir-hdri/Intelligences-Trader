@@ -31,8 +31,10 @@
     "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.24",
     "c8": "^11.0.0",
+    "esbuild": "^0.28.1",
     "playwright": "^1.60.0",
     "postcss": "^8.5.6",
+    "qs": "^6.15.2",
     "tailwindcss": "^4.3.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"

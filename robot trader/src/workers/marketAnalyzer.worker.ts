@@ -13,15 +13,17 @@ self.onmessage = async (e: MessageEvent) => {
            const flagArray = new Int32Array(payload.sharedBuffer);
            // Try to acquire the simulated 'lock' (0 means free, 1 means busy)
            // In a real scenario, this detects if the main thread is simultaneously mutating strategy weights.
-           const previousVal = Atomics.compareExchange(flagArray, 0, 0, 1);
-           if (previousVal !== 0) {
+           const acquired = Atomics.compareExchange(flagArray, 0, 0, 1) === 0;
+           if (!acquired) {
                console.warn('[Heisenbug Detector] Race condition detected! Main thread is holding the weights lock while worker attempts to analyze.');
            }
 
            result = analyzeMarketMTF(payload.data, payload.symbolId, payload.context, payload.weights);
 
-           // Release the lock
-           Atomics.store(flagArray, 0, 0);
+           // Release the lock only if we acquired it
+           if (acquired) {
+               Atomics.store(flagArray, 0, 0);
+           }
         } else {
            result = analyzeMarketMTF(payload.data, payload.symbolId, payload.context, payload.weights);
         }

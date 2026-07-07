@@ -9,9 +9,10 @@ export class SecretManager {
       throw new Error('FATAL ERROR: MASTER_ENCRYPTION_KEY is not defined in the environment.');
     }
 
-    // Ensure key is exactly 32 bytes (256 bits)
-    if (Buffer.from(this.masterKey, 'hex').length !== 32) {
-      // hash it to ensure it's 32 bytes if not provided properly
+    // Ensure key is exactly 32 bytes (64 hex characters) and a valid hex string
+    const isHex64 = typeof this.masterKey === 'string' && /^[0-9a-fA-F]{64}$/.test(this.masterKey);
+    if (!isHex64) {
+      // hash it to ensure it's 32 bytes (produces 64-char hex digest) if not provided properly
       this.masterKey = crypto.createHash('sha256').update(this.masterKey).digest('hex');
     }
   }
