@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/auto-instrumentations-node": "^0.76.0",
-    "@opentelemetry/sdk-node": "^0.218.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.77.0",
+    "@opentelemetry/sdk-node": "^0.219.0",
     "axios": "^1.18.0",
     "cheerio": "^1.0.0-rc.12",
     "cors": "^2.8.5",
@@ -30,6 +30,7 @@
     "fast-check": "^4.8.0",
     "jest": "^30.4.2",
     "nock": "^14.0.15",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "tar": "^7.5.16"
   }
 }

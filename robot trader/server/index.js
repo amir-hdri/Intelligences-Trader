@@ -1,3 +1,7 @@
+import util from 'node:util';
+if (!util.isNullOrUndefined) {
+  util.isNullOrUndefined = (val) => val === null || val === undefined;
+}
 import { buildTCN, fractionalDiff, purgedKFold, calculateMaxDrawdown, calculateSharpeRatio, calculateCalibrationError } from './tcnModel.js';
 import * as tf from '@tensorflow/tfjs-node';
 

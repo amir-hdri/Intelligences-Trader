@@ -10,10 +10,18 @@
     "test": "npm test --workspaces --if-present"
   },
   "dependencies": {
-    "ws": "^8.21.0",
-    "picomatch": "^4.0.3"
+    "picomatch": "^4.0.3",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "fast-check": "^4.8.0"
+  },
+  "overrides": {
+    "js-yaml": "^4.1.2",
+    "app": {
+      "esbuild": "^0.28.1",
+      "qs": "^6.15.2"
+    },
+    "@mapbox/node-pre-gyp": "^2.0.3"
   }
 }

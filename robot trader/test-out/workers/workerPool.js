@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorkerPool = void 0;
 class WorkerPool {
+    workerScriptUrl;
     workers = [];
     taskQueue = [];
     activeWorkers = new Map();
@@ -9,6 +10,7 @@ class WorkerPool {
     pendingTasks = new Map();
     messageCounter = 0;
     constructor(workerScriptUrl, poolSize = navigator.hardwareConcurrency || 4) {
+        this.workerScriptUrl = workerScriptUrl;
         for (let i = 0; i < poolSize; i++) {
             const worker = new Worker(workerScriptUrl, { type: 'module' });
             worker.onmessage = (event) => this.handleMessage(event, worker);
@@ -42,8 +44,22 @@ class WorkerPool {
                 task.reject(new Error(error.message));
                 this.pendingTasks.delete(taskId);
             }
-            this.activeWorkers.set(worker, null);
-            this.idleWorkers.push(worker);
+        }
+        // Remove the failed worker from lists and terminate it
+        this.activeWorkers.delete(worker);
+        this.idleWorkers = this.idleWorkers.filter(w => w !== worker);
+        worker.terminate();
+        // Re-create replacement worker
+        try {
+            const newWorker = new Worker(this.workerScriptUrl, { type: 'module' });
+            newWorker.onmessage = (event) => this.handleMessage(event, newWorker);
+            newWorker.onerror = (err) => this.handleError(err, newWorker);
+            this.workers = this.workers.map(w => w === worker ? newWorker : w);
+            this.activeWorkers.set(newWorker, null);
+            this.idleWorkers.push(newWorker);
+        }
+        catch (e) {
+            console.error("Failed to re-initialize worker", e);
         }
         this.processQueue();
     }
