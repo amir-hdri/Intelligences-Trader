@@ -49,5 +49,7 @@ describe('Analysis API integration', () => {
     const response = await request(app).get('/metrics');
     assert.strictEqual(response.status, 200);
     assert.match(response.text, /http_requests_total/);
+    assert.match(response.text, /backtest_runs_running/);
+    assert.match(response.text, /backtest_runs_queued/);
   });
 });

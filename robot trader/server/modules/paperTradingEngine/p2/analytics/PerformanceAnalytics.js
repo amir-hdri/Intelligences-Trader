@@ -1,82 +1,77 @@
-import { calculateSharpeRatio, calculateMaxDrawdown } from '../../../../tcnModel.js';
-
-/**
- * P2 Performance Analytics — Sharpe, Drawdown, Win Rate, Profit Factor,
- * Accuracy, Sortino, and Average Win/Loss.
- */
+/** Legacy P2 analytics. The Phase 3 engine contains the canonical calculator. */
 export class PerformanceAnalytics {
-  constructor(trades = []) {
-    this.trades = trades;
+  constructor(trades = [], { initialBalance = 1_000_000, periodsPerYear = 252 } = {}) {
+    this.trades = Array.isArray(trades) ? trades : [];
+    this.initialBalance = initialBalance;
+    this.periodsPerYear = periodsPerYear;
   }
 
   updateTrades(trades) {
     this.trades = Array.isArray(trades) ? trades : [];
   }
 
-  _returns() {
-    // Normalize each trade PnL as a fraction of a 1M starting balance.
-    return this.trades.map(t => (t.netPnl ?? t.pnl) / 1000000);
+  _equityAndReturns() {
+    const equity = [this.initialBalance];
+    const returns = [];
+    for (const trade of this.trades) {
+      const pnl = trade.netPnl ?? trade.pnl ?? 0;
+      const previous = equity[equity.length - 1];
+      const next = previous + pnl;
+      returns.push(previous !== 0 ? pnl / previous : 0);
+      equity.push(next);
+    }
+    return { equity, returns };
   }
 
   getMetrics() {
     if (!this.trades.length) {
       return {
-        sharpe: 0,
-        sortino: 0,
-        maxDrawdown: 0,
-        winRate: 0,
-        profitFactor: 0,
-        totalTrades: 0,
-        totalPnl: 0,
-        avgWin: 0,
-        avgLoss: 0,
-        accuracy: 0,
+        sharpe: 0, sortino: 0, maxDrawdown: 0, winRate: 0,
+        profitFactor: 0, totalTrades: 0, totalPnl: 0, avgWin: 0,
+        avgLoss: 0, accuracy: 0, totalFees: 0,
       };
     }
 
-    const returns = this._returns();
-    const equity = this.trades.reduce((acc, t) => {
-      acc.push((acc[acc.length - 1] || 1000000) + (t.netPnl ?? t.pnl));
-      return acc;
-    }, [1000000]);
-
-    const sharpe = calculateSharpeRatio(returns);
-
-    // Sortino: annualized downside-deviation variant using only negative returns.
-    const downside = returns.filter(r => r < 0);
-    const downsideDev = downside.length
-      ? Math.sqrt(downside.reduce((s, r) => s + r * r, 0) / downside.length)
+    const { equity, returns } = this._equityAndReturns();
+    const mean = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+    const variance = returns.length > 1
+      ? returns.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (returns.length - 1)
       : 0;
-    const meanRet = returns.reduce((s, r) => s + r, 0) / returns.length;
-    const sortino = downsideDev ? meanRet / downsideDev : 0;
+    const deviation = Math.sqrt(variance);
+    const sharpe = deviation > 0 ? mean / deviation * Math.sqrt(this.periodsPerYear) : 0;
+    const downside = returns.filter(value => value < 0);
+    const downsideDeviation = downside.length
+      ? Math.sqrt(downside.reduce((sum, value) => sum + value ** 2, 0) / downside.length)
+      : 0;
+    const sortino = downsideDeviation > 0 ? mean / downsideDeviation * Math.sqrt(this.periodsPerYear) : 0;
 
-    const maxDD = calculateMaxDrawdown(equity);
-    const wins = this.trades.filter(t => t.isWin);
-    const losses = this.trades.filter(t => !t.isWin);
-    const winRate = wins.length / this.trades.length;
+    let peak = equity[0];
+    let maxDrawdown = 0;
+    for (const value of equity) {
+      peak = Math.max(peak, value);
+      if (peak > 0) maxDrawdown = Math.max(maxDrawdown, (peak - value) / peak);
+    }
 
-    const grossProfit = wins.reduce((s, t) => s + (t.netPnl ?? t.pnl), 0);
-    const grossLoss = Math.abs(losses.reduce((s, t) => s + (t.netPnl ?? t.pnl), 0));
-    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : (grossProfit > 0 ? Infinity : 0);
-
-    const totalPnl = this.trades.reduce((s, t) => s + (t.netPnl ?? t.pnl), 0);
-    const avgWin = wins.length ? wins.reduce((s, t) => s + (t.netPnl ?? t.pnl), 0) / wins.length : 0;
-    const avgLoss = losses.length ? losses.reduce((s, t) => s + (t.netPnl ?? t.pnl), 0) / losses.length : 0;
-
-    // Signal accuracy: fraction of trades that were wins (honest, measured).
-    const accuracy = winRate;
+    const values = this.trades.map(trade => trade.netPnl ?? trade.pnl ?? 0);
+    const wins = values.filter(value => value > 0);
+    const losses = values.filter(value => value < 0);
+    const grossProfit = wins.reduce((sum, value) => sum + value, 0);
+    const grossLoss = Math.abs(losses.reduce((sum, value) => sum + value, 0));
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : null;
+    const totalPnl = values.reduce((sum, value) => sum + value, 0);
 
     return {
       sharpe,
       sortino,
-      maxDrawdown: maxDD,
-      winRate,
+      maxDrawdown,
+      winRate: wins.length / this.trades.length,
       profitFactor,
       totalTrades: this.trades.length,
       totalPnl,
-      avgWin,
-      avgLoss,
-      accuracy,
+      avgWin: wins.length ? grossProfit / wins.length : 0,
+      avgLoss: losses.length ? -grossLoss / losses.length : 0,
+      accuracy: wins.length / this.trades.length,
+      totalFees: this.trades.reduce((sum, trade) => sum + (trade.fee || 0), 0),
     };
   }
 }

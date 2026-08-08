@@ -61,6 +61,19 @@ describe('P2 DataNormalizer', () => {
     assert.ok(out.every(c => Number.isFinite(c.normVolume)));
     assert.strictEqual(DataNormalizer.normalize([]).length, 0);
   });
+
+  test('does not change past normalized rows when future prices change', () => {
+    const baseline = candleSeries();
+    const changed = candleSeries();
+    changed[changed.length - 1] = {
+      ...changed[changed.length - 1],
+      high: changed[changed.length - 1].high * 10,
+      close: changed[changed.length - 1].close * 9,
+    };
+    const before = DataNormalizer.normalize(baseline).slice(0, -1);
+    const after = DataNormalizer.normalize(changed).slice(0, -1);
+    assert.deepStrictEqual(after, before);
+  });
 });
 
 describe('P2 TickByTickProcessor', () => {
@@ -256,6 +269,17 @@ describe('P2 BacktestHarness', () => {
     assert.ok(result.metrics.totalTrades >= 0);
     assert.ok(Number.isFinite(result.finalEquity));
     assert.ok(Array.isArray(result.equityCurve));
+  });
+
+  test('derives compatibility PnL from the next bar path rather than forecast alignment', () => {
+    const harness = new BacktestHarness(new P2ExecutionEngine(new StubEngine()));
+    const bars = [
+      { timestamp: 1, open: 100, high: 101, low: 99, close: 100, volume: 100 },
+      { timestamp: 2, open: 100, high: 111, low: 99, close: 110, volume: 100 },
+    ];
+    const result = harness.run(bars, [{ action: 'BUY', confidence: 0 }]);
+    assert.ok(result.trades[0].netPnl > 0);
+    assert.equal(result.trades[0].reason, 'NEXT_BAR_PRICE_PATH');
   });
 });
 

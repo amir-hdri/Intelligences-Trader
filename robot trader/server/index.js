@@ -47,6 +47,13 @@ import { DayDetails } from 'tsetmc-client';
 import { analyzeMarketMTF, detectMarketRegime, calculateATR } from './analyzer.js';
 import { generateAnalysis, isValidCandle } from './analysisEngine.js';
 import { ModelManager } from './modelManager.js';
+import {
+  BacktestRepository,
+  BacktestService,
+  DataCatalog,
+  OnnxModelAdapter,
+  createBacktestRouter,
+} from './modules/backtesting/index.js';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -55,6 +62,17 @@ const modelManager = new ModelManager();
 const modelPath = process.env.MODEL_PATH || path.join(serviceDirectory, 'models', 'market_model.onnx');
 modelManager.loadModel(modelPath, process.env.MODEL_VERSION || '1.0.0').catch(error => {
   logger.error('Initial model load failed', { error: error.message });
+});
+
+const backtestRepository = new BacktestRepository();
+const backtestDataCatalog = new DataCatalog(backtestRepository);
+const backtestModelAdapter = new OnnxModelAdapter(modelManager);
+export const backtestService = new BacktestService({
+  repository: backtestRepository,
+  dataCatalog: backtestDataCatalog,
+  modelAdapter: backtestModelAdapter,
+  maxConcurrent: Number.parseInt(process.env.BACKTEST_MAX_CONCURRENT || '2', 10),
+  maxQueued: Number.parseInt(process.env.BACKTEST_MAX_QUEUED || '100', 10),
 });
 
 import { generateHistoricalData } from './dataFactory.js';
@@ -200,10 +218,13 @@ app.post('/api/auth/refresh', (req, res) => {
 
 if (AUTH_REQUIRED) {
   app.use(
-    ['/api/train', '/api/predict', '/api/advanced'],
+    ['/api/train', '/api/predict', '/api/advanced', '/api/backtests'],
     authenticateToken,
   );
 }
+
+// Phase 3 deterministic, point-in-time backtesting API.
+app.use('/api/backtests', createBacktestRouter(backtestService));
 
 // Smart Analysis Endpoint
 
@@ -333,6 +354,10 @@ app.get('/metrics', (req, res) => {
     `http_request_errors_total ${requestMetrics.errors}`,
     '# TYPE http_request_duration_milliseconds gauge',
     `http_request_duration_milliseconds ${averageDuration.toFixed(3)}`,
+    '# TYPE backtest_runs_running gauge',
+    `backtest_runs_running ${backtestService.running}`,
+    '# TYPE backtest_runs_queued gauge',
+    `backtest_runs_queued ${backtestService.queue.length}`,
     '',
   ].join('\n'));
 });

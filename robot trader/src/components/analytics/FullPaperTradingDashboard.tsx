@@ -276,7 +276,8 @@ const FullPaperTradingDashboard: React.FC = () => {
 
         {/* Backtest */}
         <div className="bg-[#151C27] p-6 rounded-2xl border border-white/10 mb-8">
-          <h3 className="text-lg mb-4">Backtest Harness</h3>
+          <h3 className="text-lg mb-1">Legacy P2 Backtest Harness</h3>
+          <p className="text-xs text-gray-400 mb-4">Compatibility runner only. Use “Walk-Forward Backtest” for immutable snapshots, scenarios, ML provenance, and audited results.</p>
           <div className="flex flex-wrap items-end gap-4">
             <div>
               <label className="block text-sm mb-1">Candles</label>

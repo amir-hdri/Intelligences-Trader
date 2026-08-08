@@ -16,7 +16,7 @@ Not implemented:
 - durable order/portfolio database;
 - licensed intraday and macro/news feeds;
 - production model registry and signed model promotion;
-- realistic exchange matching/backtesting;
+- venue-certified matching parity against a licensed exchange event feed (the deterministic research backtester is implemented);
 - production identity, token revocation, and remote append-only audit storage.
 
 ## Phase 1 — trustworthy paper-trading data boundary
@@ -45,16 +45,32 @@ All P2 modules are covered by tests (`robot trader/server/tests/p2.test.js`, 30 
 
 Remaining for full Phase-2 exit criterion (fault-injection/recovery chaos tests and a licensed broker sandbox) is intentionally deferred; see AUDIT_REPORT.md.
 
-## Phase 3 — model governance
+## Phase 3 — deterministic backtesting engine
 
-1. Unify Python training and Node inference feature schemas/scalers.
-2. Register signed artifacts with dataset hash, training commit, metrics, calibration, and approval status.
-3. Use embargoed purged cross-validation, realistic costs, confidence intervals, and overfitting tests.
-4. Run candidate models in non-executing shadow mode against the paper OMS.
+Implemented (`robot trader/server/modules/backtesting/`):
+
+1. Immutable, hashed Phase-1 dataset snapshots with point-in-time loading and quality reports.
+2. Event-driven replay with a monotonic simulation clock, next-bar execution, multi-instrument timestamp batching, cancellation, and resource limits.
+3. Shared Rule/ML strategy contract with pinned ONNX artifact/session, feature-schema, and causal-normalizer provenance.
+4. Historical, volatility, trend, gap, and liquidity-stress scenarios with deterministic hashes and OHLC invariants.
+5. BAR and ORDER_BOOK execution, partial fills, latency, maker/taker fees, slippage, portfolio-wide risk limits, and fill-only accounting.
+6. Sharpe, Sortino, max drawdown, win rate, profit factor, return/risk/cost analytics, and regime attribution.
+7. PostgreSQL-backed run/dataset repository, lifecycle REST API, comparison/artifact endpoints, full dashboard, and golden/no-look-ahead/API/ONNX tests.
+
+Exit criterion met: identical snapshot + canonical config + model + seed produces identical orders, fills, equity, metrics, and `resultHash`; all PnL is derived from price-path fills net of costs.
+
+See [`PHASE3_CHANGES.md`](./PHASE3_CHANGES.md) and [`docs/BACKTESTING_ENGINE_ARCHITECTURE.md`](./docs/BACKTESTING_ENGINE_ARCHITECTURE.md).
+
+## Phase 4 — model governance
+
+1. Add signed artifact promotion with dataset hash, training commit, holdout metrics, calibration, and approval status beyond the runtime pinning already enforced by Phase 3.
+2. Use embargoed purged cross-validation, confidence intervals, and formal overfitting tests for promotion decisions.
+3. Run candidate models in non-executing shadow mode against the paper OMS.
+4. Add independent model-risk approval and rollback workflows.
 
 Exit criterion: predeclared risk/performance gates pass on untouched data and sustained shadow operation.
 
-## Phase 4 — production platform hardening
+## Phase 5 — production platform hardening
 
 1. Require external identity/authentication and centralized secrets.
 2. Add Prometheus/OTLP telemetry, SLOs, alerting, and remote immutable audit logs.
