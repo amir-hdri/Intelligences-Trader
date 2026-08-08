@@ -22,4 +22,5 @@ training = [
 [tool.pytest.ini_options]
 testpaths = ["."]
 python_files = ["test_*.py"]
+pythonpath = ["."]
 addopts = "--strict-markers"
