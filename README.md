@@ -12,6 +12,9 @@ graph LR
   UI -->|same-origin /ws| GW[Market gateway :3001]
   GW --> TSE[TSETMC history provider]
   ML --> ONNX[ONNX WASM inference]
+  ML --> BT[Phase 3 event-driven backtester]
+  BT --> DB[(Immutable snapshots and run results)]
+  BT --> ONNX
   PY[Python research pipeline] --> MODEL[Versioned ONNX artifact]
 ```
 
@@ -104,6 +107,15 @@ See [`AUDIT_REPORT.md`](./AUDIT_REPORT.md) for the detailed audit, fixes, and re
 - Streaming: `ws://host/ws?symbol=GOLD-FUT`
 - Metrics: `GET /metrics` on both Node services
 
+### Phase 3 Backtesting endpoints
+
+- Datasets: `POST /api/backtests/datasets`, `GET /api/backtests/datasets/:datasetId`
+- Health and runs: `GET /api/backtests/health`, `POST|GET /api/backtests`, `GET /api/backtests/:runId`, `POST /api/backtests/:runId/cancel`
+- Results: `GET /api/backtests/:runId/results`, `GET /api/backtests/:runId/artifacts/:name`
+- Comparison: `POST /api/backtests/compare`
+
+The engine requires immutable dataset snapshots, uses next-bar point-in-time execution, supports pinned ONNX models and deterministic market scenarios, and derives PnL only from fills. See [`PHASE3_CHANGES.md`](./PHASE3_CHANGES.md).
+
 ### P2 Paper-Trading endpoints
 
 - Execution & ML: `POST /api/paper-trading/p2/execute-ml`, `POST /api/paper-trading/p2/strategy`
@@ -115,6 +127,10 @@ See [`AUDIT_REPORT.md`](./AUDIT_REPORT.md) for the detailed audit, fixes, and re
 - Persistence: `POST /api/paper-trading/p2/trades/save`, `GET /api/paper-trading/p2/trades`
 
 See [`PHASE2_CHANGES.md`](./PHASE2_CHANGES.md) for the Phase 2 build-out details.
+
+## Backtesting architecture
+
+The implemented Phase 3 event-driven backtesting design—including the Mermaid architecture, component boundaries, Phase 1 data integration, ML model contract, market scenarios, execution semantics, and performance metrics—is documented in [`docs/BACKTESTING_ENGINE_ARCHITECTURE.md`](./docs/BACKTESTING_ENGINE_ARCHITECTURE.md).
 
 ## Disclaimer
 

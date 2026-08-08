@@ -1,6 +1,6 @@
-# API Documentation - Phase 1 Real Data Endpoints
+# API Documentation — Data, Paper Trading, and Backtesting
 
-All endpoints return `source` field indicating real ledger vs simulation, and `simulated: false` for Phase 1 real engines.
+Phase 1 ledger endpoints return a `source` field indicating the data boundary. Phase 3 backtests retain dataset/model/scenario provenance and explicitly report whether a snapshot or scenario is synthetic.
 
 Base URL: `http://localhost:3000` (or `apiConfig.proxyUrl`)
 
@@ -193,6 +193,102 @@ pnl = riskPerTrade * profitFactor (WIN) or -riskPerTrade (LOSS)
   "balance": 1125000
 }
 ```
+
+## Phase 3 Backtesting
+
+### GET /api/backtests/health
+
+Reports queue depth, active execution slots, configured limits, ML-adapter availability, and whether persistence is `POSTGRESQL` or the explicit `MEMORY_FALLBACK` used for local development.
+
+### POST /api/backtests/datasets
+
+Registers an immutable Phase-1 snapshot. Reusing an id with different content returns `409`.
+
+```json
+{
+  "id": "saf-1h-2024-v1",
+  "timeframe": "1h",
+  "source": "PHASE1_MARKET_SNAPSHOT",
+  "synthetic": false,
+  "instrumentId": "SAF1403",
+  "candles": [
+    { "timestamp": 1704067200000, "open": 100, "high": 102, "low": 99, "close": 101, "volume": 1000 }
+  ]
+}
+```
+
+The response contains `contentHash`, data range, instrument list, event count, and schema version, but does not echo all candles.
+
+### POST /api/backtests
+
+Creates an asynchronous run and returns `202`. Pass `?wait=true&timeoutMs=60000` for bounded interactive execution.
+
+Required boundaries:
+
+- `datasetSnapshotId` must already exist;
+- Rule strategies: `SMA_CROSS` or `MOMENTUM`;
+- ML strategy: `type=ML` with an exact pinned `modelVersion`;
+- scenarios: `HISTORICAL`, `VOLATILITY`, `TREND`, `GAP`, `LIQUIDITY_STRESS`;
+- fill models: `BAR` or `ORDER_BOOK` (the latter requires depth on every selected event).
+
+```json
+{
+  "datasetSnapshotId": "saf-1h-2024-v1",
+  "instruments": ["SAF1403"],
+  "timeframe": "1h",
+  "startAt": 1704067200000,
+  "endAt": 1735603200000,
+  "initialCash": 1000000,
+  "baseCurrency": "IRR",
+  "strategy": {
+    "type": "RULE",
+    "name": "SMA_CROSS",
+    "version": "1.0.0",
+    "parameters": { "fastPeriod": 5, "slowPeriod": 20, "positionSize": 1 }
+  },
+  "execution": {
+    "fillModel": "BAR",
+    "latencyMs": 0,
+    "commissionBps": 4,
+    "slippageModel": "FIXED_BPS",
+    "slippageBps": 5,
+    "participationRate": 0.1,
+    "intrabarPolicy": "WORST_CASE"
+  },
+  "risk": {
+    "maxPositionNotional": 250000,
+    "maxLeverage": 1,
+    "maxDrawdownPct": 0.2,
+    "liquidateOnBreach": true
+  },
+  "scenario": { "type": "VOLATILITY", "parameters": { "multiplier": 2 }, "seed": "research-v1" },
+  "endOfRunPositionPolicy": "LIQUIDATE"
+}
+```
+
+Lifecycle: `QUEUED → VALIDATING → RUNNING → FINALIZING → COMPLETED`, with terminal alternatives `REJECTED`, `FAILED`, and `CANCELLED`.
+
+### Run and result endpoints
+
+```text
+GET    /api/backtests?limit=50&status=COMPLETED
+GET    /api/backtests/:runId
+POST   /api/backtests/:runId/cancel
+GET    /api/backtests/:runId/results
+GET    /api/backtests/:runId/artifacts/equity
+GET    /api/backtests/:runId/artifacts/orders
+GET    /api/backtests/:runId/artifacts/order-events
+GET    /api/backtests/:runId/artifacts/fills
+GET    /api/backtests/:runId/artifacts/trades
+GET    /api/backtests/:runId/artifacts/signals
+GET    /api/backtests/:runId/artifacts/quality
+```
+
+### POST /api/backtests/compare
+
+Body: `{ "runIds": ["bt-...", "bt-..."] }`. All runs must be completed and use the same source dataset hash.
+
+Canonical results include `resultHash`, `configHash`, dataset/model/feature/normalizer/scenario hashes, order transitions, fills, closed trades, equity curve, metrics, regime attribution, risk rejections, and quality warnings. Undefined ratios such as Profit Factor with no losses are represented as `null` plus a machine-readable reason, never JSON `Infinity`.
 
 ## Swagger / OpenAPI (simplified)
 

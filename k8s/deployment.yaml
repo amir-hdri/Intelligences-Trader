@@ -35,6 +35,10 @@ spec:
           value: production
         - name: AUTH_REQUIRED
           value: "true"
+        - name: BACKTEST_MAX_CONCURRENT
+          value: "2"
+        - name: BACKTEST_MAX_QUEUED
+          value: "100"
         envFrom:
         - secretRef:
             name: kalaybot-secrets
