@@ -37,3 +37,19 @@ Action: `[direction, size]`
 Observation: `[volatility_regime, drawdown, last_return, current_position, order_book_imbalance]`.
 
 The safety circuit breaker is independent from the learned policy and must remain in the broker boundary for any future paper/live adapter.
+
+## ماژول StrategyEngine (استراتژی معاملاتی)
+
+ماژول `strategy_engine.py` یک موتور انعطاف‌پذیر برای اجرا و آزمون استراتژی‌های معاملاتی است:
+
+- **استراتژی‌های ساده**: Moving Average Crossover، Mean Reversion (Bollinger Bands).
+- **استراتژی‌های پیچیده (ML)**: آداپتور برای مدل‌های یادگیری ماشین با متد `.predict()`.
+- **توابع عمومی**: `generate_signals(strategy, data)`، `simulate_orders(signals, initial_capital, slippage=0.001, commission=0.001)`، `execute_strategy(strategy, data)`.
+- **موتور کلاس**: `StrategyEngine` با متدهای `execute_strategy`، `generate_signals` و `simulate_orders`.
+- **ویژگی‌ها**: اعتبارسنجی دقیق (`ValueError` با پیام توصیفی)، محاسبه‌ی نقطه‌ای-زمانی (Next-Bar-Open)، پشتیبانی از موقعیت کوتاه/بلند، محاسبه‌ی معیارها (Sharpe، Max Drawdown، Profit Factor، Commission/Slippage totals)؛ مستندات به زبان فارسی در docstrings و کامنت‌ها.
+- **تست‌ها**: `test_strategy_engine.py` با ۱۸ تست واحد (pytest) شامل تست‌های اعتبارسنجی، سیگنال، شبیه‌سازی، کوتاه، و معیار عملکرد.
+
+برای اجرای تست‌ها:
+```bash
+.venv/bin/pytest test_strategy_engine.py -q --strict-markers
+```
