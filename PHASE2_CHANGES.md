@@ -92,6 +92,28 @@ and trade persistence. All P2 singletons are lazily initialized on the
 - `npm test --workspaces --if-present` — 50 (app) + 63 (analysis service) + 6 (gateway) pass
 - Live runtime smoke test of all P2 endpoints — pass
 
+## Follow-up hardening (gap audit)
+
+- **Strategy config is now real.** `POST /api/paper-trading/p2/strategy` no
+  longer just logs — it applies `model`, `size`, `stopLoss`, `takeProfit`, and
+  `confidenceThreshold` to the engine and the ML bridge, so subsequent signals
+  honor the active confidence threshold and default position size. Added a
+  matching `GET /api/paper-trading/p2/strategy` and tests verifying the
+  threshold is enforced end-to-end.
+- **Unified export completed.** `p2/index.js` now also exports
+  `OrderStateMachine`, `ORDER_STATES`, `ReportGenerator`,
+  `HistoricalDataProvider`, and `WebSocketDataFeed`.
+- **Deployment gaps closed.** `docker-compose.yml` now includes optional
+  `redis` and `postgres` services (with a healthcheck and a named volume) and
+  wires `REDIS_URL` / `DATABASE_URL` into `backend-ml`. Both consumers keep
+  their in-memory fallbacks, so the stack runs even without those services.
+- **Fixed a copy-paste env-var bug** in `TradeRepository._init()` that checked
+  `REDIS_DISABLED` instead of the database flag.
+- Removed a stray `__pycache__` artifact from the working tree.
+
+Test count grew to 121 (50 app + 65 analysis service + 6 gateway); typecheck
+and build stay green.
+
 ## Remaining (deferred, out of scope for this pass)
 
 - Fault-injection/recovery chaos tests for the OMS and a licensed broker

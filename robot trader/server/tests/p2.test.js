@@ -339,6 +339,35 @@ describe('P2 API integration', () => {
     const res = await request(app).get('/api/paper-trading/p2/data/tick');
     assert.strictEqual(res.body.data.vwap, 150);
   });
+
+  test('strategy endpoint saves and reads configuration', async () => {
+    const set = await request(app).post('/api/paper-trading/p2/strategy').send({
+      model: 'TCN', size: 0.05, stopLoss: 0.03, takeProfit: 0.06, confidenceThreshold: 0.7,
+    });
+    assert.strictEqual(set.status, 200);
+    assert.strictEqual(set.body.config.confidenceThreshold, 0.7);
+    assert.strictEqual(set.body.config.model, 'TCN');
+    assert.strictEqual(set.body.config.size, 0.05);
+
+    const get = await request(app).get('/api/paper-trading/p2/strategy');
+    assert.strictEqual(get.status, 200);
+    assert.strictEqual(get.body.config.model, 'TCN');
+
+    // Reset to a neutral config for the rest of the suite.
+    await request(app).post('/api/paper-trading/p2/strategy').send({ model: 'PPO', confidenceThreshold: 0.6, size: 1 });
+  });
+
+  test('strategy confidence threshold is enforced by the ML bridge', async () => {
+    await request(app).post('/api/paper-trading/p2/strategy').send({ confidenceThreshold: 0.9 });
+    // Confidence 0.8 is below the configured 0.9 threshold -> rejected.
+    const low = await request(app).post('/api/paper-trading/p2/execute-ml').send({
+      signal: { action: 'BUY', confidence: 0.8 },
+      symbol: 'BTC/USDT', marketPrice: 65000,
+    });
+    assert.strictEqual(low.body.data.success, false);
+    // Reset threshold.
+    await request(app).post('/api/paper-trading/p2/strategy').send({ confidenceThreshold: 0.6 });
+  });
 });
 
 describe('P2 PaperTradingEngine wiring', () => {

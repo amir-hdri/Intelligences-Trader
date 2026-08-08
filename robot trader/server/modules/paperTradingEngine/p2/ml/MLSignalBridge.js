@@ -13,6 +13,20 @@ export class MLSignalBridge {
     }
     this.exec = executionEngine;
     this.defaultConfidenceThreshold = 0.6;
+    this.defaultSize = 1;
+  }
+
+  /**
+   * Update the defaults used when a call does not override them (driven by the
+   * engine's active strategy config).
+   */
+  setDefaults({ confidenceThreshold, size } = {}) {
+    if (confidenceThreshold != null && Number.isFinite(confidenceThreshold)) {
+      this.defaultConfidenceThreshold = Math.min(1, Math.max(0, confidenceThreshold));
+    }
+    if (size != null && Number.isFinite(size) && size > 0) {
+      this.defaultSize = size;
+    }
   }
 
   /**
@@ -56,7 +70,7 @@ export class MLSignalBridge {
       };
     }
 
-    const size = opts.size ?? 1;
+    const size = opts.size ?? this.defaultSize;
     if (!Number.isFinite(size) || size <= 0) {
       return { success: false, reason: 'size must be a positive number' };
     }

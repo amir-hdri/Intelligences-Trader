@@ -1021,11 +1021,11 @@ app.post('/api/paper-trading/execute', (req, res) => {
 // P2 Advanced endpoints (ML signal + realistic execution)
 app.post('/api/paper-trading/p2/execute-ml', (req, res) => {
   try {
-    const { signal, symbol, marketPrice, size = 1, confidenceThreshold } = req.body || {};
+    const { signal, symbol, marketPrice, size, confidenceThreshold } = req.body || {};
     if (!signal || !symbol) return res.status(400).json({ error: 'signal and symbol required' });
     paperTradingEngine._ensureP2();
     const result = paperTradingEngine.mlBridge.signalToOrder(signal, symbol, marketPrice, {
-      size,
+      ...(size != null ? { size } : {}),
       ...(confidenceThreshold != null ? { confidenceThreshold } : {}),
     });
     res.json({ success: true, source: 'P2_ML_BRIDGE', data: result });
@@ -1261,11 +1261,22 @@ app.get('/api/paper-trading/p2/trades', async (req, res) => {
 app.post('/api/paper-trading/p2/strategy', (req, res) => {
   try {
     const { model, size, stopLoss, takeProfit, confidenceThreshold } = req.body || {};
-    // In real system this would persist to config store or Redis
-    console.log('[P2] Strategy updated:', { model, size, stopLoss, takeProfit, confidenceThreshold });
-    res.json({ success: true, message: 'Strategy parameters saved', config: req.body });
+    paperTradingEngine._ensureP2();
+    const config = paperTradingEngine.setStrategyConfig({
+      model, size, stopLoss, takeProfit, confidenceThreshold,
+    });
+    res.json({ success: true, message: 'Strategy parameters saved', config });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update strategy' });
+  }
+});
+
+app.get('/api/paper-trading/p2/strategy', (req, res) => {
+  try {
+    paperTradingEngine._ensureP2();
+    res.json({ success: true, config: paperTradingEngine.getStrategyConfig() });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch strategy' });
   }
 });
 
