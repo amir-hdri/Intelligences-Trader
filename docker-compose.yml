@@ -33,8 +33,15 @@ services:
       REFRESH_SECRET: ${REFRESH_SECRET:-}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgres://paper:paper@postgres:5432/paper_trading
     volumes:
       - "./robot trader/server/models:/app/robot trader/server/models:ro"
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     init: true
     restart: unless-stopped
 
@@ -50,3 +57,31 @@ services:
       CORS_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:5173}
     init: true
     restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    init: true
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: paper
+      POSTGRES_PASSWORD: paper
+      POSTGRES_DB: paper_trading
+    ports:
+      - "5432:5432"
+    volumes:
+      - paper-trading-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paper -d paper_trading"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    init: true
+    restart: unless-stopped
+
+volumes:
+  paper-trading-db:
