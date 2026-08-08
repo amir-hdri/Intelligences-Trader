@@ -53,3 +53,43 @@ The safety circuit breaker is independent from the learned policy and must remai
 ```bash
 .venv/bin/pytest test_strategy_engine.py -q --strict-markers
 ```
+
+## Performance Metrics Calculator
+
+`performance_metrics.py` معیارهای عملکرد را مستقیماً از معاملات بسته‌شده‌ی
+`StrategyEngine` محاسبه می‌کند و برای گزارش‌گیری دو نمودار matplotlib تولید
+می‌کند. رکوردهای موتور از کلید `profit_loss` استفاده می‌کنند؛ برای سازگاری با
+دفترکل‌های دیگر کلیدهای `pnl`، `net_pnl`، `netPnl` و `profit` نیز پذیرفته
+می‌شوند. معامله‌ای که P/L آن `None` باشد باز و تحقق‌نیافته در نظر گرفته می‌شود
+و در معیارها وارد نمی‌شود.
+
+```python
+from performance_metrics import PerformanceMetrics
+from strategy_engine import execute_strategy
+
+result = execute_strategy("MA_Crossover", data, initial_capital=10_000)
+report = PerformanceMetrics(result["trades"], initial_capital=10_000)
+metrics = report.calculate_metrics()
+print(metrics)
+
+# Creates artifacts/equity_curve.png and artifacts/drawdown.png.
+paths = report.save_plots("artifacts")
+
+# Or receive the metrics and both chart paths together.
+full_report = report.generate_report("artifacts")
+```
+
+معیارهای خروجی عبارت‌اند از `total_return`، `annualized_return`،
+`sharpe_ratio`، `max_drawdown`، `win_rate` و `profit_factor`. برای جلوگیری از
+خروجی JSON نامعتبر، Profit Factor در حالتی که معامله‌ی زیان‌ده وجود نداشته
+باشد `None` است. `max_drawdown` با قرارداد موتور به‌صورت signed (صفر یا مقدار
+منفی) گزارش می‌شود؛ مقدار مطلق آن درصد افت سرمایه را نشان می‌دهد. در صورت
+نبود timestamp، برای annualization به‌صورت قطعی یک روز برای هر معامله فرض
+می‌شود.
+
+برای نصب وابستگی‌ها و اجرای کل تست‌های Python:
+
+```bash
+python -m pip install -r requirements.txt
+pytest -q
+```
