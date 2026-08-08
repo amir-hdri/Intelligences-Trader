@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar
+  BarChart, Bar,
 } from 'recharts';
 
 interface Trade {
@@ -10,16 +10,21 @@ interface Trade {
   symbol: string;
   action: string;
   pnl: number;
+  netPnl?: number;
   isWin: boolean;
-  entryPrice: number;
+  entryPrice?: number;
+  fee?: number;
 }
 
 interface Metrics {
   sharpe: number;
+  sortino?: number;
   maxDrawdown: number;
   winRate: number;
+  profitFactor?: number;
   totalTrades: number;
   totalPnl: number;
+  accuracy?: number;
 }
 
 interface Report {
@@ -30,12 +35,35 @@ interface Report {
   recommendations: string[];
 }
 
+interface BacktestResult {
+  metrics: Metrics;
+  finalEquity: number;
+  totalReturnPct: number;
+  trades: Trade[];
+}
+
+const SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SAF1403', 'GOLD1403'];
+
+// Deterministic signal generator — no Math.random. Cycles through a fixed
+// sequence of actions with a fixed confidence so results are reproducible.
+const DETERMINISTIC_SIGNALS: { action: 'BUY' | 'SELL'; confidence: number; regime: string }[] = [
+  { action: 'BUY', confidence: 0.82, regime: 'TRENDING_UP' },
+  { action: 'BUY', confidence: 0.71, regime: 'TRENDING_UP' },
+  { action: 'SELL', confidence: 0.76, regime: 'TRENDING_DOWN' },
+  { action: 'BUY', confidence: 0.68, regime: 'RANGING' },
+  { action: 'SELL', confidence: 0.8, regime: 'TRENDING_DOWN' },
+];
+
 const FullPaperTradingDashboard: React.FC = () => {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [report, setReport] = useState<Report | null>(null);
+  const [backtest, setBacktest] = useState<BacktestResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [signalIndex, setSignalIndex] = useState(0);
   const [selectedModel, setSelectedModel] = useState<'PPO' | 'TCN'>('PPO');
+  const [selectedSymbol, setSelectedSymbol] = useState(SYMBOLS[0]);
+  const [backtestCandles, setBacktestCandles] = useState(60);
   const [strategyParams, setStrategyParams] = useState({
     size: 0.01,
     stopLoss: 0.02,
@@ -43,8 +71,7 @@ const FullPaperTradingDashboard: React.FC = () => {
     confidenceThreshold: 0.65,
   });
 
-  // Fetch metrics
-  const fetchMetrics = async () => {
+  const fetchMetrics = useCallback(async () => {
     try {
       const res = await fetch('/api/paper-trading/p2/metrics');
       const data = await res.json();
@@ -52,10 +79,9 @@ const FullPaperTradingDashboard: React.FC = () => {
     } catch (e) {
       console.error('Failed to fetch metrics');
     }
-  };
+  }, []);
 
-  // Fetch trades
-  const fetchTrades = async () => {
+  const fetchTrades = useCallback(async () => {
     try {
       const res = await fetch('/api/paper-trading/trades');
       const data = await res.json();
@@ -63,35 +89,34 @@ const FullPaperTradingDashboard: React.FC = () => {
     } catch (e) {
       console.error('Failed to fetch trades');
     }
-  };
+  }, []);
 
-  // Execute ML signal
+  const refresh = useCallback(async () => {
+    await Promise.all([fetchMetrics(), fetchTrades()]);
+  }, [fetchMetrics, fetchTrades]);
+
+  // Execute a deterministic ML signal
   const executeMLSignal = async () => {
     setLoading(true);
     try {
-      const signal = {
-        action: Math.random() > 0.5 ? 'BUY' : 'SELL',
-        confidence: 0.75 + Math.random() * 0.2,
-        regime: 'TRENDING_UP',
-      };
+      const signal = DETERMINISTIC_SIGNALS[signalIndex % DETERMINISTIC_SIGNALS.length];
+      setSignalIndex((i) => i + 1);
       await fetch('/api/paper-trading/p2/execute-ml', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           signal,
-          symbol: 'BTC/USDT',
-          marketPrice: 65000 + Math.random() * 2000,
+          symbol: selectedSymbol,
+          marketPrice: 65000 + signalIndex * 5,
           size: strategyParams.size,
         }),
       });
-      await fetchMetrics();
-      await fetchTrades();
+      await refresh();
     } finally {
       setLoading(false);
     }
   };
 
-  // Generate report
   const generateReport = async (period: 'daily' | 'weekly' | 'monthly') => {
     setLoading(true);
     try {
@@ -107,38 +132,90 @@ const FullPaperTradingDashboard: React.FC = () => {
     }
   };
 
-  // Update strategy params
   const updateStrategy = async () => {
     await fetch('/api/paper-trading/p2/strategy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: selectedModel, ...strategyParams }),
     });
-    alert('Strategy parameters updated');
+  };
+
+  // Build a deterministic synthetic candle series + signals for the backtest.
+  const runBacktest = async () => {
+    setLoading(true);
+    try {
+      const n = Math.max(10, Math.min(500, Math.round(backtestCandles)));
+      const candles = Array.from({ length: n }, (_, i) => {
+        const close = 100 + i * 0.5 + Math.sin(i) * 2;
+        return {
+          timestamp: i,
+          open: close - 0.4,
+          high: close + 0.6,
+          low: close - 0.8,
+          close,
+          volume: 1000 + i * 10,
+        };
+      });
+      const signals = candles.slice(0, n - 1).map((c, i) => {
+        const sig = DETERMINISTIC_SIGNALS[i % DETERMINISTIC_SIGNALS.length];
+        return { action: sig.action, confidence: sig.confidence, regime: sig.regime, qty: strategyParams.size };
+      });
+      const res = await fetch('/api/paper-trading/p2/backtest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candles, signals }),
+      });
+      const data = await res.json();
+      setBacktest(data.data);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Prepare chart data
-  const chartData = trades.slice(0, 30).reverse().map((t, i) => ({
-    time: new Date(t.timestamp).toLocaleTimeString(),
-    pnl: t.pnl,
-    cumulative: trades.slice(0, i + 1).reduce((sum, tr) => sum + tr.pnl, 0),
-  }));
+  const chartData = trades.slice(0, 30).reverse().map((t, i) => {
+    const cumulative = trades.slice(0, i + 1).reduce((sum, tr) => sum + (tr.netPnl ?? tr.pnl), 0);
+    return {
+      time: new Date(t.timestamp).toLocaleTimeString(),
+      pnl: t.netPnl ?? t.pnl,
+      cumulative,
+    };
+  });
 
   useEffect(() => {
-    fetchMetrics();
-    fetchTrades();
-    const interval = setInterval(() => {
-      fetchMetrics();
-    }, 15000);
+    void refresh();
+    const interval = setInterval(() => { void fetchMetrics(); }, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [refresh, fetchMetrics]);
+
+  const kpis = metrics
+    ? [
+        ['Sharpe Ratio', metrics.sharpe.toFixed(2)],
+        ['Max Drawdown', (metrics.maxDrawdown * 100).toFixed(1) + '%'],
+        ['Win Rate', (metrics.winRate * 100).toFixed(1) + '%'],
+        ['Profit Factor', (metrics.profitFactor ?? 0).toFixed(2)],
+        ['Total PnL', metrics.totalPnl.toFixed(2)],
+      ]
+    : [];
 
   return (
     <div className="p-6 bg-[#05070B] text-white min-h-screen">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">P2 Paper Trading Engine — Full Stack</h1>
-          <div className="flex gap-3">
+        <div className="flex flex-wrap justify-between items-center gap-3 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold">P2 Paper Trading Engine — Full Stack</h1>
+            <p className="text-sm text-gray-400 mt-1">
+              Deterministic execution, fees, order-book simulator, and PostgreSQL trade persistence.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <select
+              value={selectedSymbol}
+              onChange={(e) => setSelectedSymbol(e.target.value)}
+              className="bg-[#0B0F17] border border-white/20 rounded p-2 text-sm"
+            >
+              {SYMBOLS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
             <button
               onClick={executeMLSignal}
               disabled={loading}
@@ -146,21 +223,16 @@ const FullPaperTradingDashboard: React.FC = () => {
             >
               {loading ? 'Executing...' : 'Execute ML Signal'}
             </button>
-            <button onClick={() => generateReport('daily')} className="px-4 py-2 bg-blue-600 rounded-lg">Daily Report</button>
-            <button onClick={() => generateReport('weekly')} className="px-4 py-2 bg-blue-600 rounded-lg">Weekly Report</button>
+            <button onClick={() => generateReport('daily')} className="px-4 py-2 bg-blue-600 rounded-lg">Daily</button>
+            <button onClick={() => generateReport('weekly')} className="px-4 py-2 bg-blue-600 rounded-lg">Weekly</button>
+            <button onClick={() => generateReport('monthly')} className="px-4 py-2 bg-blue-600 rounded-lg">Monthly</button>
           </div>
         </div>
 
         {/* KPI Cards */}
-        {metrics && (
+        {kpis.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-            {[
-              ['Sharpe Ratio', metrics.sharpe.toFixed(2)],
-              ['Max Drawdown', (metrics.maxDrawdown * 100).toFixed(1) + '%'],
-              ['Win Rate', (metrics.winRate * 100).toFixed(1) + '%'],
-              ['Total Trades', metrics.totalTrades],
-              ['Total PnL', metrics.totalPnl.toFixed(2)],
-            ].map(([label, value]) => (
+            {kpis.map(([label, value]) => (
               <div key={label} className="bg-[#151C27] p-5 rounded-2xl border border-white/10">
                 <div className="text-sm text-gray-400">{label}</div>
                 <div className="text-3xl font-mono mt-2 tracking-tighter">{value}</div>
@@ -172,7 +244,7 @@ const FullPaperTradingDashboard: React.FC = () => {
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div className="bg-[#151C27] p-6 rounded-2xl border border-white/10">
-            <h3 className="mb-4 text-lg">Cumulative PnL</h3>
+            <h3 className="mb-4 text-lg">Cumulative PnL (Net of Fees)</h3>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
@@ -200,6 +272,47 @@ const FullPaperTradingDashboard: React.FC = () => {
               </ResponsiveContainer>
             </div>
           </div>
+        </div>
+
+        {/* Backtest */}
+        <div className="bg-[#151C27] p-6 rounded-2xl border border-white/10 mb-8">
+          <h3 className="text-lg mb-4">Backtest Harness</h3>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="block text-sm mb-1">Candles</label>
+              <input
+                type="number"
+                min={10}
+                max={500}
+                value={backtestCandles}
+                onChange={(e) => setBacktestCandles(parseInt(e.target.value, 10) || 60)}
+                className="w-32 bg-[#0B0F17] border border-white/20 rounded p-2"
+              />
+            </div>
+            <button onClick={runBacktest} disabled={loading} className="px-5 py-2 bg-cyan-600 rounded-lg disabled:opacity-50">
+              Run Backtest
+            </button>
+          </div>
+          {backtest && (
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div className="elevated rounded-xl p-3 bg-[#0B0F17]">
+                <div className="text-gray-400 text-xs">Final Equity</div>
+                <div className="font-mono font-bold">{backtest.finalEquity.toLocaleString()}</div>
+              </div>
+              <div className="elevated rounded-xl p-3 bg-[#0B0F17]">
+                <div className="text-gray-400 text-xs">Return %</div>
+                <div className="font-mono font-bold">{backtest.totalReturnPct.toFixed(2)}%</div>
+              </div>
+              <div className="elevated rounded-xl p-3 bg-[#0B0F17]">
+                <div className="text-gray-400 text-xs">Sharpe</div>
+                <div className="font-mono font-bold">{backtest.metrics.sharpe.toFixed(2)}</div>
+              </div>
+              <div className="elevated rounded-xl p-3 bg-[#0B0F17]">
+                <div className="text-gray-400 text-xs">Max Drawdown</div>
+                <div className="font-mono font-bold">{(backtest.metrics.maxDrawdown * 100).toFixed(1)}%</div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Strategy Settings + Model Selection */}
@@ -248,6 +361,7 @@ const FullPaperTradingDashboard: React.FC = () => {
                   <th>Symbol</th>
                   <th>Side</th>
                   <th>Price</th>
+                  <th>Fee</th>
                   <th>PnL</th>
                   <th>Result</th>
                 </tr>
@@ -259,7 +373,10 @@ const FullPaperTradingDashboard: React.FC = () => {
                     <td>{t.symbol}</td>
                     <td className={t.action === 'BUY' ? 'text-emerald-400' : 'text-red-400'}>{t.action}</td>
                     <td>{t.entryPrice?.toFixed(2)}</td>
-                    <td className={t.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>{t.pnl.toFixed(2)}</td>
+                    <td>{(t.fee ?? 0).toFixed(2)}</td>
+                    <td className={(t.netPnl ?? t.pnl) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                      {(t.netPnl ?? t.pnl).toFixed(2)}
+                    </td>
                     <td>{t.isWin ? '✓ Win' : '✗ Loss'}</td>
                   </tr>
                 ))}

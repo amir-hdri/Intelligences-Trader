@@ -30,12 +30,20 @@ Exit criterion: deterministic replay reproduces every feature and paper decision
 
 ## Phase 2 — execution simulator and OMS
 
-1. Build a discrete-event order-book simulator with spread, queue priority, slippage, latency, fees, price limits, margin, and partial fills.
-2. Add an idempotent order state machine with reconcile/cancel/replace/recovery behavior.
-3. Integrate only a broker sandbox, behind the independent circuit breaker.
-4. Add chaos tests for duplicate, delayed, reordered, and missing broker/feed events.
+Implemented (`robot trader/server/modules/paperTradingEngine/p2/`):
 
-Exit criterion: all recovery invariants pass under fault injection and restarts.
+1. **Discrete-event order-book simulator** (`OrderBookSimulator`) with market orders (slippage + partial fills), resting limit orders, cancellation, and top-of-book depth queries.
+2. **Idempotent order state machine** (`OrderStateMachine`) with OPEN → PARTIAL_FILLED → FILLED / CANCELLED / REJECTED transitions, deterministic order ids, and idempotent create via `clientOrderId`.
+3. **Execution engine** (`P2ExecutionEngine`) for Market / Limit / Stop-Loss orders with deterministic slippage, taker/maker fees, and honest balance accounting.
+4. **ML integration** (`MLSignalBridge`) converting PPO/TCN signals (BUY/SELL/HOLD + confidence) into executable orders, with a configurable confidence threshold and a FastAPI bridge (`FastAPIMLBridge.py`).
+5. **Backtesting** (`BacktestHarness`) walking candles next-bar-close to avoid look-ahead bias.
+6. **Data acquisition & processing** — `ccxtAdapter`, `HistoricalDataProvider`, `DataNormalizer` (OHLCV → ML features), `TickByTickProcessor` (VWAP), `RedisCache` (with in-memory fallback).
+7. **Persistence & analytics** — `TradeRepository` (PostgreSQL with in-memory fallback), `PerformanceAnalytics` (Sharpe, Sortino, drawdown, win rate, profit factor, accuracy), `ReportGenerator` (daily/weekly/monthly).
+8. **API + UI** — full P2 REST endpoints wired into the analysis service, plus a `FullPaperTradingDashboard` reachable from the "Paper Trading (P2)" nav tab.
+
+All P2 modules are covered by tests (`robot trader/server/tests/p2.test.js`, 30 tests). The order/OMS does **not** connect to a live broker — it is a simulation-only paper-trading boundary, which is the intended scope for this phase.
+
+Remaining for full Phase-2 exit criterion (fault-injection/recovery chaos tests and a licensed broker sandbox) is intentionally deferred; see AUDIT_REPORT.md.
 
 ## Phase 3 — model governance
 

@@ -1021,10 +1021,13 @@ app.post('/api/paper-trading/execute', (req, res) => {
 // P2 Advanced endpoints (ML signal + realistic execution)
 app.post('/api/paper-trading/p2/execute-ml', (req, res) => {
   try {
-    const { signal, symbol, marketPrice, size = 1 } = req.body || {};
+    const { signal, symbol, marketPrice, size = 1, confidenceThreshold } = req.body || {};
     if (!signal || !symbol) return res.status(400).json({ error: 'signal and symbol required' });
     paperTradingEngine._ensureP2();
-    const result = paperTradingEngine.mlBridge.signalToOrder(signal, symbol, marketPrice, size);
+    const result = paperTradingEngine.mlBridge.signalToOrder(signal, symbol, marketPrice, {
+      size,
+      ...(confidenceThreshold != null ? { confidenceThreshold } : {}),
+    });
     res.json({ success: true, source: 'P2_ML_BRIDGE', data: result });
   } catch (error) {
     logger.error('Error in P2 ML execute:', error);
@@ -1053,6 +1056,204 @@ app.post('/api/paper-trading/p2/report', (req, res) => {
     res.json({ success: true, data: report });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate report' });
+  }
+});
+
+// P2 Backtest Harness
+import { BacktestHarness } from './modules/paperTradingEngine/p2/backtest/BacktestHarness.js';
+import { DataNormalizer } from './modules/paperTradingEngine/p2/data/DataNormalizer.js';
+import { TickByTickProcessor } from './modules/paperTradingEngine/p2/data/TickByTickProcessor.js';
+import { HistoricalDataProvider } from './modules/paperTradingEngine/p2/data/HistoricalDataProvider.js';
+
+const p2TickProcessor = new TickByTickProcessor();
+const p2HistoricalProvider = new HistoricalDataProvider();
+
+app.post('/api/paper-trading/p2/backtest', async (req, res) => {
+  try {
+    const { candles, signals } = req.body || {};
+    if (!Array.isArray(candles) || candles.length === 0) {
+      return res.status(400).json({ error: 'candles must be a non-empty array' });
+    }
+    if (!Array.isArray(signals) || signals.length === 0) {
+      return res.status(400).json({ error: 'signals must be a non-empty array' });
+    }
+    paperTradingEngine._ensureP2();
+    const result = paperTradingEngine.backtestHarness.run(candles, signals);
+    res.json({ success: true, source: 'P2_BACKTEST', data: result });
+  } catch (error) {
+    logger.error('Error in P2 backtest:', error);
+    res.status(500).json({ error: 'Failed to run backtest' });
+  }
+});
+
+// P2 Order Book Simulator
+app.get('/api/paper-trading/p2/orderbook', (req, res) => {
+  try {
+    paperTradingEngine._ensureP2();
+    const depth = paperTradingEngine.orderBook.depth(Number(req.query.levels) || 5);
+    res.json({ success: true, source: 'P2_ORDER_BOOK', data: depth });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to read order book' });
+  }
+});
+
+app.post('/api/paper-trading/p2/orderbook', (req, res) => {
+  try {
+    const { bids, asks } = req.body || {};
+    if (!Array.isArray(bids) || !Array.isArray(asks)) {
+      return res.status(400).json({ error: 'bids and asks arrays required' });
+    }
+    paperTradingEngine._ensureP2();
+    paperTradingEngine.orderBook.updateBook(bids, asks);
+    res.json({ success: true, data: paperTradingEngine.orderBook.depth() });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update order book' });
+  }
+});
+
+app.post('/api/paper-trading/p2/orderbook/order', (req, res) => {
+  try {
+    const { side, qty, type = 'MARKET', price, id } = req.body || {};
+    if (!['BUY', 'SELL'].includes(side)) return res.status(400).json({ error: 'side must be BUY or SELL' });
+    if (!Number.isFinite(qty) || qty <= 0) return res.status(400).json({ error: 'qty must be positive' });
+    paperTradingEngine._ensureP2();
+    const result = type === 'LIMIT'
+      ? paperTradingEngine.orderBook.placeLimitOrder(side, price, qty)
+      : paperTradingEngine.orderBook.marketOrder(side, qty);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to place order' });
+  }
+});
+
+app.post('/api/paper-trading/p2/orderbook/cancel', (req, res) => {
+  try {
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ error: 'id required' });
+    paperTradingEngine._ensureP2();
+    const result = paperTradingEngine.orderBook.cancelOrder(id);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to cancel order' });
+  }
+});
+
+// P2 Order State Machine
+app.get('/api/paper-trading/p2/orders', (req, res) => {
+  try {
+    paperTradingEngine._ensureP2();
+    res.json({ success: true, source: 'P2_ORDER_STATE_MACHINE', data: paperTradingEngine.orderStateMachine.getAllOrders() });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
+app.post('/api/paper-trading/p2/orders', (req, res) => {
+  try {
+    const { clientOrderId, symbol, action, qty, type = 'MARKET', price, stopPrice } = req.body || {};
+    if (!['BUY', 'SELL'].includes(action)) return res.status(400).json({ error: 'action must be BUY or SELL' });
+    if (!Number.isFinite(qty) || qty <= 0) return res.status(400).json({ error: 'qty must be positive' });
+    paperTradingEngine._ensureP2();
+    const order = paperTradingEngine.orderStateMachine.createOrder({
+      clientOrderId, symbol, action, qty, type, price, stopPrice,
+    });
+    res.json({ success: true, data: order });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create order' });
+  }
+});
+
+app.post('/api/paper-trading/p2/orders/cancel', (req, res) => {
+  try {
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ error: 'id required' });
+    paperTradingEngine._ensureP2();
+    const result = paperTradingEngine.orderStateMachine.cancelOrder(id);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to cancel order' });
+  }
+});
+
+app.post('/api/paper-trading/p2/orders/fill', (req, res) => {
+  try {
+    const { id, filledQty, fillPrice } = req.body || {};
+    if (!id) return res.status(400).json({ error: 'id required' });
+    paperTradingEngine._ensureP2();
+    const result = paperTradingEngine.orderStateMachine.recordFill(id, filledQty, fillPrice);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to record fill' });
+  }
+});
+
+// P2 Data feed: historical OHLCV + cache + tick processing
+app.post('/api/paper-trading/p2/data/ohlcv', async (req, res) => {
+  try {
+    const { symbol, timeframe = '1h', limit = 500, refresh = false } = req.body || {};
+    if (!symbol) return res.status(400).json({ error: 'symbol required' });
+    paperTradingEngine._ensureP2();
+
+    let data = refresh ? null : await paperTradingEngine.cache.getOHLCV(symbol, timeframe);
+    let source = 'CACHE';
+    if (!data) {
+      data = await p2HistoricalProvider.fetchHistorical(symbol, timeframe, null, limit);
+      source = 'PROVIDER';
+      if (data && data.length) await paperTradingEngine.cache.setOHLCV(symbol, timeframe, data);
+    }
+    if (!data || !data.length) {
+      return res.status(502).json({ error: 'No market data available from provider' });
+    }
+    const normalized = DataNormalizer.normalize(data);
+    res.json({ success: true, source, raw: data, normalized });
+  } catch (error) {
+    logger.error('Error in P2 OHLCV:', error);
+    res.status(500).json({ error: 'Failed to fetch OHLCV' });
+  }
+});
+
+app.post('/api/paper-trading/p2/data/tick', (req, res) => {
+  try {
+    const { price, volume = 0, timestamp } = req.body || {};
+    if (!Number.isFinite(price) || price <= 0) return res.status(400).json({ error: 'price must be positive' });
+    p2TickProcessor.addTick({ price, volume, timestamp });
+    res.json({ success: true, data: { vwap: p2TickProcessor.getVWAP(), recentTicks: p2TickProcessor.getRecentTicks(10) } });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to process tick' });
+  }
+});
+
+app.get('/api/paper-trading/p2/data/tick', (req, res) => {
+  try {
+    res.json({
+      success: true,
+      data: { vwap: p2TickProcessor.getVWAP(), recentTicks: p2TickProcessor.getRecentTicks(100) },
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to read ticks' });
+  }
+});
+
+// P2 Trade persistence (PostgreSQL with in-memory fallback)
+app.post('/api/paper-trading/p2/trades/save', async (req, res) => {
+  try {
+    const { trade } = req.body || {};
+    if (!trade || !trade.id) return res.status(400).json({ error: 'trade with id required' });
+    paperTradingEngine._ensureP2();
+    await paperTradingEngine.tradeRepository.saveTrade(trade);
+    res.json({ success: true, data: { saved: true, count: await paperTradingEngine.tradeRepository.count() } });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to save trade' });
+  }
+});
+
+app.get('/api/paper-trading/p2/trades', async (req, res) => {
+  try {
+    paperTradingEngine._ensureP2();
+    const trades = await paperTradingEngine.tradeRepository.getRecentTrades(Number(req.query.limit) || 100);
+    res.json({ success: true, source: 'P2_TRADE_REPOSITORY', data: trades });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch persisted trades' });
   }
 });
 

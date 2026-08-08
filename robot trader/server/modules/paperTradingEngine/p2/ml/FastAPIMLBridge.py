@@ -5,7 +5,12 @@ Run with: uvicorn FastAPIMLBridge:app --port 8001
 from fastapi import FastAPI
 from pydantic import BaseModel
 import httpx
+import os
 from typing import Literal
+
+# Node analysis service base URL. Override with NODE_SERVICE_URL in
+# containerized deployments (e.g. http://analysis-service:3000).
+NODE_SERVICE_URL = os.getenv("NODE_SERVICE_URL", "http://localhost:3000")
 
 app = FastAPI(title="P2 ML Signal Bridge")
 
@@ -24,9 +29,9 @@ class ExecuteRequest(BaseModel):
 async def execute_ml_signal(req: ExecuteRequest):
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            "http://localhost:3000/api/paper-trading/p2/execute-ml",
+            f"{NODE_SERVICE_URL}/api/paper-trading/p2/execute-ml",
             json={
-                "signal": req.signal.dict(),
+                "signal": req.signal.model_dump(),
                 "symbol": req.symbol,
                 "marketPrice": req.market_price,
                 "size": req.size
