@@ -58,6 +58,7 @@ export interface PoliticalRiskNews {
 }
 
 export interface SentimentData {
+  simulated?: boolean;
   politicalRiskIndex: number; // 0 to 100
   score: number; // -1 to 1
   label: 'FEAR' | 'GREED' | 'NEUTRAL';
@@ -76,6 +77,11 @@ export interface MarginStatus {
   marginLevel: number; // Percentage
   isCallRisk: boolean;
   maintenanceRequirement: number;
+}
+
+export interface BackendRiskMetrics {
+  valueAtRisk95: number;
+  suggestedRiskCapital?: number;
 }
 
 export interface ExpertForecast {
@@ -120,6 +126,20 @@ export interface ExpertForecast {
     };
   };
   reason: string;
+  backendRisk?: BackendRiskMetrics;
+}
+
+export interface BackendAnalysisResponse {
+  prediction: TradeAction;
+  confidence: number;
+  volatility: MarketRegime | 'UNKNOWN';
+  reasoning?: string;
+  risk: BackendRiskMetrics;
+  indicators?: {
+    sma20?: number;
+    rsi?: number;
+    atr?: number;
+  };
 }
 
 export interface RiskLimits {

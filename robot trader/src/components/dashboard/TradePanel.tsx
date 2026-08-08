@@ -6,7 +6,7 @@ interface TradePanelProps {
   forecast: ExpertForecast | null;
   riskStatus: RiskStatus;
   onExecuteTrade: () => void;
-  calculateKellySize: (price: number, atr: number, suggestedRisk?: number) => string;
+  calculateKellySize: (price: number, atr: number, suggestedRisk?: number) => number;
 }
 
 export const TradePanel: React.FC<TradePanelProps> = ({ forecast, riskStatus, onExecuteTrade, calculateKellySize }) => {
@@ -40,13 +40,13 @@ export const TradePanel: React.FC<TradePanelProps> = ({ forecast, riskStatus, on
             <div className="glass-card p-4 rounded-2xl border-slate-800/50 hover:border-indigo-500/30 transition-colors group">
               <div className="text-[9px] text-slate-500 uppercase font-black text-center tracking-[0.2em] mb-2 group-hover:text-indigo-400 transition-colors">Position Size</div>
               <div className="text-lg font-mono text-center text-white font-black tracking-tighter">
-                {calculateKellySize(forecast.entryPrice, forecast.indicators.atr, (forecast as any).backendRisk?.suggestedRiskCapital)}
+                {calculateKellySize(forecast.entryPrice, forecast.indicators.atr, forecast.backendRisk?.suggestedRiskCapital).toLocaleString()}
               </div>
             </div>
             <div className="glass-card p-4 rounded-2xl border-slate-800/50 hover:border-rose-500/30 transition-colors group">
               <div className="text-[9px] text-slate-500 uppercase font-black text-center tracking-[0.2em] mb-2 group-hover:text-rose-400 transition-colors">VaR (95%)</div>
               <div className="text-lg font-mono text-center text-rose-400 font-black tracking-tighter">
-                 {(((forecast as any).backendRisk?.var95 || 0) * 100).toFixed(2)}%
+                 {((forecast.backendRisk?.valueAtRisk95 ?? 0) * 100).toFixed(2)}%
               </div>
             </div>
             <div className="glass-card p-4 rounded-2xl border-slate-800/50 hover:border-slate-600 transition-colors group">
@@ -61,15 +61,15 @@ export const TradePanel: React.FC<TradePanelProps> = ({ forecast, riskStatus, on
 
           <button 
             onClick={onExecuteTrade}
-            disabled={riskStatus.isKillSwitchActive}
+            disabled={riskStatus.isKillSwitchActive || forecast.action === 'HOLD'}
             className={`w-full py-5 rounded-2xl font-black transition-all duration-500 flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-[11px] shadow-2xl active:scale-95 ${
-              riskStatus.isKillSwitchActive 
+              riskStatus.isKillSwitchActive || forecast.action === 'HOLD'
                 ? 'bg-slate-800/80 text-slate-500 cursor-not-allowed border border-slate-700/50' 
                 : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-500/20 hover:shadow-indigo-500/40 border border-indigo-400/30'
             }`}
           >
             <Play className={`w-4 h-4 transition-transform duration-500 ${riskStatus.isKillSwitchActive ? '' : 'group-hover:scale-125'}`} fill="currentColor" />
-            Execute Alpha Sequence
+            Simulate Paper Trade
           </button>
         </div>
       ) : (

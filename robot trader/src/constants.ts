@@ -43,13 +43,17 @@ export const IME_SYMBOLS: SymbolInfo[] = [
   },
 ];
 
-export const API_BASE_URL = (typeof process !== 'undefined' && process.env ? process.env.VITE_BACKEND_URL : '') || 'http://localhost:3000';
+const browserOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+
+// Same-origin URLs work in local development, reverse proxies, HTTPS deployments,
+// and Arena previews. A custom URL can still be entered in the API settings panel.
+export const API_BASE_URL = browserOrigin || 'http://localhost:3000';
 
 export const DEFAULT_API_CONFIG: ApiConfig = {
-  proxyUrl: 'http://localhost:3001',
-  apiKey: (typeof process !== 'undefined' && process.env ? process.env.VITE_API_KEY : '') || '',
-  isConnected: true,  // Default to connected for real data mode
-  useDigitalTwin: false, // Disable simulation by default
+  proxyUrl: API_BASE_URL,
+  apiKey: '',
+  isConnected: true,
+  useDigitalTwin: true,
 };
 
 export const INDICATOR_PARAMS = {
@@ -90,11 +94,11 @@ const MOCK_SENTIMENT: SentimentData = {
 export const INITIAL_METRICS: SystemMetrics = {
   uptime: '00:00:00',
   latency: 0,
-  accuracy: 0.72,
+  accuracy: 0,
   activeOrders: 0,
-  profitFactor: 2.1,
+  profitFactor: 1,
   maxDrawdown: 0,
-  winRate: 0.68,
+  winRate: 0.5,
   status: 'OPERATIONAL',
   marketCorrelation: MOCK_CORRELATION,
   sentiment: MOCK_SENTIMENT,

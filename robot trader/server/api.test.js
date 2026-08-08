@@ -1,40 +1,53 @@
-import { describe, test, before, after } from 'node:test';
+import { describe, test } from 'node:test';
 import assert from 'node:assert';
 import request from 'supertest';
-import express from 'express';
-import cors from 'cors';
-const apiMetrics = () => (req, res, next) => next();
+import { app } from './index.js';
 
-const app = express();
-app.use(apiMetrics());
-app.use(cors());
-app.use(express.json());
-app.get('/metrics', (req, res) => res.send('http_requests_total 1'));
-
-app.get('/api/status', (req, res) => {
-    res.json({ status: 'running' });
+const candles = Array.from({ length: 60 }, (_, index) => {
+  const open = 100 + index * 0.1;
+  const close = open + 0.05;
+  return {
+    timestamp: Date.now() - (60 - index) * 60_000,
+    open,
+    high: close + 0.1,
+    low: open - 0.1,
+    close,
+    volume: 1_000 + index,
+  };
 });
 
-app.post('/api/train', (req, res) => {
-    res.json({ status: 'training' });
-});
+describe('Analysis API integration', () => {
+  test('reports service and model readiness state', async () => {
+    const response = await request(app).get('/api/status');
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.status, 'Online');
+    assert.strictEqual(typeof response.body.modelReady, 'boolean');
+  });
 
-describe('ML Server API Integration Tests', () => {
-    test('GET /metrics should return prometheus metrics', async () => {
-        const response = await request(app).get('/metrics');
-        assert.strictEqual(response.status, 200);
-        assert.ok(response.text.includes('http_requests_total'));
-    });
+  test('returns a complete validated rule analysis', async () => {
+    const response = await request(app).post('/api/analyze').send({ historyData: candles });
+    assert.strictEqual(response.status, 200);
+    assert.ok(['BUY', 'HOLD', 'SELL'].includes(response.body.prediction));
+    assert.ok(response.body.confidence >= 0 && response.body.confidence <= 1);
+    assert.ok(Number.isFinite(response.body.risk.valueAtRisk95));
+  });
 
-    test('GET /api/status should return status', async () => {
-        const response = await request(app).get('/api/status');
-        assert.strictEqual(response.status, 200);
-        assert.strictEqual(response.body.status, 'running');
+  test('rejects malformed OHLCV input', async () => {
+    const response = await request(app).post('/api/analyze').send({
+      historyData: [{ open: 100, high: 90, low: 110, close: 100, volume: -1 }],
     });
+    assert.strictEqual(response.status, 400);
+  });
 
-    test('POST /api/train should return training status', async () => {
-        const response = await request(app).post('/api/train').send({});
-        assert.strictEqual(response.status, 200);
-        assert.strictEqual(response.body.status, 'training');
-    });
+  test('disables simulated advanced engines by default', async () => {
+    const response = await request(app).post('/api/advanced/ensemble').send({ features: {} });
+    assert.strictEqual(response.status, 501);
+    assert.match(response.body.error, /disabled/);
+  });
+
+  test('exports process metrics', async () => {
+    const response = await request(app).get('/metrics');
+    assert.strictEqual(response.status, 200);
+    assert.match(response.text, /http_requests_total/);
+  });
 });

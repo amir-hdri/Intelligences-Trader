@@ -42,8 +42,8 @@ test('calculateMACD - calculation logic verification', () => {
   // ema12 = 110 * (2/13) + 100 * (11/13) = (220 + 1100) / 13 = 1320 / 13 = 101.538...
   // ema26 = 110 * (2/27) + 100 * (25/27) = (220 + 2500) / 27 = 2720 / 27 = 100.740...
   // value = 101.538 - 100.740 = 0.798...
-  // signal = 0.798 * 0.9 = 0.718...
-  // histogram = 0.798 - 0.718 = 0.08
+  // signal is the 9-period EMA of the MACD series [0, value], so k=0.2.
+  // histogram = value - signal
 
   const prices = [100, 110];
   const result = calculateMACD(prices);
@@ -51,7 +51,7 @@ test('calculateMACD - calculation logic verification', () => {
   const expectedEma12 = 110 * (2/13) + 100 * (11/13);
   const expectedEma26 = 110 * (2/27) + 100 * (25/27);
   const expectedValue = expectedEma12 - expectedEma26;
-  const expectedSignal = expectedValue * 0.9;
+  const expectedSignal = expectedValue * (2 / (9 + 1));
   const expectedHistogram = expectedValue - expectedSignal;
 
   assert.ok(Math.abs(result.value - expectedValue) < 0.0001, `Value mismatch: got ${result.value}, expected ${expectedValue}`);
@@ -181,40 +181,13 @@ describe('dataUtils - Market Regime Detection', () => {
 // ========================================
 
 describe('dataUtils - analyzeMarketMTF', () => {
-    let originalSharedArrayBuffer: any;
-    let originalConsoleWarn: any;
-    let warnMessages: string[] = [];
-
-    beforeEach(() => {
-        originalSharedArrayBuffer = globalThis.SharedArrayBuffer;
-        originalConsoleWarn = console.warn;
-        warnMessages = [];
-
-        // Mock SharedArrayBuffer to throw an error
-        globalThis.SharedArrayBuffer = class {
-            constructor() {
-                throw new Error('SharedArrayBuffer is not defined');
-            }
-        } as any;
-
-        // Mock console.warn
-        console.warn = (...args: any[]) => {
-            warnMessages.push(args[0]);
-        };
-    });
-
-    afterEach(() => {
-        globalThis.SharedArrayBuffer = originalSharedArrayBuffer;
-        console.warn = originalConsoleWarn;
-    });
-
-    it('should warn when SharedArrayBuffer is not supported', () => {
-        const mtfData = { '1d': [], '1h': [] } as any;
-        analyzeMarketMTF(mtfData, 'TEST_SYMBOL');
-
-        assert.strictEqual(warnMessages.length, 1);
-        assert.ok(warnMessages[0].includes('SharedArrayBuffer not supported in this environment.'));
-    });
+  it('returns a complete safe HOLD forecast when data is insufficient', () => {
+    const result = analyzeMarketMTF({ '1d': [], '1h': [], '15m': [], '1m': [] }, 'TEST_SYMBOL');
+    assert.strictEqual(result.action, 'HOLD');
+    assert.strictEqual(result.confidence, 0);
+    assert.strictEqual(result.politicalRiskIndex, 50);
+    assert.strictEqual(result.indicators.bollinger.middle, 0);
+  });
 });
 
 describe('TseApiClient', () => {

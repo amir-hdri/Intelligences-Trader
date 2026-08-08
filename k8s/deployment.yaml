@@ -30,12 +30,14 @@ spec:
           limits:
             memory: "2Gi"
             cpu: "1000m"
+        env:
+        - name: NODE_ENV
+          value: production
+        - name: AUTH_REQUIRED
+          value: "true"
         envFrom:
         - secretRef:
             name: kalaybot-secrets
-        volumeMounts:
-        - name: model-checkpoints
-          mountPath: /app/models
         livenessProbe:
           httpGet:
             path: /api/status
@@ -48,10 +50,6 @@ spec:
             port: 3000
           initialDelaySeconds: 15
           periodSeconds: 10
-      volumes:
-      - name: model-checkpoints
-        persistentVolumeClaim:
-          claimName: model-pvc
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -126,6 +124,15 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
+        env:
+        - name: ML_BACKEND_HOST
+          value: backend-ml-svc
+        - name: ML_BACKEND_PORT
+          value: "3000"
+        - name: PROXY_BACKEND_HOST
+          value: backend-proxy-svc
+        - name: PROXY_BACKEND_PORT
+          value: "3001"
         resources:
           requests:
             memory: "64Mi"
