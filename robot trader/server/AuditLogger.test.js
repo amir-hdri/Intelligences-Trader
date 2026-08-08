@@ -1,6 +1,6 @@
-import test, { describe, beforeEach, afterEach } from 'node:test';
+import { describe, test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
-import fs from 'fs';
+import fs from 'node:fs';
 import { auditLogger } from './AuditLogger.js';
 
 describe('AuditLogger', () => {
@@ -17,33 +17,16 @@ describe('AuditLogger', () => {
     console.error = originalConsoleError;
   });
 
-  test('should trigger console.error when fs.appendFile yields an error', (t, done) => {
+  test('reports append failures without throwing', () => {
     const fakeError = new Error('Disk full');
+    fs.appendFile = (...args) => args.at(-1)(fakeError);
 
-    // Mock fs.appendFile to yield an error
-    fs.appendFile = (path, data, callback) => {
-      callback(fakeError);
+    let logged;
+    console.error = (...args) => {
+      logged = args;
     };
 
-    let consoleErrorCalled = false;
-    let consoleErrorMessage = null;
-    let consoleErrorDetails = null;
-
-    // Mock console.error
-    console.error = (message, err) => {
-      consoleErrorCalled = true;
-      consoleErrorMessage = message;
-      consoleErrorDetails = err;
-    };
-
-    // Trigger log, which calls the mocked appendFile
     auditLogger.log('TEST_ACTION', '127.0.0.1', 'user123', { test: true });
-
-    // In this synchronous mock execution, the callback happens immediately
-    assert.strictEqual(consoleErrorCalled, true, 'console.error should have been called');
-    assert.strictEqual(consoleErrorMessage, 'Failed to write audit log:');
-    assert.strictEqual(consoleErrorDetails, fakeError);
-
-    done();
+    assert.deepStrictEqual(logged, ['Failed to write audit log:', fakeError]);
   });
 });

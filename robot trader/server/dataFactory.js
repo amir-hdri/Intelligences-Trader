@@ -8,10 +8,10 @@ const SYMBOL_CONFIG = {
     basePrice: 950000,
     name: 'Saffron',
     seasonality: {
-      9: -0.0005,   // October - harvest peak (supply increases, price drops)
-      10: -0.0005,  // November - harvest peak (supply increases, price drops)
-      1: 0.0005,    // February - scarcity (price rises)
-      2: 0.0005     // March - scarcity (price rises)
+      9: -0.08,   // Annualized harvest pressure in October
+      10: -0.08,  // Annualized harvest pressure in November
+      1: 0.08,    // Annualized scarcity premium in February
+      2: 0.08     // Annualized scarcity premium in March
     }
   },
   GOLD: {
@@ -31,16 +31,16 @@ const SYMBOL_CONFIG = {
  * Global market dynamics and constraints
  */
 const MARKET_PARAMS = {
-  mu: 0.0001,              // Annual drift (mean return)
-  sigma: 0.02,             // Volatility (standard deviation)
-  dt: 1 / 24,              // Time step (1 hour = 1/24 of a day)
+  mu: 0.10,                // Annualized drift
+  sigma: 0.25,             // Annualized volatility
+  dt: 1 / (365 * 24),      // One hour expressed as a fraction of a year
   minPrice: 1000,          // Floor for price to prevent negative values
   priceFluctuation: 0.01,  // Intra-candle price variation (±1%)
   candleWickRange: 0.005,  // High/Low wick magnitude
   maxVolume: 10000,        // Maximum trading volume
   minVolume: 1000,         // Minimum trading volume
-  maxOpenInterest: 5000,   // Maximum open interest
-  minOpenInterest: 5000    // Minimum open interest
+  maxOpenInterest: 10000,
+  minOpenInterest: 2000
 };
 
 /**
@@ -51,8 +51,9 @@ const MARKET_PARAMS = {
  * @returns {Object} Symbol configuration object
  */
 const getSymbolConfig = (symbolId) => {
+  const normalizedSymbol = String(symbolId).toUpperCase();
   for (const [key, config] of Object.entries(SYMBOL_CONFIG)) {
-    if (key !== 'DEFAULT' && symbolId.includes(key)) {
+    if (key !== 'DEFAULT' && normalizedSymbol.includes(key)) {
       return config;
     }
   }
@@ -79,62 +80,53 @@ const getSymbolConfig = (symbolId) => {
  * const candles = generateHistoricalData('SAF', 5);
  * // Returns 5 years of hourly candles for Saffron
  */
+const standardNormal = () => {
+  let first = 0;
+  let second = 0;
+  while (first === 0) first = Math.random();
+  while (second === 0) second = Math.random();
+  return Math.sqrt(-2 * Math.log(first)) * Math.cos(2 * Math.PI * second);
+};
+
 const generateHistoricalData = (symbolId, years = 3) => {
+  if (!Number.isFinite(years) || years <= 0 || years > 10) {
+    throw new RangeError('years must be greater than 0 and no more than 10');
+  }
   const candles = [];
   const now = Date.now();
-  const hoursPerYear = 365 * 24;
-  const totalHours = years * hoursPerYear;
-
-  // Get configuration for this symbol
+  const totalHours = Math.floor(years * 365 * 24);
   const config = getSymbolConfig(symbolId);
-  let price = config.basePrice;
+  let previousClose = config.basePrice;
 
+  for (let index = 0; index < totalHours; index++) {
+    const timestamp = now - (totalHours - index) * 3_600_000;
+    const month = new Date(timestamp).getMonth();
+    const seasonalDrift = config.seasonality[month] ?? 0;
+    const drift = (MARKET_PARAMS.mu + seasonalDrift - 0.5 * MARKET_PARAMS.sigma ** 2) * MARKET_PARAMS.dt;
+    const diffusion = MARKET_PARAMS.sigma * Math.sqrt(MARKET_PARAMS.dt) * standardNormal();
 
-  for (let i = 0; i < totalHours; i++) {
-    // Calculate timestamp for this candle (going backwards from now)
-    const timestamp = now - (totalHours - i) * 3600 * 1000;
-    const date = new Date(timestamp);
-    const month = date.getMonth(); // 0 (Jan) - 11 (Dec)
-
-    // Get seasonality factor for this month (defaults to 0 if not found)
-    const seasonalFactor = config.seasonality[month] ?? 0;
-
-    // Geometric Brownian Motion: price change percentage
-    const epsilon = Math.random() * 2 - 1; // Random shock from [-1, 1]
-    const drift = (MARKET_PARAMS.mu + seasonalFactor) * MARKET_PARAMS.dt;
-    const diffusion = MARKET_PARAMS.sigma * epsilon * Math.sqrt(MARKET_PARAMS.dt);
-
-    const changePct = drift + diffusion;
-    price = price * (1 + changePct);
-
-    // Ensure price floor is maintained
-    price = Math.max(price, MARKET_PARAMS.minPrice);
-
-    // Generate OHLC (Open, High, Low, Close)
-    const open = price;
-    const close = price * (1 + (Math.random() - 0.5) * MARKET_PARAMS.priceFluctuation);
+    const open = previousClose;
+    const close = Math.max(MARKET_PARAMS.minPrice, open * Math.exp(drift + diffusion));
     const high = Math.max(open, close) * (1 + Math.random() * MARKET_PARAMS.candleWickRange);
-    const low = Math.min(open, close) * (1 - Math.random() * MARKET_PARAMS.candleWickRange);
-
-    // Generate volume and open interest
+    const low = Math.max(MARKET_PARAMS.minPrice, Math.min(open, close) * (1 - Math.random() * MARKET_PARAMS.candleWickRange));
     const volume = Math.floor(
-      Math.random() * (MARKET_PARAMS.maxVolume - MARKET_PARAMS.minVolume) + MARKET_PARAMS.minVolume
+      Math.random() * (MARKET_PARAMS.maxVolume - MARKET_PARAMS.minVolume + 1) + MARKET_PARAMS.minVolume,
     );
     const openInterest = Math.floor(
-      Math.random() * (MARKET_PARAMS.maxOpenInterest - MARKET_PARAMS.minOpenInterest) + MARKET_PARAMS.minOpenInterest
+      Math.random() * (MARKET_PARAMS.maxOpenInterest - MARKET_PARAMS.minOpenInterest + 1) + MARKET_PARAMS.minOpenInterest,
     );
 
     candles.push({
       timestamp,
-      open: parseFloat(open.toFixed(0)),
-      high: parseFloat(high.toFixed(0)),
-      low: parseFloat(low.toFixed(0)),
-      close: parseFloat(close.toFixed(0)),
+      open: Math.round(open),
+      high: Math.round(high),
+      low: Math.round(low),
+      close: Math.round(close),
       volume,
-      openInterest
+      openInterest,
     });
+    previousClose = close;
   }
-
   return candles;
 };
 

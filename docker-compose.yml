@@ -1,65 +1,52 @@
-version: '3.8'
-
 services:
   frontend:
     build:
-      context: ./robot trader
-      dockerfile: Dockerfile.frontend
+      context: .
+      dockerfile: robot trader/Dockerfile.frontend
     ports:
       - "5173:80"
+    environment:
+      ML_BACKEND_HOST: backend-ml
+      ML_BACKEND_PORT: 3000
+      PROXY_BACKEND_HOST: backend-proxy
+      PROXY_BACKEND_PORT: 3001
     depends_on:
-      - backend-ml
-      - backend-proxy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      backend-ml:
+        condition: service_healthy
+      backend-proxy:
+        condition: service_healthy
+    init: true
+    restart: unless-stopped
 
   backend-ml:
     build:
-      context: ./robot trader/server
-      dockerfile: Dockerfile.backend-ml
+      context: .
+      dockerfile: robot trader/server/Dockerfile.backend-ml
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
-    secrets:
-      - master_encryption_key
-      - jwt_secret
-      - refresh_secret
+      NODE_ENV: production
+      PORT: 3000
+      CORS_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:5173}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
+      JWT_SECRET: ${JWT_SECRET:-}
+      REFRESH_SECRET: ${REFRESH_SECRET:-}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     volumes:
-      - ./models:/app/models
-      - ./logs:/app/logs
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/status"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+      - "./robot trader/server/models:/app/robot trader/server/models:ro"
+    init: true
+    restart: unless-stopped
 
   backend-proxy:
     build:
-      context: ./server
-      dockerfile: Dockerfile.backend-proxy
+      context: .
+      dockerfile: server/Dockerfile.backend-proxy
     ports:
       - "3001:3001"
     environment:
-      - NODE_ENV=production
-    secrets:
-      - jwt_secret
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/api/status"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-secrets:
-  master_encryption_key:
-    file: ./secrets/master_encryption_key.txt
-  jwt_secret:
-    file: ./secrets/jwt_secret.txt
-  refresh_secret:
-    file: ./secrets/refresh_secret.txt
+      NODE_ENV: production
+      PORT: 3001
+      CORS_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:5173}
+    init: true
+    restart: unless-stopped

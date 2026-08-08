@@ -21,6 +21,7 @@
     "src/historicalData.test.ts",
     "src/services/PredictionHistoryService.ts",
     "src/services/PredictionHistoryService.test.ts",
-    "src/dataUtils.worker.test.ts"
+    "src/workers/workerPool.ts",
+    "src/workers/workerPool.test.ts"
   ]
 }

@@ -14,7 +14,8 @@ export const fetchHistoricalData = async (
   proxyUrl: string = DEFAULT_API_CONFIG.proxyUrl
 ): Promise<MarketCandle[]> => {
   try {
-    const response = await fetch(`${proxyUrl}/api/tse/history/${symbolId}`);
+    const baseUrl = proxyUrl.replace(/\/$/, '');
+    const response = await fetch(`${baseUrl}/api/tse/history/${encodeURIComponent(symbolId)}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }

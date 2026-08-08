@@ -1,4 +1,4 @@
-import * as tf from '@tensorflow/tfjs-node';
+import * as tf from '@tensorflow/tfjs';
 
 // Focal Loss implementation
 export function focalLoss(alpha = 0.25, gamma = 2.0) {
@@ -16,6 +16,10 @@ export function focalLoss(alpha = 0.25, gamma = 2.0) {
 
 // Build Temporal Convolutional Network with Residual Blocks and Attention
 export function buildTCN(inputShape, numClasses) {
+  if (!Array.isArray(inputShape) || inputShape.length !== 2 || inputShape.some(value => !Number.isInteger(value) || value < 1)) {
+    throw new TypeError('inputShape must contain positive [sequenceLength, featureCount] integers');
+  }
+  if (!Number.isInteger(numClasses) || numClasses < 2) throw new TypeError('numClasses must be at least 2');
   const input = tf.input({ shape: inputShape });
 
   let x = input;
@@ -30,20 +34,23 @@ export function buildTCN(inputShape, numClasses) {
       padding: 'same'
     }).apply(x);
 
-    let res = tf.layers.conv1d({
-      filters: numFilters,
-      kernelSize: 3,
-      padding: 'same',
-      dilationRate: dilation,
-      activation: 'relu'
-    }).apply(x);
-    
-    res = tf.layers.batchNormalization().apply(res);
-    
+    // Left-only padding followed by a valid convolution prevents future time
+    // steps from leaking into causal TCN activations.
+    let res = tf.layers.zeroPadding1d({ padding: [2 * dilation, 0] }).apply(x);
     res = tf.layers.conv1d({
       filters: numFilters,
       kernelSize: 3,
-      padding: 'same',
+      padding: 'valid',
+      dilationRate: dilation,
+      activation: 'relu'
+    }).apply(res);
+
+    res = tf.layers.batchNormalization().apply(res);
+    res = tf.layers.zeroPadding1d({ padding: [2 * dilation, 0] }).apply(res);
+    res = tf.layers.conv1d({
+      filters: numFilters,
+      kernelSize: 3,
+      padding: 'valid',
       dilationRate: dilation,
       activation: 'relu'
     }).apply(res);
@@ -81,6 +88,11 @@ export function buildTCN(inputShape, numClasses) {
 
 // Fractional Differentiation to preserve long-term memory
 export function fractionalDiff(series, d, window = 10) {
+  if (!Array.isArray(series) || series.some(value => !Number.isFinite(value))) {
+    throw new TypeError('series must contain only finite numbers');
+  }
+  if (!Number.isFinite(d) || d < 0 || d > 1) throw new RangeError('d must be between 0 and 1');
+  if (!Number.isInteger(window) || window < 1) throw new RangeError('window must be a positive integer');
   const weights = [1];
   for (let k = 1; k < window; k++) {
     weights.push(-weights[k - 1] * (d - k + 1) / k);
@@ -103,6 +115,9 @@ export function fractionalDiff(series, d, window = 10) {
 
 // Purged K-Fold Cross Validation
 export function purgedKFold(dataSize, k = 5, purgeWindow = 5) {
+  if (!Number.isInteger(dataSize) || dataSize < 2) throw new RangeError('dataSize must be at least 2');
+  if (!Number.isInteger(k) || k < 2 || k > dataSize) throw new RangeError('k must be between 2 and dataSize');
+  if (!Number.isInteger(purgeWindow) || purgeWindow < 0) throw new RangeError('purgeWindow must be non-negative');
   const folds = [];
   const foldSize = Math.floor(dataSize / k);
 
@@ -129,6 +144,8 @@ export function purgedKFold(dataSize, k = 5, purgeWindow = 5) {
 
 // Calculate Maximum Drawdown
 export function calculateMaxDrawdown(equityCurve) {
+  if (!Array.isArray(equityCurve) || equityCurve.length === 0) return 0;
+  if (equityCurve.some(value => !Number.isFinite(value) || value <= 0)) throw new TypeError('equityCurve values must be positive and finite');
   let peak = equityCurve[0];
   let maxDrawdown = 0;
 
@@ -147,7 +164,10 @@ export function calculateMaxDrawdown(equityCurve) {
 
 // Calculate Sharpe Ratio
 export function calculateSharpeRatio(returns, riskFreeRate = 0) {
-  if (returns.length === 0) return 0;
+  if (!Array.isArray(returns) || returns.length === 0) return 0;
+  if (returns.some(value => !Number.isFinite(value)) || !Number.isFinite(riskFreeRate)) {
+    throw new TypeError('returns and riskFreeRate must be finite');
+  }
 
   const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
   const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
@@ -159,7 +179,13 @@ export function calculateSharpeRatio(returns, riskFreeRate = 0) {
 
 // Calculate Calibration Error
 export function calculateCalibrationError(yTrue, yPredProbs) {
-  // A simple ECE (Expected Calibration Error) approximation
+  if (!Array.isArray(yTrue) || !Array.isArray(yPredProbs) || yTrue.length !== yPredProbs.length) {
+    throw new TypeError('Labels and probability rows must have equal lengths');
+  }
+  if (yTrue.length === 0) return 0;
+  if (yPredProbs.some(row => !Array.isArray(row) || row.length === 0 || row.some(value => !Number.isFinite(value) || value < 0 || value > 1))) {
+    throw new TypeError('Predicted probabilities must be finite values in [0, 1]');
+  }
   const numBins = 10;
   let calibrationError = 0;
   

@@ -219,30 +219,25 @@ describe("RiskEngine Property-Based Tests", () => {
     );
   });
 
-  test("Kelly criterion never suggests more than maxPositionSize", () => {
+  test("Kelly sizing respects the configured notional cap", () => {
     fc.assert(
       fc.property(
-        fc.double({ min: 0.1, max: 0.9, noNaN: true }),
-        fc.double({ min: 0.5, max: 5, noNaN: true }),
-        (winRate, profitFactor) => {
-          const maxPosSize = 5000;
+        fc.double({ min: 1, max: 1000, noNaN: true }),
+        fc.double({ min: 0.01, max: 100, noNaN: true }),
+        fc.double({ min: 0, max: 1, noNaN: true }),
+        (price, atr, suggestedRisk) => {
           const limits: RiskLimits = {
-            maxPositionSize: maxPosSize,
-            maxTotalDrawdown: 0.1,
-            maxDailyDrawdown: 0.05,
+            maxPositionSize: 20,
+            maxTotalDrawdown: 10,
+            maxDailyDrawdown: 5,
             maxOpenTrades: 5,
             stopAllTrading: false,
           };
-          const engine = new RiskEngine(limits, 10000);
-          // We use any to bypass private method restrictions if needed or we test public methods
-          // Kelly is exposed through some public sizing logic or we can just unit test the math
-
-          // For demonstration, since kelly might be private, we will just simulate the math
-          const kellyFraction = winRate - (1 - winRate) / profitFactor;
-          const rawSize = 10000 * Math.max(0, kellyFraction) * 0.5; // Half kelly
-          const finalSize = Math.min(rawSize, maxPosSize);
-
-          return finalSize <= maxPosSize && finalSize >= 0;
+          const equity = 10000;
+          const engine = new RiskEngine(limits, equity);
+          const quantity = engine.calculateKellySize(price, atr, suggestedRisk);
+          const notionalCap = Math.floor((equity * 0.20) / price);
+          return quantity >= 0 && quantity <= notionalCap;
         },
       ),
     );

@@ -1,34 +1,18 @@
 import winston from 'winston';
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  defaultMeta: { service: 'tse-proxy-server' },
-  transports: [
-    new winston.transports.Console(),
+const transports = [new winston.transports.Console()];
+if (process.env.LOG_TO_FILES === 'true') {
+  transports.push(
     new winston.transports.File({ filename: 'error.log', level: 'error' }),
     new winston.transports.File({ filename: 'combined.log' }),
-  ],
-});
+  );
+}
 
-// Initialize OpenTelemetry
-const sdk = new NodeSDK({
-  traceExporter: new winston.transports.Console(), // Replace with proper OTLP exporter in production
-  instrumentations: [getNodeAutoInstrumentations()],
-});
-sdk.start();
-
-// Graceful shutdown for OpenTelemetry
-process.on('SIGTERM', () => {
-  sdk.shutdown()
-    .then(() => console.log('Tracing terminated'))
-    .catch((error) => console.log('Error terminating tracing', error))
-    .finally(() => process.exit(0));
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
+  defaultMeta: { service: 'tse-proxy-server' },
+  transports,
 });
 
 export default logger;

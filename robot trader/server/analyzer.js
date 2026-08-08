@@ -20,12 +20,14 @@ export const calculateRSI = (prices, period = 14) => {
 
   const avgGain = gains / period;
   const avgLoss = losses / period;
+  if (avgGain === 0 && avgLoss === 0) return 50;
   if (avgLoss === 0) return 100;
   const rs = avgGain / avgLoss;
   return 100 - 100 / (1 + rs);
 };
 
 export const calculateEMA = (prices, period) => {
+  if (!Array.isArray(prices) || prices.length === 0 || !Number.isFinite(period) || period <= 0) return 0;
   const k = 2 / (period + 1);
   let ema = prices[0];
   for (let i = 1; i < prices.length; i++) {
@@ -47,17 +49,19 @@ export const calculateMACD = (prices) => {
 };
 
 export const calculateATR = (candles, period = 14) => {
-  if (candles.length < 2) return 0;
-  const trs = candles.slice(-period).map((c, i, arr) => {
-    if (i === 0) return c.high - c.low;
-    const prevClose = arr[i - 1].close;
-    return Math.max(
-      c.high - c.low,
-      Math.abs(c.high - prevClose),
-      Math.abs(c.low - prevClose)
-    );
-  });
-  return trs.reduce((a, b) => a + b, 0) / trs.length;
+  if (candles.length < 2 || !Number.isInteger(period) || period < 1) return 0;
+  const start = Math.max(0, candles.length - period);
+  const trueRanges = [];
+  for (let index = start; index < candles.length; index++) {
+    const candle = candles[index];
+    const previousClose = index > 0 ? candles[index - 1].close : candle.open;
+    trueRanges.push(Math.max(
+      candle.high - candle.low,
+      Math.abs(candle.high - previousClose),
+      Math.abs(candle.low - previousClose),
+    ));
+  }
+  return trueRanges.reduce((sum, value) => sum + value, 0) / trueRanges.length;
 };
 
 export const calculateIchimoku = (candles) => {
@@ -77,9 +81,10 @@ export const calculateIchimoku = (candles) => {
 
 export const calculateBollingerBands = (prices, period = 20, stdDev = 2) => {
   const slice = prices.slice(-period);
-  const avg = slice.reduce((a, b) => a + b, 0) / period;
+  if (slice.length === 0) return { upper: 0, middle: 0, lower: 0 };
+  const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
   const squareDiffs = slice.map(p => Math.pow(p - avg, 2));
-  const variance = squareDiffs.reduce((a, b) => a + b, 0) / period;
+  const variance = squareDiffs.reduce((a, b) => a + b, 0) / slice.length;
   const std = Math.sqrt(variance);
   return {
     upper: avg + stdDev * std,
@@ -89,6 +94,7 @@ export const calculateBollingerBands = (prices, period = 20, stdDev = 2) => {
 };
 
 export const detectMarketRegime = (candles, atr) => {
+  if (!Array.isArray(candles) || candles.length === 0) return 'RANGING';
   const prices = candles.map(c => c.close);
   const ema20 = calculateEMA(prices, 20);
   const ema50 = calculateEMA(prices, 50);
