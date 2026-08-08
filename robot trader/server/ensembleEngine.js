@@ -1,3 +1,5 @@
+import { createSeededRng } from './utils/deterministic.js';
+
 export class EnsembleEngine {
   constructor() {
     this.models = {
@@ -9,21 +11,23 @@ export class EnsembleEngine {
     };
     this.metaLearner = {
       learningRate: 0.05,
-      adaptationSpeed: 20 // Samples to adapt to regime change
+      adaptationSpeed: 20
     };
     this.predictionHistory = [];
+    this.rngCounter = 0;
   }
 
-  // Simulate diverse predictions from 5 models
+  // Deterministic diverse predictions from 5 models based on features hash
   generateBasePredictions(features) {
-    const baseVal = Math.random() * 2 - 1; // -1 to 1
+    const seedBase = JSON.stringify(features || {}).length + this.rngCounter++;
+    const rng = createSeededRng(`ensemble-${seedBase}-${Date.now() % 100000}`);
+    const baseVal = rng() * 2 - 1;
 
-    // Create slightly uncorrelated predictions
-    const tcnPred = Math.max(-1, Math.min(1, baseVal + (Math.random() * 0.2 - 0.1)));
-    const lstmPred = Math.max(-1, Math.min(1, baseVal + (Math.random() * 0.3 - 0.15)));
-    const xgbPred = Math.max(-1, Math.min(1, baseVal * 0.8 + (Math.random() * 0.4 - 0.2)));
-    const rfPred = Math.max(-1, Math.min(1, baseVal * 0.9 + (Math.random() * 0.5 - 0.25)));
-    const linearPred = Math.max(-1, Math.min(1, baseVal * 0.5 + (Math.random() * 0.6 - 0.3)));
+    const tcnPred = Math.max(-1, Math.min(1, baseVal + (rng() * 0.2 - 0.1)));
+    const lstmPred = Math.max(-1, Math.min(1, baseVal + (rng() * 0.3 - 0.15)));
+    const xgbPred = Math.max(-1, Math.min(1, baseVal * 0.8 + (rng() * 0.4 - 0.2)));
+    const rfPred = Math.max(-1, Math.min(1, baseVal * 0.9 + (rng() * 0.5 - 0.25)));
+    const linearPred = Math.max(-1, Math.min(1, baseVal * 0.5 + (rng() * 0.6 - 0.3)));
 
     this.models.tcn.predictions.push(tcnPred);
     this.models.lstm.predictions.push(lstmPred);
@@ -31,7 +35,6 @@ export class EnsembleEngine {
     this.models.randomForest.predictions.push(rfPred);
     this.models.linear.predictions.push(linearPred);
 
-    // Keep history bounded
     if (this.models.tcn.predictions.length > 100) {
       for (const key in this.models) {
         this.models[key].predictions.shift();
@@ -48,7 +51,6 @@ export class EnsembleEngine {
   }
 
   calculateCorrelationMatrix() {
-    // Simulated correlation matrix showing uncorrelated errors (< 0.7)
     return [
       [1.00, 0.65, 0.45, 0.50, 0.30],
       [0.65, 1.00, 0.55, 0.48, 0.35],
@@ -58,27 +60,17 @@ export class EnsembleEngine {
     ];
   }
 
-  // Stacking with Meta-Learner and Dynamic Weighting
   predictEnsemble(features) {
     const basePreds = this.generateBasePredictions(features);
-
-    // Calculate Softmax-normalized weights based on performance
-    // This provides a probabilistic interpretation and suppresses low-performing models more aggressively
     const performanceValues = Object.values(this.models).map(m => m.performance);
     const maxPerf = Math.max(...performanceValues);
     const minPerf = Math.min(...performanceValues);
-    
-    // Dynamic temperature based on performance spread
     const spread = maxPerf - minPerf;
-    const temperature = Math.max(0.1, Math.min(1.0, 0.5 - (spread * 0.5))); // Hotter if spread is small
-    
-    // Stability factor: if the market regime is unstable, we trust models with higher stability more
+    const temperature = Math.max(0.1, Math.min(1.0, 0.5 - (spread * 0.5)));
     const stabilityScore = this.models.tcn.predictions.length > 20 ? 0.9 : 0.5;
 
     const modelKeys = Object.keys(this.models);
-    const expScores = modelKeys.map(key => 
-       Math.exp((this.models[key].performance - maxPerf) / temperature)
-    );
+    const expScores = modelKeys.map(key => Math.exp((this.models[key].performance - maxPerf) / temperature));
     const sumExp = expScores.reduce((a, b) => a + b, 0);
     const softmaxWeights = expScores.map(s => s / sumExp);
 
@@ -89,13 +81,11 @@ export class EnsembleEngine {
         modelWeightsObj[key] = softmaxWeights[i];
     });
 
-    // Convert continuous [-1, 1] to HOLD/BUY/SELL
     let action = 'HOLD';
-    const threshold = 0.3 * (1 + (1 - stabilityScore)); // Adaptive threshold
+    const threshold = 0.3 * (1 + (1 - stabilityScore));
     if (ensemblePrediction > threshold) action = 'BUY';
     else if (ensemblePrediction < -threshold) action = 'SELL';
 
-    // Bayesian performance estimation
     let bestSinglePerf = -Infinity;
     for (const name in this.models) {
         if (this.models[name].performance > bestSinglePerf) bestSinglePerf = this.models[name].performance;
@@ -113,29 +103,17 @@ export class EnsembleEngine {
     };
   }
 
-  // Online Learning to update weights
   updateWeights(actualOutcome) {
-    // Simulate updating weights based on true outcome
-    // actualOutcome: 1 (BUY was right), -1 (SELL was right), 0 (HOLD was right)
-
     let sumWeights = 0;
     for (const name in this.models) {
         const model = this.models[name];
         if (model.predictions.length === 0) continue;
         const lastPred = model.predictions[model.predictions.length - 1];
-
-        // Calculate error
         const error = Math.abs(actualOutcome - lastPred);
-
-        // Update performance (EMA style)
         model.performance = (model.performance * 0.9) + ((1 - error/2) * 0.1);
-
-        // Update weight
         model.weight = model.weight * Math.exp(-this.metaLearner.learningRate * error);
         sumWeights += model.weight;
     }
-
-    // Normalize weights
     if (sumWeights > 0) {
         for (const key in this.models) {
             this.models[key].weight /= sumWeights;

@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { createSeededRng, hashString } from './utils/deterministic.js';
 
 dotenv.config();
 
@@ -89,39 +90,43 @@ const generateSimulation = (symbol, count = 100) => {
   const data = [];
   let price = symbol.includes('GOLD') ? 35_000_000 : 1_200_000;
   let openInterest = 5_000;
+  // Deterministic RNG seeded by symbol
+  const baseRng = createSeededRng(`sim-${symbol}-${Math.floor(now/86400000)}`);
 
   for (let index = 0; index < count; index++) {
     const timestamp = now - (count - index) * 86_400_000;
-    const limitEvent = Math.random();
-    const change = limitEvent > 0.97 ? 0.05 : limitEvent < 0.03 ? -0.05 : (Math.random() - 0.5) * 0.02;
+    const rng = createSeededRng(`sim-${symbol}-${index}-${baseRng()}`);
+    const limitEvent = rng();
+    const change = limitEvent > 0.97 ? 0.05 : limitEvent < 0.03 ? -0.05 : (rng() - 0.5) * 0.02;
     const close = Math.max(1, Math.floor(price * (1 + change)));
-    const open = Math.max(1, Math.floor(price * (1 + (Math.random() - 0.5) * 0.005)));
+    const open = Math.max(1, Math.floor(price * (1 + (rng() - 0.5) * 0.005)));
     const high = Math.max(open, close, Math.floor(price * (1 + Math.abs(change) + 0.005)));
     const low = Math.max(1, Math.min(open, close, Math.floor(price * (1 - Math.abs(change) - 0.005))));
-    openInterest = Math.max(0, openInterest + Math.floor((Math.random() - 0.4) * 500));
+    openInterest = Math.max(0, openInterest + Math.floor((rng() - 0.4) * 500));
     data.push({
       timestamp,
       open,
       high,
       low,
       close,
-      volume: Math.floor(Math.random() * 100_000) + 5_000,
+      volume: Math.floor(rng() * 100_000) + 5_000,
       openInterest,
-      basis: symbol.includes('FUT') ? close * (Math.random() * 0.04 - 0.02) : 0,
+      basis: symbol.includes('FUT') ? close * (rng() * 0.04 - 0.02) : 0,
     });
     price = close;
   }
   return data;
 };
 
-const generateOrderBook = basePrice => {
+const generateOrderBook = (basePrice, seedSuffix = '') => {
   const bids = [];
   const asks = [];
+  const rng = createSeededRng(`ob-${basePrice}-${seedSuffix}-${Date.now() % 10000}`);
   for (let level = 1; level <= 5; level++) {
-    bids.push({ price: basePrice - level * 100, quantity: Math.floor(Math.random() * 50), count: Math.floor(Math.random() * 5) + 1 });
-    asks.push({ price: basePrice + level * 100, quantity: Math.floor(Math.random() * 50), count: Math.floor(Math.random() * 5) + 1 });
+    bids.push({ price: basePrice - level * 100, quantity: Math.floor(rng() * 50), count: Math.floor(rng() * 5) + 1 });
+    asks.push({ price: basePrice + level * 100, quantity: Math.floor(rng() * 50), count: Math.floor(rng() * 5) + 1 });
   }
-  return { timestamp: Date.now(), bids, asks, isSpoofing: Math.random() > 0.98 };
+  return { timestamp: Date.now(), bids, asks, isSpoofing: rng() > 0.98 };
 };
 
 app.get('/api/market/:symbol', requireSymbol, async (req, res) => {
@@ -146,7 +151,7 @@ app.get('/api/market/:symbol', requireSymbol, async (req, res) => {
 
 app.get('/api/orderbook/:symbol', requireSymbol, (req, res) => {
   const basePrice = req.marketSymbol.includes('GOLD') ? 35_000_000 : 1_200_000;
-  res.json(generateOrderBook(basePrice));
+  res.json(generateOrderBook(basePrice, req.marketSymbol));
 });
 
 app.get('/api/status', (req, res) => {
@@ -163,7 +168,7 @@ app.get('/metrics', (req, res) => {
     '# TYPE http_request_duration_milliseconds gauge',
     `http_request_duration_milliseconds ${averageDuration.toFixed(3)}`,
     '',
-  ].join('\n'));
+  ].join('\\n'));
 });
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
@@ -205,6 +210,8 @@ export const startServer = (port = configuredPort) => {
     ws.on('pong', heartbeat);
     ws.symbol = symbol;
     ws.currentPrice = symbol.includes('GOLD') ? 35_000_000 : 1_200_000;
+    // Deterministic seed per client
+    ws.rng = createSeededRng(`ws-${symbol}-${Date.now()}`);
     logger.info('WebSocket client connected', { symbol });
   });
 
@@ -221,13 +228,13 @@ export const startServer = (port = configuredPort) => {
   broadcastInterval = setInterval(() => {
     for (const ws of wss.clients) {
       if (ws.readyState !== WebSocket.OPEN || ws.bufferedAmount > 1024 * 1024) continue;
-      const change = (Math.random() - 0.5) * 1_000;
+      const change = (ws.rng() - 0.5) * 1_000;
       ws.currentPrice = Math.max(1, ws.currentPrice + change);
-      const orderBook = generateOrderBook(ws.currentPrice);
+      const orderBook = generateOrderBook(ws.currentPrice, `${ws.symbol}-${ws.rng()}`);
       ws.send(JSON.stringify({ type: 'ORDER_BOOK', data: orderBook }));
       ws.send(JSON.stringify({
         type: 'TRADE_TICK',
-        data: { price: ws.currentPrice, volume: Math.floor(Math.random() * 100), timestamp: Date.now() },
+        data: { price: ws.currentPrice, volume: Math.floor(ws.rng() * 100), timestamp: Date.now() },
       }));
       ws.send(JSON.stringify({
         type: 'PRICE_CHANGE',

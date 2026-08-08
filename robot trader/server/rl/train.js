@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import logger from '../logger.js';
+import { createSeededRng } from '../utils/deterministic.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,11 +23,11 @@ async function trainPPO() {
     criticLr: 1e-3
   });
 
-  const totalEpisodes = 10000; // Target convergence in < 10000
+  const totalEpisodes = 10000;
   const batchSize = 64;
 
-  let curriculumLevel = 0; // 0: Easy, 1: Medium, 2: Hard
-  const curriculumThresholds = [3000, 7000]; // Episodes to switch levels
+  let curriculumLevel = 0;
+  const curriculumThresholds = [3000, 7000];
 
   let states = [];
   let actions = [];
@@ -38,7 +39,6 @@ async function trainPPO() {
   let historyRewards = [];
 
   for (let ep = 1; ep <= totalEpisodes; ep++) {
-    // Manage Curriculum
     if (ep > curriculumThresholds[0] && curriculumLevel === 0) {
       curriculumLevel = 1;
       logger.info("--- Moving to Medium Curriculum (Added Volatility) ---");
@@ -47,7 +47,6 @@ async function trainPPO() {
       logger.info("--- Moving to Hard Curriculum (Market Shocks / COVID-19 Crash simulator) ---");
     }
 
-    // Generate specific market data based on curriculum
     const marketData = generateMarketDataForCurriculum(curriculumLevel, 100);
     let state = env.reset(marketData);
 
@@ -69,17 +68,10 @@ async function trainPPO() {
       state = nextState;
       epReward += reward;
 
-      // PPO Update
       if (states.length >= batchSize || done) {
-        // Compute Advantages and Returns
         const { advantages, returns } = agent.computeAdvantages(rewards, values, dones);
-
-        // Ensure values arrays are properly sized
         const validValues = values.slice(0, rewards.length);
-
         await agent.update(states, actions, logProbs, advantages, returns);
-
-        // Reset buffers
         states = [];
         actions = [];
         logProbs = [];
@@ -95,10 +87,8 @@ async function trainPPO() {
       const avgReward = historyRewards.slice(-100).reduce((a, b) => a + b, 0) / 100;
       logger.info(`Episode: ${ep}, Curriculum Level: ${curriculumLevel}, Avg Reward (last 100): ${avgReward.toFixed(4)}`);
 
-      // Save model periodically
       if (ep % 1000 === 0) {
          try {
-             // Create models directory if it doesn't exist
              const modelsDir = path.join(__dirname, 'models');
              if (!fs.existsSync(modelsDir)) {
                  fs.mkdirSync(modelsDir);
@@ -118,31 +108,29 @@ async function trainPPO() {
 function generateMarketDataForCurriculum(level, length) {
   const data = [];
   let price = 100;
+  const baseRng = createSeededRng(`curriculum-${level}-${length}`);
 
   for (let i = 0; i < length; i++) {
     let change;
     let isShock = false;
     let volatility;
+    const rng = createSeededRng(`curr-${level}-${i}-${baseRng()}`);
 
     if (level === 0) {
-      // Easy: Stable, clear trends
       volatility = 0.005;
-      const trend = Math.sin(i / 10); // Sine wave trend
+      const trend = Math.sin(i / 10);
       change = 1 + trend * volatility;
     } else if (level === 1) {
-      // Medium: Random walk with standard volatility
       volatility = 0.015;
-      change = 1 + (Math.random() * 2 - 1) * volatility;
+      change = 1 + (rng() * 2 - 1) * volatility;
     } else {
-      // Hard: Include market shocks (e.g. COVID crash)
-      isShock = Math.random() < 0.05; // 5% chance of severe shock
-      if (isShock && Math.random() < 0.5) {
-         // Massive drop
+      isShock = rng() < 0.05;
+      if (isShock && rng() < 0.5) {
          volatility = 0.1;
          change = 1 - volatility;
       } else {
          volatility = 0.02;
-         change = 1 + (Math.random() * 2 - 1) * volatility;
+         change = 1 + (rng() * 2 - 1) * volatility;
       }
     }
 
@@ -153,13 +141,12 @@ function generateMarketDataForCurriculum(level, length) {
       volatilityRegime: (volatility > 0.01) ? 1 : 0,
       marketDirection: change > 1 ? 1 : -1,
       timeToExpiry: 1 - (i / length),
-      correlation: Math.random() * 2 - 1 // Simplified
+      correlation: rng() * 2 - 1
     });
   }
   return data;
 }
 
-// Allow importing or running directly
 if (process.argv[1] && process.argv[1].endsWith('train.js')) {
     trainPPO();
 }

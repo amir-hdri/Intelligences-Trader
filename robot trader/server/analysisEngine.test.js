@@ -56,7 +56,7 @@ test('generateAnalysis returns valid prediction and < 500ms for 1000 candles', (
   const historyData = [];
   let price = 100;
   for (let i = 0; i < 1000; i++) {
-    price += (Math.random() - 0.5) * 2;
+    price = Math.max(10, price + Math.sin(i * 0.7) * 1.2);
     historyData.push({
       timestamp: Date.now() - (1000 - i) * 60000,
       open: price - 0.5,
