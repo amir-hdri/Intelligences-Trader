@@ -1,21 +1,20 @@
 @import "tailwindcss";
-
 @theme {
   --font-sans: 'Inter', 'Geist', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
-
 @layer base {
   body { @apply bg-[#05070B] text-[#F8FAFC] antialiased selection:bg-violet-500/30; font-family: var(--font-sans); }
+  *{ scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.12) transparent; }
 }
 @layer utilities {
   .glass-panel{ @apply bg-[#0B0F17] border border-white/[0.07] shadow-2xl }
   .glass-card{ @apply bg-[#101620] border border-white/[0.07] }
   .elevated{ @apply bg-[#151C27] border border-white/[0.07] }
   .mono{ font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-  .scrollbar-thin{ scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; }
-  .text-glow{ text-shadow: 0 0 18px rgba(139,92,246,0.35); }
+  .shimmer{ background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 37%, rgba(255,255,255,0.06) 63%); background-size:400% 100%; animation: shimmer 1.4s ease infinite; }
+  @keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
 }
 ::-webkit-scrollbar{ width:6px; height:6px }
-::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.08); border-radius:999px }
+::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.10); border-radius:999px }
 *:focus-visible{ @apply outline-none ring-2 ring-violet-500/40 ring-offset-0 }
