@@ -1,5 +1,8 @@
 import { createSeededRng, hashString } from '../utils/deterministic.js';
 import { positionLedger } from './positionLedger.js';
+import { P2ExecutionEngine } from './paperTradingEngine/p2/execution/P2ExecutionEngine.js';
+import { MLSignalBridge } from './paperTradingEngine/p2/ml/MLSignalBridge.js';
+import { PerformanceAnalytics } from './paperTradingEngine/p2/analytics/PerformanceAnalytics.js';
 
 /**
  * Paper Trading Engine - Real engine replacing Math.random() < winRate
@@ -9,6 +12,19 @@ export class PaperTradingEngine {
   constructor() {
     this.trades = [];
     this.balance = 1000000;
+
+    // P2 Extensions (lazy-initialized)
+    this.p2Execution = null;
+    this.mlBridge = null;
+    this.analytics = new PerformanceAnalytics();
+  }
+
+  // Lazy init P2 modules
+  _ensureP2() {
+    if (!this.p2Execution) {
+      this.p2Execution = new P2ExecutionEngine(this);
+      this.mlBridge = new MLSignalBridge(this.p2Execution);
+    }
   }
 
   // Deterministic trade outcome evaluation
