@@ -1,7 +1,7 @@
 """
 Intelligences-Trader ML Service Package.
 
-Exports DataLoader and data preprocessing utilities.
+Exports data/strategy utilities and the PerformanceMetrics reporting calculator.
 """
 
 from .data_loader import DataLoader, load_historical_data, preprocess_data
@@ -14,6 +14,7 @@ from .strategy_engine import (
     MeanReversionStrategy,
     MLBasedStrategy,
 )
+from .performance_metrics import PerformanceMetrics
 
 __all__ = [
     "DataLoader",
@@ -26,4 +27,5 @@ __all__ = [
     "MovingAverageCrossoverStrategy",
     "MeanReversionStrategy",
     "MLBasedStrategy",
+    "PerformanceMetrics",
 ]
