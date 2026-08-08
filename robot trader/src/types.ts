@@ -170,6 +170,8 @@ export interface TradeLogEntry {
     regime: MarketRegime;
     sentiment: number;
   };
+  pnl?: number;
+  isWin?: boolean;
 }
 
 export interface ApiConfig {

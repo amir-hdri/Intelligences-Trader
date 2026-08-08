@@ -38,14 +38,15 @@ export class StressEngine {
         this.averageLoss = averageLoss;
     }
 
-    private simulatePath(numTrades: number): { currentDrawdown: number; isRuined: boolean } {
+    private simulatePath(numTrades: number, rng: () => number): { currentDrawdown: number; isRuined: boolean } {
         let capital = this.initialCapital;
         let peak = capital;
         let currentDrawdown = 0;
         let isRuined = false;
 
         for (let t = 0; t < numTrades; t++) {
-            const isWin = Math.random() < this.winRate;
+            // Deterministic win/loss based on seeded sequence, not Math.random
+            const isWin = rng() < this.winRate;
             const pnl = isWin ? this.averageWin : -this.averageLoss;
 
             capital += pnl;
@@ -70,6 +71,7 @@ export class StressEngine {
 
     /**
      * Run Monte Carlo Simulation to calculate Probability of Ruin and Expected Drawdowns
+     * Deterministic version using seeded RNG
      * @param numSimulations Number of random walk paths (default 10000)
      * @param numTrades Number of trades per simulation path (default 250)
      */
@@ -78,8 +80,22 @@ export class StressEngine {
         let maxDrawdownOverall = 0;
         let totalDrawdowns = 0;
 
+        // Deterministic seed based on initial capital and winRate for reproducibility
+        const seedBase = Math.floor(this.initialCapital) ^ Math.floor(this.winRate * 10000) ^ 0x9e3779b9;
+        // mulberry32 implementation inline (deterministic, no Math.random)
+        const createRng = (seed: number) => {
+            let a = seed >>> 0;
+            return () => {
+                let t = (a += 0x6d2b79f5);
+                t = Math.imul(t ^ (t >>> 15), t | 1);
+                t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+        };
+
         for (let i = 0; i < numSimulations; i++) {
-            const { currentDrawdown, isRuined } = this.simulatePath(numTrades);
+            const rng = createRng(seedBase ^ i);
+            const { currentDrawdown, isRuined } = this.simulatePath(numTrades, rng);
 
             if (isRuined) {
                 ruinCount++;

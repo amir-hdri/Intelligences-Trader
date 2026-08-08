@@ -112,7 +112,9 @@ export const useWebSocket = (
 
       const attempts = reconnectAttemptsRef.current++;
       const exponentialDelay = Math.min(1000 * 2 ** attempts, 30_000);
-      const jitteredDelay = exponentialDelay * (0.8 + Math.random() * 0.4);
+      // Deterministic jitter based on attempt count and symbol hash, no Math.random
+      const attemptFactor = (attempts % 5) * 0.08; // 0,0.08,0.16,0.24,0.32
+      const jitteredDelay = exponentialDelay * (0.8 + attemptFactor);
       reconnectTimeoutRef.current = setTimeout(connectWebSocket, jitteredDelay);
     };
 

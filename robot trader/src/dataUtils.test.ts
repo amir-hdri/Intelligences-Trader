@@ -69,19 +69,20 @@ test('calculateMACD - handles single price element', () => {
 });
 
 // ========================================
-// Helper to create candles
+// Helper to create candles - deterministic, no Math.random
 // ========================================
 const createCandles = (count: number, trend: 'UP' | 'DOWN' | 'FLAT' | 'VOLATILE'): MarketCandle[] => {
     const candles: MarketCandle[] = [];
     let price = 10000;
+    // Deterministic pseudo-random using sine-based pattern
     for (let i = 0; i < count; i++) {
         let change = 0;
         if (trend === 'UP') change = 10;
         else if (trend === 'DOWN') change = -10;
-        else if (trend === 'VOLATILE') change = (Math.random() - 0.5) * 2000; // Extreme volatility
-        else change = (Math.random() - 0.5) * 2;
+        else if (trend === 'VOLATILE') change = (Math.sin(i * 1.7) * 0.5) * 2000;
+        else change = Math.sin(i * 0.9) * 1;
 
-        price = Math.max(100, price + change); // Keep price positive
+        price = Math.max(100, price + change);
 
         const range = trend === 'VOLATILE' ? 500 : 5;
 
