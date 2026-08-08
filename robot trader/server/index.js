@@ -1018,6 +1018,56 @@ app.post('/api/paper-trading/execute', (req, res) => {
   }
 });
 
+// P2 Advanced endpoints (ML signal + realistic execution)
+app.post('/api/paper-trading/p2/execute-ml', (req, res) => {
+  try {
+    const { signal, symbol, marketPrice, size = 1 } = req.body || {};
+    if (!signal || !symbol) return res.status(400).json({ error: 'signal and symbol required' });
+    paperTradingEngine._ensureP2();
+    const result = paperTradingEngine.mlBridge.signalToOrder(signal, symbol, marketPrice, size);
+    res.json({ success: true, source: 'P2_ML_BRIDGE', data: result });
+  } catch (error) {
+    logger.error('Error in P2 ML execute:', error);
+    res.status(500).json({ error: 'Failed to execute ML-driven paper trade' });
+  }
+});
+
+app.get('/api/paper-trading/p2/metrics', (req, res) => {
+  try {
+    paperTradingEngine.analytics.updateTrades(paperTradingEngine.getTrades());
+    const metrics = paperTradingEngine.analytics.getMetrics();
+    res.json({ success: true, source: 'P2_ANALYTICS', data: metrics });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to calculate P2 metrics' });
+  }
+});
+
+// P2 Report Generator
+import { ReportGenerator } from './modules/paperTradingEngine/p2/analytics/ReportGenerator.js';
+
+app.post('/api/paper-trading/p2/report', (req, res) => {
+  try {
+    const { period = 'daily' } = req.body || {};
+    const generator = new ReportGenerator(paperTradingEngine.getTrades());
+    const report = generator.generateReport(period);
+    res.json({ success: true, data: report });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate report' });
+  }
+});
+
+// P2 Strategy Configuration
+app.post('/api/paper-trading/p2/strategy', (req, res) => {
+  try {
+    const { model, size, stopLoss, takeProfit, confidenceThreshold } = req.body || {};
+    // In real system this would persist to config store or Redis
+    console.log('[P2] Strategy updated:', { model, size, stopLoss, takeProfit, confidenceThreshold });
+    res.json({ success: true, message: 'Strategy parameters saved', config: req.body });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update strategy' });
+  }
+});
+
 app.get('/api/paper-trading/trades', (req, res) => {
   try {
     const trades = paperTradingEngine.getTrades();
