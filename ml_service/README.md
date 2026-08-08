@@ -2,6 +2,7 @@
 
 This directory contains the Python research implementation for:
 
+- a historical data loader and preprocessor (`data_loader.py`) connecting to Phase-1 database boundaries with point-in-time filtering, timeframe resampling, and causal normalization;
 - a causal temporal convolutional actor-critic;
 - PPO with categorical direction and Beta-distributed position size;
 - a Gaussian-HMM volatility regime detector;
