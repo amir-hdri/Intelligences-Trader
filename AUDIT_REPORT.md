@@ -51,8 +51,8 @@ This hardening pass repairs those defects and changes documentation/API behavior
 - Worker pool dispatches to all idle workers, replaces failed workers, times out stuck work, and rejects pending tasks on shutdown.
 - Services can be imported without opening network listeners and provide graceful start/stop paths.
 - Generated `dist`, `test-out`, and one-off patch scripts were removed from source control.
-- CI now runs type checking, frontend build, all Node tests, Python tests, and a blocking high-severity production audit.
-- CD uses valid lowercase GHCR names, one root build context, current build action, SBOM/provenance, Trivy, and Cosign.
+- Reproducible local validation commands now cover type checking, frontend builds, all Node tests, Python tests, and dependency auditing.
+- CI/CD workflow hardening was reviewed but could not be included because the connected GitHub App lacks workflow-write permission; this remains a follow-up item.
 
 ## Verification performed
 

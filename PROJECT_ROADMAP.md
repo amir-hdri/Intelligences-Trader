@@ -8,7 +8,7 @@ Implemented and tested:
 - Same-origin API/WebSocket routing for local, Compose, and Kubernetes-style deployments.
 - Rule-based analysis, ONNX WASM inference boundary, risk limits, and explicitly labelled digital-twin fallback.
 - Python PPO/TCN research code, HMM regime classification, feature engineering, and independent circuit breaker.
-- Locked Node/Python dependencies, CI checks, container builds, vulnerability scan, SBOM, and signing workflow.
+- Locked Node/Python dependencies, repeatable validation commands, and deterministic container builds.
 
 Not implemented:
 

@@ -93,7 +93,7 @@ Never commit these values. Experimental simulated ensemble/federated/HPO endpoin
 - Strict OHLCV/model-input validation and honest out-of-sample metrics (no hard-coded performance floors).
 - Causal TCN convolutions and consistent PPO direction encoding (`0=short`, `1=hold`, `2=long`).
 - HMM short-history fallback, finite-value checks, authenticated AES-256-GCM secret encryption, rate limits, CORS allowlists, and request-size limits.
-- Reproducible root lockfile, zero high-severity production npm audit findings, Python CI, and deterministic Docker workspace builds.
+- Reproducible root lockfile, zero npm audit findings, verified Python test commands, and deterministic Docker workspace builds.
 
 See [`AUDIT_REPORT.md`](./AUDIT_REPORT.md) for the detailed audit, fixes, and remaining limitations.
 
