@@ -14,6 +14,7 @@ import { ArbitragePanel } from './components/analytics/ArbitragePanel';
 import { LearningDashboard } from './components/analytics/LearningDashboard';
 import { MarketRegimeTimeline } from './components/analytics/MarketRegimeTimeline';
 import FullPaperTradingDashboard from './components/analytics/FullPaperTradingDashboard';
+import { BacktestingDashboard } from './components/analytics/BacktestingDashboard';
 import { PerformanceAnalytics } from './components/analytics/PerformanceAnalytics';
 import { TradeTicket } from './components/dashboard/TradeTicket';
 import { Header, Sidebar, MobileDrawer, BottomNav, StatusBar, NAV } from './components/layout/AppShell';
@@ -557,6 +558,16 @@ export default function App() {
 
             {activeTab === 'paper' && (
               <FullPaperTradingDashboard />
+            )}
+
+            {/* Current multi-timeframe data includes a generated intraday path, so retain synthetic provenance. */}
+            {activeTab === 'backtest' && (
+              <BacktestingDashboard
+                symbolId={selectedSymbolId}
+                timeframe={timeframe}
+                candles={mtfData[timeframe] || []}
+                sourceIsSynthetic={true}
+              />
             )}
 
             {activeTab === 'trade' && (

@@ -35,6 +35,8 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgres://paper:paper@postgres:5432/paper_trading
+      BACKTEST_MAX_CONCURRENT: ${BACKTEST_MAX_CONCURRENT:-2}
+      BACKTEST_MAX_QUEUED: ${BACKTEST_MAX_QUEUED:-100}
     volumes:
       - "./robot trader/server/models:/app/robot trader/server/models:ro"
     depends_on:
