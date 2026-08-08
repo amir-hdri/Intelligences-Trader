@@ -15,5 +15,7 @@ export const pinoLogger = pino({
 });
 
 export const sampleLogger = (level, message, fields = {}, sampleRate = 0.1) => {
-  if (!isProduction || Math.random() <= sampleRate) pinoLogger[level](fields, message);
+  // Deterministic sampling: log every Nth request based on time, not Math.random
+  const shouldLog = !isProduction || (Date.now() % Math.floor(1 / Math.max(0.01, sampleRate)) === 0);
+  if (shouldLog) pinoLogger[level](fields, message);
 };

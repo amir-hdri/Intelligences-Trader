@@ -1,7 +1,7 @@
 import Sentiment from 'sentiment';
+import { createSeededRng, hashString } from './utils/deterministic.js';
 const sentiment = new Sentiment();
 
-// Mock News Database
 const NEWS_SOURCES = [
   "Reuters", "Bloomberg", "Sena", "BoursePress", "Tehran Times", "Financial Tribune"
 ];
@@ -26,35 +26,37 @@ const HEADLINES = [
 const generateNews = (count = 5) => {
   const news = [];
   const now = Date.now();
+  // Deterministic seed based on day
+  const daySlot = Math.floor(now / 3600000); // hourly slot
+  const baseRng = createSeededRng(`news-${daySlot}`);
 
   for (let i = 0; i < count; i++) {
-    const randomHeadline = HEADLINES[Math.floor(Math.random() * HEADLINES.length)];
-    const randomSource = NEWS_SOURCES[Math.floor(Math.random() * NEWS_SOURCES.length)];
-    const timeOffset = Math.floor(Math.random() * 86400000); // within last 24h
+    const rng = createSeededRng(`news-${daySlot}-${i}-${baseRng()}`);
+    const headlineIdx = Math.floor(rng() * HEADLINES.length);
+    const sourceIdx = Math.floor(rng() * NEWS_SOURCES.length);
+    const randomHeadline = HEADLINES[headlineIdx];
+    const randomSource = NEWS_SOURCES[sourceIdx];
+    const timeOffset = Math.floor(rng() * 86400000);
 
-    // NLP Analysis
     const analysis = sentiment.analyze(randomHeadline);
-    const score = analysis.score; // Absolute score
-    const comparative = analysis.comparative; // Score adjusted for length
+    const score = analysis.score;
+    const comparative = analysis.comparative;
 
     let impact = 'LOW';
     if (Math.abs(comparative) > 0.5) impact = 'HIGH';
     else if (Math.abs(comparative) > 0.2) impact = 'MEDIUM';
 
-    // Mock Named Entity Recognition (NER)
     const entities = [];
     if (randomHeadline.includes("Iran")) entities.push({ type: 'GPE', text: 'Iran' });
     if (randomHeadline.includes("OPEC")) entities.push({ type: 'ORG', text: 'OPEC' });
     if (randomHeadline.includes("Central Bank")) entities.push({ type: 'ORG', text: 'Central Bank' });
 
-    // Override impact based on keywords (Rule-based NLP layer)
     let adjustedComparative = comparative;
     if (entities.some(e => e.type === 'ORG') || randomHeadline.includes("Sanctions")) {
       impact = 'HIGH';
-      adjustedComparative *= 1.5; // Amplify sentiment for high-impact entities
+      adjustedComparative *= 1.5;
     }
     
-    // Bound comparative
     adjustedComparative = Math.max(-1, Math.min(1, adjustedComparative));
 
     const dollarBullishTerms = /sanctions|inflation|dollar strengthens|crop damage|liquidity/i;
@@ -65,8 +67,11 @@ const generateNews = (count = 5) => {
         ? 'DOLLAR_BEARISH'
         : 'NEUTRAL';
 
+    // Deterministic ID based on headline hash and time
+    const id = `${hashString(randomHeadline + String(now - timeOffset)).toString(36).substring(0,7)}-${i}`;
+
     news.push({
-      id: Math.random().toString(36).substring(7),
+      id,
       title: randomHeadline,
       source: randomSource,
       timestamp: now - timeOffset,
@@ -76,15 +81,10 @@ const generateNews = (count = 5) => {
       nerTags: entities.map(entity => entity.text),
       impact,
       entities,
-      analysis: {
-        score,
-        positiveWords: analysis.positive,
-        negativeWords: analysis.negative
-      }
+      analysis: { score, positiveWords: analysis.positive, negativeWords: analysis.negative }
     });
   }
 
-  // Sort by newest
   return news.sort((a, b) => b.timestamp - a.timestamp);
 };
 
