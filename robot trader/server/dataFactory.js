@@ -1,17 +1,18 @@
-
 /**
- * Symbol Configuration
- * Defines base prices, seasonality patterns, and other parameters per symbol
+ * Symbol Configuration - Deterministic Version (Phase 1)
+ * No Math.random, uses seeded deterministic PRNG
  */
+import { createSeededRng } from './utils/deterministic.js';
+
 const SYMBOL_CONFIG = {
   SAF: {
     basePrice: 950000,
     name: 'Saffron',
     seasonality: {
-      9: -0.08,   // Annualized harvest pressure in October
-      10: -0.08,  // Annualized harvest pressure in November
-      1: 0.08,    // Annualized scarcity premium in February
-      2: 0.08     // Annualized scarcity premium in March
+      9: -0.08,
+      10: -0.08,
+      1: 0.08,
+      2: 0.08
     }
   },
   GOLD: {
@@ -26,30 +27,19 @@ const SYMBOL_CONFIG = {
   }
 };
 
-/**
- * Market Parameters
- * Global market dynamics and constraints
- */
 const MARKET_PARAMS = {
-  mu: 0.10,                // Annualized drift
-  sigma: 0.25,             // Annualized volatility
-  dt: 1 / (365 * 24),      // One hour expressed as a fraction of a year
-  minPrice: 1000,          // Floor for price to prevent negative values
-  priceFluctuation: 0.01,  // Intra-candle price variation (±1%)
-  candleWickRange: 0.005,  // High/Low wick magnitude
-  maxVolume: 10000,        // Maximum trading volume
-  minVolume: 1000,         // Minimum trading volume
+  mu: 0.10,
+  sigma: 0.25,
+  dt: 1 / (365 * 24),
+  minPrice: 1000,
+  priceFluctuation: 0.01,
+  candleWickRange: 0.005,
+  maxVolume: 10000,
+  minVolume: 1000,
   maxOpenInterest: 10000,
   minOpenInterest: 2000
 };
 
-/**
- * Get symbol configuration by ID
- * Matches symbolId against configured symbols (case-insensitive)
- * 
- * @param {string} symbolId - The symbol identifier
- * @returns {Object} Symbol configuration object
- */
 const getSymbolConfig = (symbolId) => {
   const normalizedSymbol = String(symbolId).toUpperCase();
   for (const [key, config] of Object.entries(SYMBOL_CONFIG)) {
@@ -60,32 +50,15 @@ const getSymbolConfig = (symbolId) => {
   return SYMBOL_CONFIG.DEFAULT;
 };
 
-/**
- * Generate Historical OHLCV Data
- * Creates realistic candlestick data using geometric Brownian motion with seasonality
- * 
- * Model: dP = (μ + seasonalFactor) * P * dt + σ * P * dW
- * Where:
- *   - P = price
- *   - μ = drift (trend)
- *   - σ = volatility
- *   - dW = random shock (Wiener process)
- *   - seasonalFactor = commodity-specific seasonal effect
- * 
- * @param {string} symbolId - The symbol to generate data for (e.g., 'SAF', 'GOLD')
- * @param {number} [years=3] - Number of years of historical data to generate
- * @returns {Array<Object>} Array of candle objects with OHLCV data
- * 
- * @example
- * const candles = generateHistoricalData('SAF', 5);
- * // Returns 5 years of hourly candles for Saffron
- */
-const standardNormal = () => {
-  let first = 0;
-  let second = 0;
-  while (first === 0) first = Math.random();
-  while (second === 0) second = Math.random();
-  return Math.sqrt(-2 * Math.log(first)) * Math.cos(2 * Math.PI * second);
+// Deterministic standard normal using seeded rng per symbol
+const createDeterministicStandardNormal = (rng) => {
+  return () => {
+    let first = 0;
+    let second = 0;
+    while (first === 0) first = rng();
+    while (second === 0) second = rng();
+    return Math.sqrt(-2 * Math.log(first)) * Math.cos(2 * Math.PI * second);
+  };
 };
 
 const generateHistoricalData = (symbolId, years = 3) => {
@@ -98,6 +71,10 @@ const generateHistoricalData = (symbolId, years = 3) => {
   const config = getSymbolConfig(symbolId);
   let previousClose = config.basePrice;
 
+  // Deterministic RNG seeded by symbolId
+  const baseRng = createSeededRng(`historical-${symbolId}-${years}`);
+  const standardNormal = createDeterministicStandardNormal(baseRng);
+
   for (let index = 0; index < totalHours; index++) {
     const timestamp = now - (totalHours - index) * 3_600_000;
     const month = new Date(timestamp).getMonth();
@@ -107,14 +84,13 @@ const generateHistoricalData = (symbolId, years = 3) => {
 
     const open = previousClose;
     const close = Math.max(MARKET_PARAMS.minPrice, open * Math.exp(drift + diffusion));
-    const high = Math.max(open, close) * (1 + Math.random() * MARKET_PARAMS.candleWickRange);
-    const low = Math.max(MARKET_PARAMS.minPrice, Math.min(open, close) * (1 - Math.random() * MARKET_PARAMS.candleWickRange));
-    const volume = Math.floor(
-      Math.random() * (MARKET_PARAMS.maxVolume - MARKET_PARAMS.minVolume + 1) + MARKET_PARAMS.minVolume,
-    );
-    const openInterest = Math.floor(
-      Math.random() * (MARKET_PARAMS.maxOpenInterest - MARKET_PARAMS.minOpenInterest + 1) + MARKET_PARAMS.minOpenInterest,
-    );
+    // Deterministic wick using rng
+    const wickHighFactor = baseRng() * MARKET_PARAMS.candleWickRange;
+    const wickLowFactor = baseRng() * MARKET_PARAMS.candleWickRange;
+    const high = Math.max(open, close) * (1 + wickHighFactor);
+    const low = Math.max(MARKET_PARAMS.minPrice, Math.min(open, close) * (1 - wickLowFactor));
+    const volume = Math.floor(baseRng() * (MARKET_PARAMS.maxVolume - MARKET_PARAMS.minVolume + 1) + MARKET_PARAMS.minVolume);
+    const openInterest = Math.floor(baseRng() * (MARKET_PARAMS.maxOpenInterest - MARKET_PARAMS.minOpenInterest + 1) + MARKET_PARAMS.minOpenInterest);
 
     candles.push({
       timestamp,

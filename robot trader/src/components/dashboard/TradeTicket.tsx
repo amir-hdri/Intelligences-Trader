@@ -28,9 +28,11 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
 }) => {
   const [side, setSide] = useState<'BUY' | 'SELL'>(forecast?.action === 'SELL' ? 'SELL' : 'BUY');
   const [quantity, setQuantity] = useState<number>(10);
-  const [entryPrice, setEntryPrice] = useState<number>(forecast?.entryPrice || 2481);
-  const [stopLoss, setStopLoss] = useState<number>(forecast?.stopLoss || 2420);
-  const [takeProfit, setTakeProfit] = useState<number>(forecast?.targetPrice || 2636);
+  // Real market price fallback - no hard-coded 2481 etc., use symbol limits or forecast
+  const fallbackPrice = symbol.priceLimit?.up ?? 1000000;
+  const [entryPrice, setEntryPrice] = useState<number>(forecast?.entryPrice || fallbackPrice);
+  const [stopLoss, setStopLoss] = useState<number>(forecast?.stopLoss || (fallbackPrice * 0.97));
+  const [takeProfit, setTakeProfit] = useState<number>(forecast?.targetPrice || (fallbackPrice * 1.05));
   const [leverage, setLeverage] = useState<number>(3);
   const [showReviewModal, setShowReviewModal] = useState<boolean>(false);
 
