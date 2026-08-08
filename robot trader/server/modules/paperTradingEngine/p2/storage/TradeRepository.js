@@ -17,7 +17,6 @@ export class TradeRepository {
   }
 
   async _init() {
-    if (process.env.REDIS_DISABLED === 'true') return;
     const connectionString = process.env.DATABASE_URL || 'postgres://user:pass@localhost:5432/paper_trading';
     if (process.env.DATABASE_DISABLED === 'true') return;
 
