@@ -57,6 +57,7 @@ export const NAV: NavGroup[] = [
     label: 'Trading',
     items: [
       { id: 'trade', label: 'Trade Execution', icon: Target },
+      { id: 'paper', label: 'Paper Trading (P2)', icon: PieChart },
       { id: 'positions', label: 'Open Positions', icon: ShieldCheck },
       { id: 'orders', label: 'Order Ledger', icon: BarChart3 },
       { id: 'history', label: 'Trade History', icon: History },
