@@ -1,87 +1,20 @@
 @import "tailwindcss";
-
 @theme {
-  --font-sans: 'Inter', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-sans: 'Inter', 'Geist', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
-
 @layer base {
-  body {
-    @apply bg-[#030712] text-slate-200 antialiased selection:bg-indigo-500/30 selection:text-indigo-200;
-  }
+  body { @apply bg-[#05070B] text-[#F8FAFC] antialiased selection:bg-violet-500/30; font-family: var(--font-sans); }
+  *{ scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.12) transparent; }
 }
-
 @layer utilities {
-  .glass-panel {
-    @apply bg-slate-900/60 backdrop-blur-xl border border-slate-800/50 shadow-2xl;
-  }
-  
-  .glass-card {
-    @apply bg-slate-800/40 backdrop-blur-md border border-slate-700/50 shadow-lg transition-all hover:bg-slate-800/60 hover:border-slate-600/50;
-  }
-
-  .text-glow {
-    text-shadow: 0 0 20px rgba(129, 140, 248, 0.6);
-  }
-
-  .text-glow-emerald {
-    text-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
-  }
-
-  .text-glow-rose {
-    text-shadow: 0 0 20px rgba(244, 63, 94, 0.6);
-  }
-
-  .bg-grid-mesh {
-    background-size: 50px 50px;
-    background-image: linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-                      linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
-  }
+  .glass-panel{ @apply bg-[#0B0F17] border border-white/[0.07] shadow-2xl }
+  .glass-card{ @apply bg-[#101620] border border-white/[0.07] }
+  .elevated{ @apply bg-[#151C27] border border-white/[0.07] }
+  .mono{ font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .shimmer{ background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 37%, rgba(255,255,255,0.06) 63%); background-size:400% 100%; animation: shimmer 1.4s ease infinite; }
+  @keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
 }
-
-@keyframes spin-slow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes pulse-slow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-@keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-  100% { transform: translateY(0px); }
-}
-
-.animate-spin-slow {
-  animation: spin-slow 4s linear infinite;
-}
-
-.animate-pulse-slow {
-  animation: pulse-slow 3s ease-in-out infinite;
-}
-
-.animate-float {
-  animation: float 6s ease-in-out infinite;
-}
-
-/* Modern Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  @apply bg-transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  @apply bg-slate-700/50 rounded-full hover:bg-slate-600/80 transition-colors;
-}
-
-/* Focus outline globally */
-*:focus-visible {
-  @apply outline-none ring-2 ring-indigo-500/50 ring-offset-2 ring-offset-slate-950 rounded-sm transition-shadow;
-}
+::-webkit-scrollbar{ width:6px; height:6px }
+::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.10); border-radius:999px }
+*:focus-visible{ @apply outline-none ring-2 ring-violet-500/40 ring-offset-0 }
