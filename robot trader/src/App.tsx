@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import MetricCard from './components/common/MetricCard';
 import WalkForwardChart from './components/charts/WalkForwardChart';
@@ -17,7 +17,7 @@ import { IME_SYMBOLS, DEFAULT_API_CONFIG, INITIAL_METRICS, DEFAULT_RISK_LIMITS }
 import { 
   ApiConfig, SystemMetrics, TradeLogEntry, RiskLimits, RiskStatus 
 } from './types';
-import { StrategyWeights, DEFAULT_WEIGHTS } from './dataUtils';
+import { DEFAULT_WEIGHTS } from './dataUtils';
 import { RiskEngine } from './riskEngine';
 import { 
   AlertCircle, BrainCircuit, ShieldCheck, Zap, TrendingUp, BarChart3
@@ -53,15 +53,24 @@ const App: React.FC = () => {
   // WebSocket Hook
   const { connectionState } = useWebSocket(selectedSymbolId, setOrderBook, handlePriceUpdate);
 
-  // Risk Engine
-  const riskEngine = useMemo(() => new RiskEngine(riskLimits, metrics.balance || 1000000), [riskLimits, metrics.balance]);
-  const [riskStatus, setRiskStatus] = useState<RiskStatus>(riskEngine.getStatus());
+  // Keep one stateful risk engine for the session. Reconstructing it on every
+  // balance update would erase drawdown history and silently disable the kill switch.
+  const riskEngineRef = useRef<RiskEngine | null>(null);
+  if (!riskEngineRef.current) {
+    riskEngineRef.current = new RiskEngine(riskLimits, metrics.balance || INITIAL_METRICS.balance);
+  }
+  const riskEngine = riskEngineRef.current;
+  const [riskStatus, setRiskStatus] = useState<RiskStatus>(() => riskEngine.getStatus());
 
   const executeTrade = () => {
     if (!forecast) return;
 
-    const advancedRiskData = (forecast as any).backendRisk ? { var95: (forecast as any).backendRisk.var95 } : undefined;
-    const validation = riskEngine.validateTrade(forecast, metrics.activeOrders, selectedSymbol, advancedRiskData);
+    const validation = riskEngine.validateTrade(
+      forecast,
+      metrics.activeOrders,
+      selectedSymbol,
+      forecast.backendRisk,
+    );
     
     if (!validation.allowed) {
       alert(`Trade Rejected: ${validation.reason}`);
@@ -96,7 +105,7 @@ const App: React.FC = () => {
     riskEngine.updateEquity(newBalance, metrics.activeOrders * 50000);
     setRiskStatus(riskEngine.getStatus());
 
-    alert(`Trade Executed: ${forecast.action} @ ${price.toLocaleString()}\nResult: ${isWin ? 'PROFIT' : 'LOSS'} (${pnl.toFixed(0)})\nNew Balance: ${newBalance.toFixed(0)}`);
+    alert(`Paper Trade Simulated: ${forecast.action} @ ${price.toLocaleString()}\nSynthetic Result: ${isWin ? 'PROFIT' : 'LOSS'} (${pnl.toFixed(0)})\nPaper Balance: ${newBalance.toFixed(0)}`);
   };
 
   const handleRollover = () => {
@@ -119,24 +128,36 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData();
-    const interval = setInterval(() => {
-      setMetrics(prev => {
-        const [h, m, s] = prev.uptime.split(':').map(Number);
-        const nextS = (s + 1) % 60;
-        const nextM = (m + (s + 1 >= 60 ? 1 : 0)) % 60;
-        const nextH = h + (m + (s + 1 >= 60 ? 1 : 0) >= 60 ? 1 : 0);
+    void loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    riskEngine.setLimits(riskLimits);
+    setRiskStatus(riskEngine.getStatus());
+  }, [riskEngine, riskLimits]);
+
+  useEffect(() => {
+    riskEngine.updatePerformanceMetrics(metrics.winRate, metrics.profitFactor);
+    riskEngine.updateEquity(metrics.balance || INITIAL_METRICS.balance, metrics.activeOrders * 50000);
+    setRiskStatus(riskEngine.getStatus());
+  }, [riskEngine, metrics.balance, metrics.activeOrders, metrics.winRate, metrics.profitFactor]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setMetrics(previous => {
+        const [hours = 0, minutes = 0, seconds = 0] = previous.uptime.split(':').map(Number);
+        const elapsed = hours * 3600 + minutes * 60 + seconds + 1;
+        const nextHours = Math.floor(elapsed / 3600);
+        const nextMinutes = Math.floor((elapsed % 3600) / 60);
+        const nextSeconds = elapsed % 60;
         return {
-          ...prev,
-          uptime: `${nextH.toString().padStart(2, '0')}:${nextM.toString().padStart(2, '0')}:${nextS.toString().padStart(2, '0')}`,
-          latency: Math.floor(Math.random() * 20) + 5
+          ...previous,
+          uptime: `${nextHours.toString().padStart(2, '0')}:${nextMinutes.toString().padStart(2, '0')}:${nextSeconds.toString().padStart(2, '0')}`,
         };
       });
-      riskEngine.updateEquity(metrics.balance || 1000000, metrics.activeOrders * 50000);
-      setRiskStatus(riskEngine.getStatus());
     }, 1000);
-    return () => clearInterval(interval);
-  }, [selectedSymbolId, apiConfig, loadData]);
+    return () => window.clearInterval(interval);
+  }, [setMetrics]);
 
   return (
     <div className="flex h-screen bg-[#030712] bg-grid-mesh overflow-hidden text-slate-200 font-sans selection:bg-indigo-500/30">
@@ -167,7 +188,7 @@ const App: React.FC = () => {
                 <MetricCard title="Bubble Gap" value={forecast?.bubbleGap !== undefined ? `${(forecast.bubbleGap * 100).toFixed(1)}%` : '0%'} icon={Zap} trend={{ value: forecast?.bubbleGap || 0, isPositive: forecast?.bubbleGap ? forecast.bubbleGap > 0 : false }} highlightColor="amber-500" />
                 <MetricCard title="Queue Herding" value={orderBook ? `${(orderBook.queueDynamics.buyRatio * 100).toFixed(1)}%` : '0%'} icon={BarChart3} trend={{ value: orderBook ? orderBook.queueDynamics.buyRatio - 0.5 : 0, isPositive: orderBook ? orderBook.queueDynamics.buyRatio > 0.5 : false }} highlightColor="blue-400" />
                 <MetricCard title="Market Sentiment" value={sentiment ? `${(sentiment.score * 100).toFixed(0)}%` : '0%'} icon={BrainCircuit} highlightColor="emerald-400" />
-                <MetricCard title="Risk Buffer" value={`${(riskStatus.margin.freeMargin / 10000).toFixed(1)}%`} icon={ShieldCheck} highlightColor="indigo-400" />
+                <MetricCard title="Risk Buffer" value={`${(metrics.balance > 0 ? (riskStatus.margin.freeMargin / metrics.balance) * 100 : 0).toFixed(1)}%`} icon={ShieldCheck} highlightColor="indigo-400" />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">

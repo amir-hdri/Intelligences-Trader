@@ -56,6 +56,10 @@ def generate_synthetic_data(n_steps=1000):
     return prices, market_data
 
 def train_ppo(epochs=5, batch_size=32, lr=3e-4):
+    if epochs < 1 or batch_size < 1 or lr <= 0:
+        raise ValueError("epochs, batch_size, and learning rate must be positive")
+    np.random.seed(42)
+    torch.manual_seed(42)
     print("Generating synthetic market data...")
     prices, raw_market_data = generate_synthetic_data(1000)
     
@@ -129,20 +133,23 @@ def train_ppo(epochs=5, batch_size=32, lr=3e-4):
         values_t = torch.FloatTensor(np.array(values))        # [T]
         dones_t = torch.FloatTensor(np.array(dones))          # [T]
         
-        # Calculate returns and advantages (Generalized Advantage Estimation - GAE)
-        returns = []
-        discounted_sum = 0
-        for r, d in zip(reversed(rewards), reversed(dones)):
-            if d:
-                discounted_sum = 0
-            discounted_sum = r + 0.99 * discounted_sum
-            returns.insert(0, discounted_sum)
-            
-        returns_t = torch.FloatTensor(returns)
-        advantages_t = returns_t - values_t
-        
-        # Normalize advantages
-        advantages_t = (advantages_t - advantages_t.mean()) / (advantages_t.std() + 1e-8)
+        # Generalized Advantage Estimation (GAE-lambda)
+        advantages = np.zeros(len(rewards), dtype=np.float32)
+        gae = 0.0
+        gamma = 0.99
+        gae_lambda = 0.95
+        for t in reversed(range(len(rewards))):
+            not_done = 0.0 if dones[t] else 1.0
+            next_value = values[t + 1] if t + 1 < len(values) else 0.0
+            delta = rewards[t] + gamma * next_value * not_done - values[t]
+            gae = delta + gamma * gae_lambda * not_done * gae
+            advantages[t] = gae
+
+        advantages_t = torch.from_numpy(advantages)
+        returns_t = advantages_t + values_t
+
+        # Normalize advantages without the single-sample unbiased-std NaN edge case.
+        advantages_t = (advantages_t - advantages_t.mean()) / (advantages_t.std(unbiased=False) + 1e-8)
         
         # PPO Update step
         for i in range(0, len(states), batch_size):

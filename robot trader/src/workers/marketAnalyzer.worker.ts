@@ -39,7 +39,10 @@ self.onmessage = async (e: MessageEvent) => {
         throw new Error(`Unknown worker message type: ${type}`);
     }
     self.postMessage({ id, result });
-  } catch (error: any) {
-    self.postMessage({ id, error: error.message || 'Unknown worker error' });
+  } catch (error: unknown) {
+    self.postMessage({
+      id,
+      error: error instanceof Error ? error.message : 'Unknown worker error',
+    });
   }
 };

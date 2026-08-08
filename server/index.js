@@ -1,257 +1,269 @@
 import logger from './logger.js';
-const apiMetrics = () => (req, res, next) => next();
 import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
-import * as cheerio from 'cheerio';
-import { WebSocketServer } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import dotenv from 'dotenv';
-dotenv.config();
 import rateLimit from 'express-rate-limit';
-import jwt from 'jsonwebtoken';
+import { pathToFileURL } from 'node:url';
+import path from 'node:path';
 
+dotenv.config();
+
+const configuredPort = Number.parseInt(process.env.PORT || '3001', 10);
+if (!Number.isInteger(configuredPort) || configuredPort < 1 || configuredPort > 65535) {
+  throw new Error('PORT must be a valid TCP port');
+}
+
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+const requestMetrics = { total: 0, errors: 0, durationMs: 0 };
+const marketCache = new Map();
+const CACHE_TTL_MS = 15_000;
+const TSETMC_URL = 'https://cdn.tsetmc.com/api/Instrument/GetInstrumentHistory/';
+const SYMBOL_PATTERN = /^[A-Z0-9-]{1,64}$/;
 
 export const app = express();
-app.use(apiMetrics());
-const PORT = process.env.PORT || 3001;
-
-const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
-app.use(cors({ origin: corsOrigin }));
-app.use(express.json());
-
-// Fix: Prevent hardcoded JWT_SECRET fallback vulnerability by enforcing existence
-if (!process.env.JWT_SECRET) {
-  console.error('FATAL ERROR: JWT_SECRET environment variable is not defined.');
-  process.exit(1);
-}
-const JWT_SECRET = process.env.JWT_SECRET;
-
-// Rate limiter: max 100 requests per minute
-const apiLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again after a minute',
-  standardHeaders: true,
-  legacyHeaders: false,
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  const startedAt = performance.now();
+  requestMetrics.total += 1;
+  res.on('finish', () => {
+    requestMetrics.durationMs += performance.now() - startedAt;
+    if (res.statusCode >= 500) requestMetrics.errors += 1;
+  });
+  next();
 });
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) callback(null, true);
+    else callback(new Error('Origin is not allowed by CORS policy'));
+  },
+}));
+app.use(express.json({ limit: '100kb' }));
+app.use('/api/', rateLimit({
+  windowMs: 60_000,
+  limit: 100,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'Too many requests; retry after one minute' },
+}));
 
-// Apply rate limiter
-app.use('/api/', apiLimiter);
+const requireSymbol = (req, res, next) => {
+  const symbol = String(req.params.symbol || '').toUpperCase();
+  if (!SYMBOL_PATTERN.test(symbol)) return res.status(400).json({ error: 'Invalid symbol format' });
+  req.marketSymbol = symbol;
+  next();
+};
 
-// Optional: JWT verification middleware could be added here
+const instrumentIdForSymbol = symbol => symbol.includes('GOLD')
+  ? '35425587644337450'
+  : '65883838195688438';
 
+const fetchRealMarketData = async symbol => {
+  const cached = marketCache.get(symbol);
+  if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) return cached.data;
 
-// Market Data Cache
-const marketCache = {};
-
-// Helper: Fetch IME specific data (Futures)
-const TSETMC_URL = 'http://cdn.tsetmc.com/api/Instrument/GetInstrumentHistory/';
-
-// Mock Data for "Real" Simulation if API fails (likely in sandbox)
-const getRealMarketData = async (symbolId) => {
   try {
-    // Attempt to fetch from TSETMC (Example ID for Gold Futures)
-    const tsetmcId = symbolId.indexOf('GOLD') !== -1 ? '35425587644337450' : '65883838195688438';
-    const response = await axios.get(`${TSETMC_URL}${tsetmcId}`, {
-      timeout: 5000,
-      headers: { 'User-Agent': 'Mozilla/5.0' }
+    const response = await axios.get(`${TSETMC_URL}${instrumentIdForSymbol(symbol)}`, {
+      timeout: 5_000,
+      maxContentLength: 5 * 1024 * 1024,
+      headers: { 'User-Agent': 'Intelligences-Trader/2.5 (+educational-market-client)' },
+      validateStatus: status => status === 200,
     });
+    marketCache.set(symbol, { cachedAt: Date.now(), data: response.data });
     return response.data;
   } catch (error) {
-    logger.warn(`Failed to fetch real data for ${symbolId}. Using fallback simulation. Error: ${error.message}`);
+    logger.warn('Real market fetch failed; using explicitly-labelled simulation', {
+      symbol,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 };
 
-app.get('/api/market/:symbol', async (req, res) => {
-  const { symbol } = req.params;
-
-  // 1. Try to get Real Data
-  const realData = await getRealMarketData(symbol);
-
-  if (realData && realData.instrumentHistory) {
-     const formatted = realData.instrumentHistory.map(item => ({
-       date: item.date,
-       open: item.openPrice,
-       high: item.highPrice,
-       low: item.lowPrice,
-       close: item.closingPrice,
-       volume: item.volume,
-       count: item.count
-     }));
-     return res.json({ source: 'TSETMC_API', data: formatted });
-  }
-
-  // 2. Fallback to "Professional Simulation" if API is unreachable (Sandbox environment)
-
-  const now = new Date();
+const generateSimulation = (symbol, count = 100) => {
+  const now = Date.now();
   const data = [];
-  let price = symbol.includes('GOLD') ? 35000000 : 1200000; // Realistic IRR prices
-  let openInterest = 5000;
+  let price = symbol.includes('GOLD') ? 35_000_000 : 1_200_000;
+  let openInterest = 5_000;
 
-  for (let i = 0; i < 100; i++) {
-    const date = new Date(now.getTime() - (100 - i) * 24 * 60 * 60 * 1000);
-
-    // Simulate Limit Up/Down (common in IME)
-    const isLimitUp = Math.random() > 0.95;
-    const isLimitDown = Math.random() > 0.95;
-
-    let change = (Math.random() - 0.5) * 0.02; // 2% daily volatility
-    if (isLimitUp) change = 0.05; // +5%
-    if (isLimitDown) change = -0.05; // -5%
-
-    const close = Math.floor(price * (1 + change));
-    const open = Math.floor(price * (1 + (Math.random() - 0.5) * 0.005));
-    const computedHigh = Math.floor(price * (1 + Math.abs(change) + 0.005));
-    let high = open > close ? open : close;
-    if (computedHigh > high) high = computedHigh;
-
-    const computedLow = Math.floor(price * (1 - Math.abs(change) - 0.005));
-    let low = open < close ? open : close;
-    if (computedLow < low) low = computedLow;
-    const volume = Math.floor(Math.random() * 100000) + 5000;
-
-    // Open Interest Logic (increasing near expiry)
-    openInterest += Math.floor((Math.random() - 0.4) * 500);
-
+  for (let index = 0; index < count; index++) {
+    const timestamp = now - (count - index) * 86_400_000;
+    const limitEvent = Math.random();
+    const change = limitEvent > 0.97 ? 0.05 : limitEvent < 0.03 ? -0.05 : (Math.random() - 0.5) * 0.02;
+    const close = Math.max(1, Math.floor(price * (1 + change)));
+    const open = Math.max(1, Math.floor(price * (1 + (Math.random() - 0.5) * 0.005)));
+    const high = Math.max(open, close, Math.floor(price * (1 + Math.abs(change) + 0.005)));
+    const low = Math.max(1, Math.min(open, close, Math.floor(price * (1 - Math.abs(change) - 0.005))));
+    openInterest = Math.max(0, openInterest + Math.floor((Math.random() - 0.4) * 500));
     data.push({
-      timestamp: date.getTime(),
+      timestamp,
       open,
       high,
       low,
       close,
-      volume,
-      openInterest: Math.max(0, openInterest),
-      // IME Specifics
-      basis: symbol.includes('FUT') ? close - (close * (0.98 + Math.random() * 0.04)) : 0, // Basis = Future - Spot
+      volume: Math.floor(Math.random() * 100_000) + 5_000,
+      openInterest,
+      basis: symbol.includes('FUT') ? close * (Math.random() * 0.04 - 0.02) : 0,
     });
     price = close;
   }
+  return data;
+};
 
-  res.json({ source: 'PROFESSIONAL_SIM', data });
-});
-
-app.get('/api/orderbook/:symbol', (req, res) => {
-  // Simulate Level 2 Data (Market Depth)
-  const { symbol } = req.params;
-  const price = symbol.includes('GOLD') ? 35000000 : 1200000;
-
+const generateOrderBook = basePrice => {
   const bids = [];
   const asks = [];
-
-  for(let i=0; i<5; i++) {
-     bids.push({ price: price - (i+1)*100, quantity: Math.floor(Math.random() * 50), count: Math.floor(Math.random() * 5) + 1 });
-     asks.push({ price: price + (i+1)*100, quantity: Math.floor(Math.random() * 50), count: Math.floor(Math.random() * 5) + 1 });
+  for (let level = 1; level <= 5; level++) {
+    bids.push({ price: basePrice - level * 100, quantity: Math.floor(Math.random() * 50), count: Math.floor(Math.random() * 5) + 1 });
+    asks.push({ price: basePrice + level * 100, quantity: Math.floor(Math.random() * 50), count: Math.floor(Math.random() * 5) + 1 });
   }
+  return { timestamp: Date.now(), bids, asks, isSpoofing: Math.random() > 0.98 };
+};
 
-  res.json({
-     timestamp: Date.now(),
-     bids,
-     asks,
-     isSpoofing: Math.random() > 0.98 // Occasional spoofing detection
-  });
+app.get('/api/market/:symbol', requireSymbol, async (req, res) => {
+  const symbol = req.marketSymbol;
+  const realData = await fetchRealMarketData(symbol);
+  if (Array.isArray(realData?.instrumentHistory)) {
+    const formatted = realData.instrumentHistory
+      .map(item => ({
+        timestamp: Number(item.date),
+        open: Number(item.openPrice),
+        high: Number(item.highPrice),
+        low: Number(item.lowPrice),
+        close: Number(item.closingPrice),
+        volume: Number(item.volume),
+        count: Number(item.count),
+      }))
+      .filter(item => [item.open, item.high, item.low, item.close, item.volume].every(Number.isFinite));
+    if (formatted.length > 0) return res.json({ source: 'TSETMC_API', simulated: false, data: formatted });
+  }
+  return res.json({ source: 'DIGITAL_TWIN', simulated: true, data: generateSimulation(symbol) });
+});
+
+app.get('/api/orderbook/:symbol', requireSymbol, (req, res) => {
+  const basePrice = req.marketSymbol.includes('GOLD') ? 35_000_000 : 1_200_000;
+  res.json(generateOrderBook(basePrice));
 });
 
 app.get('/api/status', (req, res) => {
-  res.json({ status: 'Online', service: 'TSE Proxy Gateway Server', version: '1.0.0' });
+  res.json({ status: 'Online', service: 'TSE Proxy Gateway Server', version: '1.1.0' });
 });
 
-app.use((err, req, res, next) => {
-  logger.error(err.stack);
-  res.status(500).json({ error: 'Internal Server Error' });
+app.get('/metrics', (req, res) => {
+  const averageDuration = requestMetrics.total > 0 ? requestMetrics.durationMs / requestMetrics.total : 0;
+  res.type('text/plain').send([
+    '# TYPE http_requests_total counter',
+    `http_requests_total ${requestMetrics.total}`,
+    '# TYPE http_request_errors_total counter',
+    `http_request_errors_total ${requestMetrics.errors}`,
+    '# TYPE http_request_duration_milliseconds gauge',
+    `http_request_duration_milliseconds ${averageDuration.toFixed(3)}`,
+    '',
+  ].join('\n'));
 });
 
-export const server = app.listen(PORT, () => {
-  logger.info(`Proxy Backend listening on port ${PORT}`);
+app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
+app.use((error, req, res, next) => {
+  logger.error('Unhandled proxy request error', { error: error.stack || error.message });
+  if (res.headersSent) return next(error);
+  res.status(error.message === 'Origin is not allowed by CORS policy' ? 403 : 500).json({ error: 'Internal Server Error' });
 });
 
-// WebSocket Server
-export const wss = new WebSocketServer({ server });
+export let server;
+export let wss;
+export let interval;
+export let broadcastInterval;
 
-function noop() {}
-
-function heartbeat() {
+const heartbeat = function heartbeat() {
   this.isAlive = true;
-}
+};
 
-wss.on('connection', (ws, req) => {
-  ws.isAlive = true;
-  ws.on('pong', heartbeat);
+export const startServer = (port = configuredPort) => {
+  if (server?.listening) return server;
+  server = app.listen(port, '0.0.0.0', () => logger.info(`Proxy Backend listening on port ${port}`));
+  wss = new WebSocketServer({ server, maxPayload: 16 * 1024 });
 
-  const url = new URL(req.url, `ws://${req.headers.host}`);
-  const symbol = url.searchParams.get('symbol') || 'SAF1403';
-  ws.basePrice = symbol.includes('GOLD') ? 35000000 : 1200000;
-  ws.symbol = symbol;
-
-  logger.info(`WebSocket connected for symbol: ${symbol}`);
-
-  // Initial message is optional; we just broadcast periodically
-});
-
-export const interval = setInterval(() => {
-  wss.clients.forEach((ws) => {
-    if (ws.isAlive === false) return ws.terminate();
-    ws.isAlive = false;
-    ws.ping(noop);
-  });
-}, 30000); // 30s heartbeat interval
-
-let currentPrice = 1200000;
-
-// Broadcast data every 100ms
-export const broadcastInterval = setInterval(() => {
-  wss.clients.forEach((ws) => {
-    if (ws.readyState === 1) { // OPEN
-      const symbol = ws.symbol;
-      const basePrice = ws.basePrice;
-
-
-      const change = (Math.random() - 0.5) * 1000;
-      currentPrice = basePrice + change;
-
-      const bids = [];
-      const asks = [];
-
-      for(let i=0; i<5; i++) {
-         bids.push({ price: currentPrice - (i+1)*100, quantity: Math.floor(Math.random() * 50), count: Math.floor(Math.random() * 5) + 1 });
-         asks.push({ price: currentPrice + (i+1)*100, quantity: Math.floor(Math.random() * 50), count: Math.floor(Math.random() * 5) + 1 });
-      }
-
-      const orderBook = {
-        type: 'ORDER_BOOK',
-        data: {
-          timestamp: Date.now(),
-          bids,
-          asks,
-          isSpoofing: Math.random() > 0.98
-        }
-      };
-
-      const tradeTick = {
-        type: 'TRADE_TICK',
-        data: {
-          price: currentPrice,
-          volume: Math.floor(Math.random() * 100),
-          timestamp: Date.now()
-        }
-      };
-
-      const priceChange = {
-        type: 'PRICE_CHANGE',
-        data: {
-          price: currentPrice,
-          change: change,
-          timestamp: Date.now()
-        }
-      };
-
-      ws.send(JSON.stringify(orderBook));
-      ws.send(JSON.stringify(tradeTick));
-      ws.send(JSON.stringify(priceChange));
+  wss.on('connection', (ws, req) => {
+    let requestUrl;
+    try {
+      requestUrl = new URL(req.url || '/', `ws://${req.headers.host || 'localhost'}`);
+    } catch {
+      ws.close(1008, 'Invalid WebSocket URL');
+      return;
     }
-  });
-}, 100); // 100ms for high-frequency updates, ensuring latency < 50ms and smooth updates
+    const symbol = String(requestUrl.searchParams.get('symbol') || 'SAF1403').toUpperCase();
+    if (!SYMBOL_PATTERN.test(symbol)) {
+      ws.close(1008, 'Invalid symbol');
+      return;
+    }
 
-wss.on('close', () => {
-  clearInterval(interval);
-});
+    ws.isAlive = true;
+    ws.on('pong', heartbeat);
+    ws.symbol = symbol;
+    ws.currentPrice = symbol.includes('GOLD') ? 35_000_000 : 1_200_000;
+    logger.info('WebSocket client connected', { symbol });
+  });
+
+  interval = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (!ws.isAlive) ws.terminate();
+      else {
+        ws.isAlive = false;
+        ws.ping();
+      }
+    }
+  }, 30_000);
+
+  broadcastInterval = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (ws.readyState !== WebSocket.OPEN || ws.bufferedAmount > 1024 * 1024) continue;
+      const change = (Math.random() - 0.5) * 1_000;
+      ws.currentPrice = Math.max(1, ws.currentPrice + change);
+      const orderBook = generateOrderBook(ws.currentPrice);
+      ws.send(JSON.stringify({ type: 'ORDER_BOOK', data: orderBook }));
+      ws.send(JSON.stringify({
+        type: 'TRADE_TICK',
+        data: { price: ws.currentPrice, volume: Math.floor(Math.random() * 100), timestamp: Date.now() },
+      }));
+      ws.send(JSON.stringify({
+        type: 'PRICE_CHANGE',
+        data: { price: ws.currentPrice, change, timestamp: Date.now() },
+      }));
+    }
+  }, 100);
+  return server;
+};
+
+export const stopServer = async () => {
+  if (interval) clearInterval(interval);
+  if (broadcastInterval) clearInterval(broadcastInterval);
+  interval = undefined;
+  broadcastInterval = undefined;
+
+  if (wss) {
+    for (const client of wss.clients) client.terminate();
+    await new Promise(resolve => wss.close(() => resolve()));
+    wss = undefined;
+  }
+  if (server) {
+    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    server = undefined;
+  }
+};
+
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  startServer();
+  const shutdown = signal => {
+    logger.info(`Received ${signal}; shutting down proxy`);
+    stopServer().catch(error => {
+      logger.error('Proxy shutdown failed', { error: error.message });
+      process.exitCode = 1;
+    });
+  };
+  process.once('SIGINT', () => shutdown('SIGINT'));
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+}

@@ -34,17 +34,28 @@ def test_rolling_normalization():
     data = [10, 12, 11, 13, 12, 14, 15]
     z = rolling_zscore(data, window=5)
     assert len(z) == len(data)
-    # The rolling zscore should run without exceptions and have no NaNs
     assert not any(np.isnan(val) for val in z)
+    assert rolling_zscore([5, 5, 5], window=3) == [0.0, 0.0, 0.0]
+
+    with pytest.raises(ValueError, match="positive integer"):
+        rolling_zscore(data, window=0)
+
+
+def test_obi_rejects_invalid_quantities():
+    with pytest.raises(ValueError, match="non-negative"):
+        calculate_obi([{"price": 100, "quantity": -1}], [{"price": 101, "quantity": 1}])
 
 def test_hmm_regime_classification():
     prices = [100.0, 101.0, 100.5, 99.0, 98.0, 99.5, 101.0, 103.0, 104.0, 102.5, 101.0, 100.0, 101.5, 103.0, 102.0, 101.0]
     detector = MarketRegimeDetector(n_components=3)
     detector.fit(prices)
-    
+
     assert detector.is_fitted
     regime = detector.predict_current_regime(prices)
     assert regime in [0, 1, 2]
+
+    short_history_detector = MarketRegimeDetector().fit([100.0, 101.0, 100.5])
+    assert short_history_detector.predict_regime([100.0, 101.0, 100.5]) == [1, 1, 1]
 
 def test_trading_environment():
     # Construct small mock dataset
@@ -65,8 +76,8 @@ def test_trading_environment():
     assert state[0] == 1.0  # Regime
     assert state[1] == 0.0  # Initial Drawdown
     
-    # Step into environment: Buy (direction = 1.0, size = 0.5)
-    next_state, reward, done, truncated, info = env.step(np.array([1.0, 0.5], dtype=np.float32))
+    # Step into environment: Buy (direction class = 2, size = 0.5)
+    next_state, reward, done, truncated, info = env.step(np.array([2.0, 0.5], dtype=np.float32))
     assert len(next_state) == 5
     assert not done
     assert info['balance'] > 0
@@ -77,7 +88,10 @@ def test_safety_circuit_breaker():
     
     # Check regular order validation
     assert cb.validate_order(direction=2, size=0.10)  # BUY 10% is allowed
-    
+    assert cb.validate_order(direction=1, size=0.0)   # HOLD is a zero-size no-op
+    with pytest.raises(CircuitBreakerViolation, match="HOLD orders"):
+        cb.validate_order(direction=1, size=0.10)
+
     # Check position limit violation
     with pytest.raises(CircuitBreakerViolation, match="exceeds maximum limit"):
         cb.validate_order(direction=2, size=0.25)  # BUY 25% exceeds 20% limit

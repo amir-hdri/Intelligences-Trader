@@ -23,3 +23,9 @@ __pycache__/
 venv/
 .venv/
 .env
+
+# Generated test/build output
+robot trader/test-out/
+robot trader/dist/
+robot trader/test-results/
+robot trader/playwright-report/

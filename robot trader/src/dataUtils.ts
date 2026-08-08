@@ -16,21 +16,6 @@ import type {
 import { INDICATOR_PARAMS, DEFAULT_API_CONFIG } from "./constants";
 import Sentiment from "sentiment";
 
-import { WorkerPool } from "./workers/workerPool";
-// Module-level worker pool for testing/analysis dispatch
-
-// Avoid import.meta.url in CommonJS test environments
-const isBrowser = typeof window !== "undefined";
-const workerUrl = isBrowser
-  ? new URL("./workers/marketAnalyzer.worker.ts", window.location.href).href
-  : "./workers/marketAnalyzer.worker.ts";
-
-// We must only instantiate the WorkerPool in environments where Worker exists
-const analysisWorkerPool =
-  typeof Worker !== "undefined"
-    ? new WorkerPool(workerUrl as string | URL, 2)
-    : null;
-
 const sentiment = new Sentiment();
 
 // Module-level storage for simulation state to ensure continuity
@@ -43,37 +28,43 @@ export class TseApiClient {
     this.config = config;
   }
 
-  async fetchMarketData(symbolId: string): Promise<MarketCandle[]> {
-    // 1. Prioritize real API on localhost proxy
-    const apiUrl = this.config.proxyUrl;
+  private apiUrl(path: string): string {
+    const apiUrl = this.config.proxyUrl?.trim().replace(/\/$/, "");
     if (!apiUrl) throw new Error("API proxy URL is not configured");
+    return `${apiUrl}${path}`;
+  }
+
+  private requestHeaders(includeJson = false): HeadersInit {
+    return {
+      ...(includeJson ? { "Content-Type": "application/json" } : {}),
+      ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
+    };
+  }
+
+  async fetchMarketData(symbolId: string): Promise<MarketCandle[]> {
+    const url = this.apiUrl(`/api/tse/${encodeURIComponent(symbolId)}`);
 
     try {
-      const response = await fetch(`${apiUrl}/api/tse/${symbolId}`);
-      if (!response.ok) throw new Error("Network response was not ok");
-      const json = await response.json();
-      // Relax success check for test compatibility if json.data exists
-      if (json.data) {
-        return json.data;
-      }
-      throw new Error("Invalid real data format");
+      const response = await fetch(url, { headers: this.requestHeaders() });
+      if (!response.ok) throw new Error(`Market API returned HTTP ${response.status}`);
+      const json: unknown = await response.json();
+      const data = (json as { data?: unknown })?.data;
+      if (Array.isArray(data)) return data as MarketCandle[];
+      throw new Error("Invalid real market data format");
     } catch (error) {
-      console.error("Failed to fetch from Real API proxy", error);
-      if (this.config.useDigitalTwin === false) {
-        return [];
-      }
+      console.error("Failed to fetch from real market API", error);
+      if (!this.config.useDigitalTwin) return [];
       return this.generateDigitalTwinData(symbolId);
     }
   }
 
-  async fetchAdvancedMetrics(historyData: MarketCandle[]) {
-    const apiUrl = this.config.proxyUrl;
-    if (!apiUrl) throw new Error("API proxy URL is not configured");
+  async fetchAdvancedMetrics(historyData: MarketCandle[]): Promise<unknown | null> {
+    const url = this.apiUrl('/api/analyze');
 
     try {
-      const response = await fetch(`${apiUrl}/api/analyze`, {
+      const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.requestHeaders(true),
         body: JSON.stringify({ historyData }),
       });
       if (!response.ok) throw new Error("Network response was not ok");
@@ -101,7 +92,10 @@ export class TseApiClient {
     const apiUrl = this.config.proxyUrl;
     if (apiUrl && this.config.isConnected) {
       try {
-        const response = await fetch(`${apiUrl}/api/orderbook/${symbolId}`);
+        const response = await fetch(
+          this.apiUrl(`/api/orderbook/${encodeURIComponent(symbolId)}`),
+          { headers: this.requestHeaders() },
+        );
         if (response.ok) {
           const json = await response.json();
           if (json.bids && json.asks) {
@@ -289,7 +283,7 @@ export class TseApiClient {
 
   async fetchSentiment(): Promise<SentimentData> {
     try {
-      const response = await fetch("/api/news");
+      const response = await fetch(this.apiUrl('/api/news'), { headers: this.requestHeaders() });
       if (response.ok) {
         const data = await response.json();
         return data.sentiment;
@@ -546,16 +540,18 @@ export class TseApiClient {
 
 // Technical Indicators
 export const calculateRSI = (prices: number[], period: number = 14): number => {
-  if (prices.length < period + 1) return 50;
+  if (!Number.isInteger(period) || period < 1 || prices.length < period + 1) return 50;
   let gains = 0;
   let losses = 0;
 
   for (let i = 1; i <= period; i++) {
     const change = prices[prices.length - i] - prices[prices.length - i - 1];
-    if (change >= 0) gains += change;
+    if (!Number.isFinite(change)) return 50;
+    if (change > 0) gains += change;
     else losses -= change;
   }
 
+  if (gains === 0 && losses === 0) return 50;
   const avgGain = gains / period;
   const avgLoss = losses / period;
   if (avgLoss === 0) return 100;
@@ -563,45 +559,52 @@ export const calculateRSI = (prices: number[], period: number = 14): number => {
   return 100 - 100 / (1 + rs);
 };
 
-export const calculateEMA = (prices: number[], period: number): number => {
+const calculateEMASeries = (prices: number[], period: number): number[] => {
+  if (prices.length === 0 || !Number.isFinite(period) || period <= 0) return [];
   const k = 2 / (period + 1);
-  let ema = prices[0];
-  for (let i = 1; i < prices.length; i++) {
-    ema = prices[i] * k + ema * (1 - k);
-  }
-  return ema;
+  const values = new Array<number>(prices.length);
+  values[0] = prices[0];
+  for (let i = 1; i < prices.length; i++) values[i] = prices[i] * k + values[i - 1] * (1 - k);
+  return values;
+};
+
+export const calculateEMA = (prices: number[], period: number): number => {
+  const values = calculateEMASeries(prices, period);
+  return values.length > 0 ? values[values.length - 1] : 0;
 };
 
 export const calculateMACD = (prices: number[]) => {
-  const ema12 = calculateEMA(prices, INDICATOR_PARAMS.EMA_SHORT);
-  const ema26 = calculateEMA(prices, INDICATOR_PARAMS.EMA_LONG);
-  const macdValue = ema12 - ema26;
-  const signal = macdValue * 0.9;
-  return {
-    value: macdValue,
-    signal: signal,
-    histogram: macdValue - signal,
-  };
+  if (prices.length === 0) return { value: 0, signal: 0, histogram: 0 };
+  const fast = calculateEMASeries(prices, INDICATOR_PARAMS.EMA_SHORT);
+  const slow = calculateEMASeries(prices, INDICATOR_PARAMS.EMA_LONG);
+  const macdSeries = fast.map((value, index) => value - slow[index]);
+  const macdValue = macdSeries[macdSeries.length - 1];
+  const signal = calculateEMA(macdSeries, INDICATOR_PARAMS.SIGNAL_PERIOD);
+  return { value: macdValue, signal, histogram: macdValue - signal };
 };
 
 export const calculateATR = (
   candles: MarketCandle[],
   period: number = 14,
 ): number => {
-  if (candles.length < 2) return 0;
-  const trs = candles.slice(-period).map((c, i, arr) => {
-    if (i === 0) return c.high - c.low;
-    const prevClose = arr[i - 1].close;
-    return Math.max(
-      c.high - c.low,
-      Math.abs(c.high - prevClose),
-      Math.abs(c.low - prevClose),
+  if (candles.length < 2 || !Number.isInteger(period) || period < 1) return 0;
+  const start = Math.max(0, candles.length - period);
+  const trs: number[] = [];
+  for (let i = start; i < candles.length; i++) {
+    const candle = candles[i];
+    const previousClose = i > 0 ? candles[i - 1].close : candle.open;
+    const trueRange = Math.max(
+      candle.high - candle.low,
+      Math.abs(candle.high - previousClose),
+      Math.abs(candle.low - previousClose),
     );
-  });
-  return trs.reduce((a, b) => a + b, 0) / trs.length;
+    if (Number.isFinite(trueRange) && trueRange >= 0) trs.push(trueRange);
+  }
+  return trs.length > 0 ? trs.reduce((a, b) => a + b, 0) / trs.length : 0;
 };
 
 export const calculateIchimoku = (candles: MarketCandle[]) => {
+  if (candles.length === 0) return { tenkan: 0, kijun: 0, senkouA: 0, senkouB: 0 };
   const getHighLowMid = (slice: MarketCandle[]) => {
     if (slice.length === 0) return 0;
     const highs = slice.map((c) => c.high);
@@ -631,10 +634,14 @@ export const calculateBollingerBands = (
   period: number = 20,
   stdDev: number = 2,
 ) => {
-  const slice = prices.slice(-period);
-  const avg = slice.reduce((a, b) => a + b, 0) / period;
-  const squareDiffs = slice.map((p) => Math.pow(p - avg, 2));
-  const variance = squareDiffs.reduce((a, b) => a + b, 0) / period;
+  if (!Number.isInteger(period) || period < 1 || prices.length === 0) {
+    return { upper: 0, middle: 0, lower: 0 };
+  }
+  const slice = prices.slice(-period).filter(Number.isFinite);
+  if (slice.length === 0) return { upper: 0, middle: 0, lower: 0 };
+  const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+  const squareDiffs = slice.map((price) => (price - avg) ** 2);
+  const variance = squareDiffs.reduce((a, b) => a + b, 0) / slice.length;
   const std = Math.sqrt(variance);
   return {
     upper: avg + stdDev * std,
@@ -702,6 +709,7 @@ export const detectMarketRegime = (
   const ema20 = calculateEMA(prices, 20);
   const ema50 = calculateEMA(prices, 50);
   const lastPrice = prices[prices.length - 1];
+  if (!Number.isFinite(lastPrice) || lastPrice <= 0 || !Number.isFinite(atr) || atr < 0) return "RANGING";
 
   const volatility = atr / lastPrice;
   if (volatility > 0.03) return "HIGH_VOLATILITY";
@@ -749,8 +757,7 @@ export interface PrecalculatedIndicators {
   atr: number;
   bb: {
     upper: number;
-    mid?: number;
-    middle?: number;
+    middle: number;
     lower: number;
     bandwidth?: number;
   };
@@ -778,39 +785,6 @@ export const analyzeMarketMTF = (
   const dailyCandles = mtfData["1d"] || [];
   const hourlyCandles = mtfData["1h"] || dailyCandles;
 
-  // Heisenbug Detection: Create a SharedArrayBuffer to detect concurrent writes to strategy weights
-  // Note: Requires cross-origin isolation headers in production.
-  let sharedBuffer: SharedArrayBuffer | undefined;
-  try {
-    sharedBuffer = new SharedArrayBuffer(4); // 4 bytes for an Int32 flag
-  } catch (e) {
-    // SharedArrayBuffer might not be available if COOP/COEP headers aren't set
-    console.warn("SharedArrayBuffer not supported in this environment.", e);
-  }
-
-  // Simulate acquiring the lock on the main thread right before dispatching
-  if (sharedBuffer && analysisWorkerPool) {
-    const flagArray = new Int32Array(sharedBuffer);
-    // Main thread intentionally holds the lock to test the worker's race condition detector
-    // In production, you would only do this while actually mutating the weights object.
-    Atomics.store(flagArray, 0, 1);
-
-    // Dispatch async task to trigger the race condition warning in the worker
-    analysisWorkerPool
-      .executeTask("analyzeMarketMTF", {
-        data: mtfData,
-        symbolId,
-        context: externalMetrics,
-        weights,
-        sharedBuffer,
-      })
-      .catch(console.error)
-      .finally(() => {
-        // Release lock
-        Atomics.store(flagArray, 0, 0);
-      });
-  }
-
   if (dailyCandles.length < 30) {
     return {
       action: "HOLD",
@@ -822,20 +796,22 @@ export const analyzeMarketMTF = (
       sentimentScore: 0,
       basisOpportunity: 0,
       orderBookPressure: 0,
+      politicalRiskIndex: 50,
+      queueDynamicsRatio: 0.5,
       timeframeAnalysis: {},
       indicators: {
         rsi: 50,
         macd: { value: 0, signal: 0, histogram: 0 },
         atr: 0,
-        bollinger: { upper: 0, mid: 0, lower: 0 },
+        bollinger: { upper: 0, middle: 0, lower: 0 },
         ichimoku: { tenkan: 0, kijun: 0, senkouA: 0, senkouB: 0 },
       },
       reason: "Insufficient Data",
-    } as any;
+    };
   }
 
   const lastCandle = hourlyCandles[hourlyCandles.length - 1];
-  const sentimentScore = externalMetrics?.sentiment?.score || 0;
+  const sentimentScore = externalMetrics?.sentiment?.score ?? 0;
 
   const dIchimoku = calculateIchimoku(dailyCandles);
   const dailyTrend =
@@ -958,8 +934,8 @@ export const analyzeMarketMTF = (
   // Use '1h' as default if timeframe is not explicitly passed, though analyzeMarketMTF knows mtfData
   const localVix = Math.sqrt(variance * 252 * (tfMs["1h"] / tfMs["1d"])) * 100;
 
-  let queueDynamicsRatio =
-    externalMetrics?.orderBook?.queueDynamics?.buyRatio || 0.5;
+  const queueDynamicsRatio =
+    externalMetrics?.orderBook?.queueDynamics?.buyRatio ?? 0.5;
 
   if (externalMetrics?.correlation) {
     // Determine dynamic fair value based on global macro covariates
@@ -1025,11 +1001,15 @@ export const analyzeMarketMTF = (
     targetPrice:
       action === "BUY"
         ? lastCandle.close + 3 * atr
-        : lastCandle.close - 3 * atr,
+        : action === "SELL"
+          ? lastCandle.close - 3 * atr
+          : lastCandle.close,
     stopLoss:
       action === "BUY"
         ? lastCandle.close - 1.5 * atr
-        : lastCandle.close + 1.5 * atr,
+        : action === "SELL"
+          ? lastCandle.close + 1.5 * atr
+          : lastCandle.close,
     confidence,
     regime,
     sentimentScore,
@@ -1057,7 +1037,7 @@ export const analyzeMarketMTF = (
       bollinger: {
         upper: bb.upper,
         lower: bb.lower,
-        middle: bb.middle ?? (bb as any).mid ?? (bb.upper + bb.lower) / 2
+        middle: bb.middle
       },
       ichimoku: {
         tenkan: ichimoku.tenkan, kijun: ichimoku.kijun, senkouA: ichimoku.senkouA, senkouB: ichimoku.senkouB

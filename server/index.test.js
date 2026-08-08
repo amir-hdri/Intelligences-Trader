@@ -1,101 +1,90 @@
-import { describe, test, before, after } from 'node:test';
+import { describe, test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert';
 import request from 'supertest';
 import nock from 'nock';
 import { WebSocket } from 'ws';
+import { app, startServer, stopServer } from './index.js';
 
-process.env.JWT_SECRET = 'test-secret';
-process.env.PORT = 3002;
+const historyResponse = {
+  instrumentHistory: [
+    { date: 20230101, openPrice: 100, highPrice: 110, lowPrice: 90, closingPrice: 105, volume: 1000, count: 50 },
+  ],
+};
 
-// Mock external api
-nock('http://cdn.tsetmc.com')
-  .persist()
-  .get(/api\/Instrument\/GetInstrumentHistory\/.*/)
-  .reply(200, {
-    instrumentHistory: [
-      { date: '2023-01-01', openPrice: 100, highPrice: 110, lowPrice: 90, closingPrice: 105, volume: 1000, count: 50 }
-    ]
+describe('Proxy server integration', () => {
+  let port;
+
+  before(async () => {
+    const server = startServer(0);
+    if (!server.listening) await new Promise(resolve => server.once('listening', resolve));
+    port = server.address().port;
   });
 
-const { app, server, wss, interval, broadcastInterval } = await import('./index.js');
+  beforeEach(() => nock.cleanAll());
 
-describe('Server Integration Tests', () => {
-  after(() => {
-    clearInterval(interval);
-    clearInterval(broadcastInterval);
-    server.close();
-    wss.close();
+  after(async () => {
     nock.cleanAll();
+    await stopServer();
   });
 
-  test('GET /api/status should return status', async () => {
-    const response = await request(app).get('/api/status');
-    assert.strictEqual(response.status, 200);
-    assert.strictEqual(response.body.status, 'Online');
-    assert.strictEqual(response.body.service, 'TSE Proxy Gateway Server');
+  test('returns health and Prometheus metrics', async () => {
+    const health = await request(app).get('/api/status');
+    assert.strictEqual(health.status, 200);
+    assert.strictEqual(health.body.status, 'Online');
+
+    const metrics = await request(app).get('/metrics');
+    assert.strictEqual(metrics.status, 200);
+    assert.match(metrics.text, /http_requests_total/);
   });
 
-  test('GET /api/market/:symbol should return market data from API', async () => {
+  test('returns normalized external market history', async () => {
+    nock('https://cdn.tsetmc.com')
+      .get(/api\/Instrument\/GetInstrumentHistory\/.*/)
+      .reply(200, historyResponse);
+
     const response = await request(app).get('/api/market/SAF1403');
     assert.strictEqual(response.status, 200);
-    assert.ok(response.body.data);
     assert.strictEqual(response.body.source, 'TSETMC_API');
+    assert.strictEqual(response.body.simulated, false);
     assert.strictEqual(response.body.data[0].open, 100);
   });
 
-  test('GET /api/market/:symbol should fallback to simulation if API fails', async () => {
-    nock.cleanAll();
-    nock('http://cdn.tsetmc.com')
-      .persist()
+  test('labels fallback data as simulated when the provider fails', async () => {
+    nock('https://cdn.tsetmc.com')
       .get(/api\/Instrument\/GetInstrumentHistory\/.*/)
       .replyWithError('API down');
 
-    const response = await request(app).get('/api/market/SAF1403');
+    const response = await request(app).get('/api/market/STEEL-SPOT');
     assert.strictEqual(response.status, 200);
-    assert.ok(response.body.data);
-    assert.strictEqual(response.body.source, 'PROFESSIONAL_SIM');
+    assert.strictEqual(response.body.source, 'DIGITAL_TWIN');
+    assert.strictEqual(response.body.simulated, true);
+    assert.strictEqual(response.body.data.length, 100);
   });
 
-  test('GET /api/orderbook/:symbol should return orderbook data', async () => {
-    const response = await request(app).get('/api/orderbook/SAF1403');
-    assert.strictEqual(response.status, 200);
-    assert.ok(Array.isArray(response.body.bids));
-    assert.ok(Array.isArray(response.body.asks));
-    assert.ok('timestamp' in response.body);
+  test('rejects malformed symbols', async () => {
+    const response = await request(app).get('/api/market/not%20valid');
+    assert.strictEqual(response.status, 400);
   });
 
-  test('WebSocket should connect and receive market data', () => {
-    return new Promise((resolve, reject) => {
-      const ws = new WebSocket('ws://localhost:3002?symbol=GOLD');
+  test('WebSocket streams a normalized market batch', async () => {
+    await new Promise((resolve, reject) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/?symbol=GOLD`);
+      const messageTypes = new Set();
+      const timeout = setTimeout(() => {
+        ws.terminate();
+        reject(new Error('Timed out waiting for WebSocket market data'));
+      }, 2_000);
 
-      let messagesReceived = 0;
-
-      ws.on('open', () => {
-        // Connected
-      });
-
-      ws.on('message', (data) => {
-        const msg = JSON.parse(data);
-        if (msg.type === 'ORDER_BOOK' || msg.type === 'TRADE_TICK' || msg.type === 'PRICE_CHANGE') {
-          messagesReceived++;
-        }
-
-        if (messagesReceived >= 3) {
+      ws.on('message', data => {
+        const message = JSON.parse(String(data));
+        messageTypes.add(message.type);
+        if (messageTypes.has('ORDER_BOOK') && messageTypes.has('TRADE_TICK') && messageTypes.has('PRICE_CHANGE')) {
+          clearTimeout(timeout);
           ws.close();
           resolve();
         }
       });
-
-      ws.on('error', (err) => {
-        reject(err);
-      });
-
-      // Timeout just in case
-      setTimeout(() => {
-        ws.close();
-        if (messagesReceived > 0) resolve();
-        else reject(new Error('No messages received'));
-      }, 1000);
+      ws.on('error', reject);
     });
   });
 });
