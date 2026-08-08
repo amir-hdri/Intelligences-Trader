@@ -3,6 +3,11 @@ import { positionLedger } from './positionLedger.js';
 import { P2ExecutionEngine } from './paperTradingEngine/p2/execution/P2ExecutionEngine.js';
 import { MLSignalBridge } from './paperTradingEngine/p2/ml/MLSignalBridge.js';
 import { PerformanceAnalytics } from './paperTradingEngine/p2/analytics/PerformanceAnalytics.js';
+import { OrderBookSimulator } from './paperTradingEngine/p2/execution/OrderBookSimulator.js';
+import { OrderStateMachine } from './paperTradingEngine/p2/execution/OrderStateMachine.js';
+import { BacktestHarness } from './paperTradingEngine/p2/backtest/BacktestHarness.js';
+import { TradeRepository } from './paperTradingEngine/p2/storage/TradeRepository.js';
+import { RedisCache } from './paperTradingEngine/p2/data/RedisCache.js';
 
 /**
  * Paper Trading Engine - Real engine replacing Math.random() < winRate
@@ -13,10 +18,51 @@ export class PaperTradingEngine {
     this.trades = [];
     this.balance = 1000000;
 
+    // Active P2 strategy configuration (applied by MLSignalBridge)
+    this.strategyConfig = {
+      model: 'PPO',
+      size: 1,
+      stopLoss: 0.02,
+      takeProfit: 0.04,
+      confidenceThreshold: 0.6,
+    };
+
     // P2 Extensions (lazy-initialized)
     this.p2Execution = null;
     this.mlBridge = null;
+    this.orderBook = null;
+    this.orderStateMachine = null;
+    this.backtestHarness = null;
+    this.tradeRepository = null;
+    this.cache = null;
     this.analytics = new PerformanceAnalytics();
+  }
+
+  /**
+   * Apply/merge a strategy configuration and push it to the ML bridge so that
+   * subsequent signals use the updated confidence threshold and default size.
+   */
+  setStrategyConfig(config) {
+    if (!config || typeof config !== 'object') return this.strategyConfig;
+    const { model, size, stopLoss, takeProfit, confidenceThreshold } = config;
+    if (model != null) this.strategyConfig.model = model;
+    if (size != null && Number.isFinite(size) && size > 0) this.strategyConfig.size = size;
+    if (stopLoss != null && Number.isFinite(stopLoss)) this.strategyConfig.stopLoss = stopLoss;
+    if (takeProfit != null && Number.isFinite(takeProfit)) this.strategyConfig.takeProfit = takeProfit;
+    if (confidenceThreshold != null && Number.isFinite(confidenceThreshold)) {
+      this.strategyConfig.confidenceThreshold = Math.min(1, Math.max(0, confidenceThreshold));
+    }
+    if (this.mlBridge) {
+      this.mlBridge.setDefaults({
+        confidenceThreshold: this.strategyConfig.confidenceThreshold,
+        size: this.strategyConfig.size,
+      });
+    }
+    return this.strategyConfig;
+  }
+
+  getStrategyConfig() {
+    return { ...this.strategyConfig };
   }
 
   // Lazy init P2 modules
@@ -25,6 +71,22 @@ export class PaperTradingEngine {
       this.p2Execution = new P2ExecutionEngine(this);
       this.mlBridge = new MLSignalBridge(this.p2Execution);
     }
+    if (!this.orderBook) {
+      this.orderBook = new OrderBookSimulator();
+    }
+    if (!this.orderStateMachine) {
+      this.orderStateMachine = new OrderStateMachine();
+    }
+    if (!this.backtestHarness) {
+      this.backtestHarness = new BacktestHarness(this.p2Execution);
+    }
+    if (!this.tradeRepository) {
+      this.tradeRepository = new TradeRepository();
+    }
+    if (!this.cache) {
+      this.cache = new RedisCache();
+    }
+    return this.p2Execution;
   }
 
   // Deterministic trade outcome evaluation

@@ -104,6 +104,18 @@ See [`AUDIT_REPORT.md`](./AUDIT_REPORT.md) for the detailed audit, fixes, and re
 - Streaming: `ws://host/ws?symbol=GOLD-FUT`
 - Metrics: `GET /metrics` on both Node services
 
+### P2 Paper-Trading endpoints
+
+- Execution & ML: `POST /api/paper-trading/p2/execute-ml`, `POST /api/paper-trading/p2/strategy`
+- Analytics: `GET /api/paper-trading/p2/metrics`, `POST /api/paper-trading/p2/report`
+- Backtest: `POST /api/paper-trading/p2/backtest`
+- Order book: `GET|POST /api/paper-trading/p2/orderbook`, `POST /api/paper-trading/p2/orderbook/order|cancel`
+- Order state machine: `GET|POST /api/paper-trading/p2/orders`, `POST /api/paper-trading/p2/orders/cancel|fill`
+- Data feed: `POST /api/paper-trading/p2/data/ohlcv`, `GET|POST /api/paper-trading/p2/data/tick`
+- Persistence: `POST /api/paper-trading/p2/trades/save`, `GET /api/paper-trading/p2/trades`
+
+See [`PHASE2_CHANGES.md`](./PHASE2_CHANGES.md) for the Phase 2 build-out details.
+
 ## Disclaimer
 
 Educational and research use only. Financial markets involve substantial risk. Validate data licenses, model provenance, exchange rules, security controls, and broker behavior independently before considering any real-world integration.
