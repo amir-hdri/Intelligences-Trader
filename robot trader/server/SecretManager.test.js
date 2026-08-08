@@ -31,13 +31,13 @@ describe('SecretManager', () => {
     const sm = new SecretManager();
     const plainText = 'Hello, Secret World!';
 
-    const { iv, encryptedData } = sm.encrypt(plainText);
+    const { iv, encryptedData, authTag } = sm.encrypt(plainText);
 
     assert.ok(iv);
     assert.ok(encryptedData);
     assert.notStrictEqual(encryptedData, plainText);
 
-    const decryptedText = sm.decrypt(encryptedData, iv);
+    const decryptedText = sm.decrypt(encryptedData, iv, authTag);
 
     assert.strictEqual(decryptedText, plainText);
   });
@@ -48,8 +48,8 @@ describe('SecretManager', () => {
     assert.strictEqual(sm.masterKey, testKey);
 
     const plainText = 'Testing env key';
-    const { iv, encryptedData } = sm.encrypt(plainText);
-    const decryptedText = sm.decrypt(encryptedData, iv);
+    const { iv, encryptedData, authTag } = sm.encrypt(plainText);
+    const decryptedText = sm.decrypt(encryptedData, iv, authTag);
 
     assert.strictEqual(decryptedText, plainText);
   });
@@ -67,8 +67,8 @@ describe('SecretManager', () => {
     assert.notStrictEqual(sm.masterKey, invalidKey);
 
     const plainText = 'Testing invalid key fallback';
-    const { iv, encryptedData } = sm.encrypt(plainText);
-    const decryptedText = sm.decrypt(encryptedData, iv);
+    const { iv, encryptedData, authTag } = sm.encrypt(plainText);
+    const decryptedText = sm.decrypt(encryptedData, iv, authTag);
 
     assert.strictEqual(decryptedText, plainText);
 
@@ -77,25 +77,25 @@ describe('SecretManager', () => {
 
   test('exported singleton instance works', () => {
     const plainText = 'Testing singleton';
-    const { iv, encryptedData } = secretManager.encrypt(plainText);
+    const { iv, encryptedData, authTag } = secretManager.encrypt(plainText);
 
     assert.ok(iv);
     assert.ok(encryptedData);
 
-    const decryptedText = secretManager.decrypt(encryptedData, iv);
+    const decryptedText = secretManager.decrypt(encryptedData, iv, authTag);
     assert.strictEqual(decryptedText, plainText);
   });
 
   test('decrypting with wrong iv fails or produces gibberish', () => {
     const sm = new SecretManager();
     const plainText = 'Secret payload';
-    const { iv, encryptedData } = sm.encrypt(plainText);
+    const { iv, encryptedData, authTag } = sm.encrypt(plainText);
 
     // Create a wrong IV of same length
-    const wrongIv = '00'.repeat(16); // 16 bytes = 32 hex chars
+    const wrongIv = '00'.repeat(12); // 12-byte GCM nonce
 
     try {
-      const decryptedText = sm.decrypt(encryptedData, wrongIv);
+      const decryptedText = sm.decrypt(encryptedData, wrongIv, authTag);
       assert.notStrictEqual(decryptedText, plainText);
     } catch (e) {
       // It might throw a decipher error due to bad padding, which is also fine

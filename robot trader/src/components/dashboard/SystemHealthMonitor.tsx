@@ -4,7 +4,7 @@ import { Activity, ShieldAlert, ShieldCheck, Cpu, Database, HardDrive, Wifi, Shi
 
 interface SystemHealthMonitorProps {
   metrics: SystemMetrics;
-  connectionState: 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING';
+  connectionState: 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING';
 }
 
 export const SystemHealthMonitor: React.FC<SystemHealthMonitorProps> = ({
@@ -13,11 +13,11 @@ export const SystemHealthMonitor: React.FC<SystemHealthMonitorProps> = ({
 }) => {
 
   const logs = useMemo(() => [
-    { time: '13:08:21', service: 'TseProxy', msg: 'Real-time WebSocket handshake completed successfully.' },
-    { time: '13:08:18', service: 'AiBackend', msg: 'ONNX runtime session initialized. Thread pool allocated: 4.' },
-    { time: '13:08:15', service: 'WebWorker', msg: 'SharedArrayBuffer allocated. Concurrency checks active.' },
-    { time: '13:08:10', service: 'System', msg: 'FedAvg client updates loaded. Momentum multiplier set to 0.95.' }
-  ], []);
+    { time: 'INFO', service: 'WebSocket', msg: `Current gateway state: ${connectionState}.` },
+    { time: 'INFO', service: 'Telemetry', msg: 'Host CPU and memory telemetry is not exposed to the browser.' },
+    { time: 'INFO', service: 'Models', msg: 'Accuracy remains unverified until an out-of-sample evaluation completes.' },
+  ], [connectionState]);
+  const configuredWorkers = Math.max(1, Math.min(4, navigator.hardwareConcurrency || 2));
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -36,7 +36,7 @@ export const SystemHealthMonitor: React.FC<SystemHealthMonitorProps> = ({
           <div className={`px-4 py-2.5 rounded-xl border flex items-center gap-2.5 ${
             connectionState === 'CONNECTED'
               ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-              : connectionState === 'CONNECTING'
+              : connectionState === 'RECONNECTING'
                 ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
                 : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
           }`}>
@@ -70,16 +70,16 @@ export const SystemHealthMonitor: React.FC<SystemHealthMonitorProps> = ({
           <div className="text-[10px] text-slate-500 uppercase font-black mb-3 tracking-[0.2em] flex items-center gap-1.5">
             <Database className="w-3.5 h-3.5 text-purple-400" /> Worker Thread Pool
           </div>
-          <div className="text-3xl font-black text-white font-mono">4 / 4 Active</div>
-          <div className="text-[10px] text-slate-400 mt-2 uppercase font-bold">Background processes</div>
+          <div className="text-3xl font-black text-white font-mono">{configuredWorkers} Max</div>
+          <div className="text-[10px] text-slate-400 mt-2 uppercase font-bold">Configured browser worker cap</div>
         </div>
 
         <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
           <div className="text-[10px] text-slate-500 uppercase font-black mb-3 tracking-[0.2em] flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5 text-emerald-400" /> ONNX Target Accuracy
+            <Shield className="w-3.5 h-3.5 text-emerald-400" /> Validation Accuracy
           </div>
           <div className="text-3xl font-black text-emerald-400 font-mono">
-            {(metrics.accuracy * 100).toFixed(1)}%
+            {metrics.accuracy > 0 ? `${(metrics.accuracy * 100).toFixed(1)}%` : 'N/A'}
           </div>
           <div className="text-[10px] text-slate-400 mt-2 uppercase font-bold">Inference calibration</div>
         </div>
@@ -90,35 +90,13 @@ export const SystemHealthMonitor: React.FC<SystemHealthMonitorProps> = ({
         <div className="lg:col-span-2 glass-panel p-6 lg:p-8 rounded-3xl space-y-6">
           <h3 className="text-sm font-black uppercase tracking-widest text-indigo-400 border-b border-slate-800/50 pb-3">Resources Allocation</h3>
           
-          <div className="space-y-6">
-            <div>
-              <div className="flex justify-between items-center text-xs font-black uppercase tracking-wider text-slate-400 mb-2">
-                <span>SharedArrayBuffer Utilization</span>
-                <span className="font-mono text-white">41.2%</span>
-              </div>
-              <div className="w-full h-2 bg-slate-900 border border-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" style={{ width: '41.2%' }} />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center text-xs font-black uppercase tracking-wider text-slate-400 mb-2">
-                <span>Background Worker Load</span>
-                <span className="font-mono text-white">18.5%</span>
-              </div>
-              <div className="w-full h-2 bg-slate-900 border border-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" style={{ width: '18.5%' }} />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center text-xs font-black uppercase tracking-wider text-slate-400 mb-2">
-                <span>Memory Pool Allocation</span>
-                <span className="font-mono text-white">256MB / 512MB</span>
-              </div>
-              <div className="w-full h-2 bg-slate-900 border border-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" style={{ width: '50%' }} />
-              </div>
+          <div className="space-y-4 text-sm text-slate-400 leading-relaxed">
+            <p>
+              Browser resource utilization is intentionally marked unavailable instead of being synthesized.
+              Connect an authenticated telemetry endpoint to display host CPU, worker load, and resident memory.
+            </p>
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-amber-300/90 text-xs font-bold uppercase tracking-wide">
+              Telemetry source: client-observed connectivity only
             </div>
           </div>
         </div>

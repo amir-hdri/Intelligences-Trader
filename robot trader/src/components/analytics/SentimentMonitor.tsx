@@ -52,7 +52,7 @@ export const SentimentMonitor: React.FC<SentimentMonitorProps> = ({ data }) => {
           </div>
         </div>
         <div className="text-[11px] text-slate-400 leading-relaxed italic">
-          <span className="text-slate-200 font-bold">ParsBERT-v3</span> analysis detected a <span className={`font-black ${data.score > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{data.label.toUpperCase()}</span> bias in the latest mercantile press releases and official IRICA data streams.
+          <span className="text-slate-200 font-bold">{data.simulated ? 'Generated-news sentiment demo' : 'Sentiment feed'}</span> detected a <span className={`font-black ${data.score > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{data.label.toUpperCase()}</span> bias. {data.simulated ? 'These headlines are simulated and are not an official news feed.' : ''}
         </div>
       </div>
 

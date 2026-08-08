@@ -57,13 +57,23 @@ const generateNews = (count = 5) => {
     // Bound comparative
     adjustedComparative = Math.max(-1, Math.min(1, adjustedComparative));
 
+    const dollarBullishTerms = /sanctions|inflation|dollar strengthens|crop damage|liquidity/i;
+    const dollarBearishTerms = /stabilizes|inflation rate drops|trade deal/i;
+    const impactEffect = dollarBullishTerms.test(randomHeadline)
+      ? 'DOLLAR_BULLISH'
+      : dollarBearishTerms.test(randomHeadline)
+        ? 'DOLLAR_BEARISH'
+        : 'NEUTRAL';
+
     news.push({
       id: Math.random().toString(36).substring(7),
       title: randomHeadline,
       source: randomSource,
       timestamp: now - timeOffset,
-      sentimentScore: adjustedComparative, // Normalized -1 to 1 approx
+      sentimentScore: adjustedComparative,
       sentimentLabel: adjustedComparative > 0.1 ? 'POSITIVE' : adjustedComparative < -0.1 ? 'NEGATIVE' : 'NEUTRAL',
+      impactEffect,
+      nerTags: entities.map(entity => entity.text),
       impact,
       entities,
       analysis: {

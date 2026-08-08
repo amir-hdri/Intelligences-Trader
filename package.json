@@ -7,22 +7,20 @@
     "server"
   ],
   "scripts": {
-    "test": "npm test --workspaces --if-present"
-  },
-  "dependencies": {
-    "picomatch": "^4.0.3",
-    "ws": "^8.21.0"
-  },
-  "devDependencies": {
-    "fast-check": "^4.8.0"
+    "build": "npm run build --workspace app",
+    "typecheck": "npm run typecheck --workspace app",
+    "test": "npm test --workspaces --if-present",
+    "check": "npm run typecheck && npm run build && npm test --workspaces --if-present"
   },
   "overrides": {
-    "js-yaml": "^4.1.2",
-    "app": {
-      "esbuild": "^0.28.1",
-      "qs": "^6.15.2"
-    },
-    "@mapbox/node-pre-gyp": "^2.0.3",
-    "tar": "^7.5.16"
+    "adm-zip": "^0.6.0",
+    "brace-expansion@^1.0.0": "^1.1.18",
+    "brace-expansion@^2.0.0": "^2.1.4",
+    "ip-address": "^10.4.0",
+    "js-yaml": "^4.3.1",
+    "qs": "^6.15.2",
+    "tar": "^7.5.22",
+    "undici": "^7.29.0",
+    "@mapbox/node-pre-gyp": "^2.0.3"
   }
 }

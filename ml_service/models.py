@@ -13,6 +13,8 @@ class Chomp1d(nn.Module):
         self.chomp_size = chomp_size
 
     def forward(self, x):
+        if self.chomp_size == 0:
+            return x
         return x[:, :, :-self.chomp_size].contiguous()
 
 class TemporalBlock(nn.Module):
@@ -70,8 +72,14 @@ class ActorCritic(nn.Module):
     """
     PPO Actor-Critic Network with TCN base and Autoregressive Beta Distribution for Position Sizing.
     """
-    def __init__(self, state_dim, action_dim=2, seq_len=30, tcn_channels=[32, 32, 32]):
+    def __init__(self, state_dim, action_dim=2, seq_len=30, tcn_channels=None):
         super(ActorCritic, self).__init__()
+        if state_dim < 1 or seq_len < 1:
+            raise ValueError("state_dim and seq_len must be positive")
+        if tcn_channels is None:
+            tcn_channels = [32, 32, 32]
+        if not tcn_channels or any(channel < 1 for channel in tcn_channels):
+            raise ValueError("tcn_channels must contain positive channel sizes")
         # State dim is the number of features (e.g. 5)
         self.tcn = TemporalConvolutionalNetwork(state_dim, tcn_channels, kernel_size=3)
         self.seq_len = seq_len

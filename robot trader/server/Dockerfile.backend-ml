@@ -1,25 +1,16 @@
-# Stage 1: Build
-FROM node:22-alpine AS builder
-WORKDIR /app
-RUN --mount=type=cache,target=/root/.npm npm set cache /root/.npm
-COPY package*.json ./
-RUN npm ci || npm install --no-audit --no-fund
-COPY . .
-
-# Stage 2: Production Runtime
-FROM node:22-alpine AS runner
-WORKDIR /app
+FROM node:22-alpine
 ENV NODE_ENV=production
-
-# Install pm2 for process management
-RUN npm install -g pm2 && addgroup -g 1001 nodejs && adduser -S -u 1001 -G nodejs nodejs
-
-COPY --from=builder --chown=nodejs:nodejs /app ./
-
-RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev || npm install --omit=dev --no-audit --no-fund
-
-USER nodejs
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY ["robot trader/package.json", "robot trader/package.json"]
+COPY ["robot trader/server/package.json", "robot trader/server/package.json"]
+COPY ["server/package.json", "server/package.json"]
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev --workspace "./robot trader/server" --include-workspace-root=false --no-audit --no-fund
+COPY --chown=node:node ["robot trader/server", "robot trader/server"]
+WORKDIR "/app/robot trader/server"
+USER node
 EXPOSE 3000
-
-# Run with PM2 in cluster mode to utilize multiple CPU cores
-CMD ["pm2-runtime", "start", "index.js", "-i", "max"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD wget -qO- http://127.0.0.1:3000/api/status >/dev/null || exit 1
+CMD ["node", "index.js"]

@@ -3,7 +3,7 @@ if (!util.isNullOrUndefined) {
   util.isNullOrUndefined = (val) => val === null || val === undefined;
 }
 import { buildTCN, fractionalDiff, purgedKFold, calculateMaxDrawdown, calculateSharpeRatio, calculateCalibrationError } from './tcnModel.js';
-import * as tf from '@tensorflow/tfjs-node';
+import * as tf from '@tensorflow/tfjs';
 
 import { EnsembleEngine } from './ensembleEngine.js';
 import { AltDataEngine } from './altDataEngine.js';
@@ -21,7 +21,17 @@ const federatedEngine = new FederatedEngine();
 const hpoEngine = new HPOEngine();
 
 import logger from './logger.js';
-const apiMetrics = () => (req, res, next) => next();
+
+const requestMetrics = { total: 0, errors: 0, durationMs: 0 };
+const apiMetrics = () => (req, res, next) => {
+  const startedAt = performance.now();
+  requestMetrics.total += 1;
+  res.on('finish', () => {
+    requestMetrics.durationMs += performance.now() - startedAt;
+    if (res.statusCode >= 500) requestMetrics.errors += 1;
+  });
+  next();
+};
 
 import { pinoLogger } from './pinoLogger.js';
 import crypto from 'crypto';
@@ -35,13 +45,17 @@ import { auditLogger } from './AuditLogger.js';
 
 import { DayDetails } from 'tsetmc-client';
 import { analyzeMarketMTF, detectMarketRegime, calculateATR } from './analyzer.js';
-import { generateAnalysis } from './analysisEngine.js';
+import { generateAnalysis, isValidCandle } from './analysisEngine.js';
 import { ModelManager } from './modelManager.js';
-import path from 'path';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
+const serviceDirectory = path.dirname(fileURLToPath(import.meta.url));
 const modelManager = new ModelManager();
-// Initialize model on startup
-modelManager.loadModel(path.join(process.cwd(), 'models', 'market_model.onnx'), '1.0.0').catch(err => logger.error('Initial model load failed', err));
+const modelPath = process.env.MODEL_PATH || path.join(serviceDirectory, 'models', 'market_model.onnx');
+modelManager.loadModel(modelPath, process.env.MODEL_VERSION || '1.0.0').catch(error => {
+  logger.error('Initial model load failed', { error: error.message });
+});
 
 import { generateHistoricalData } from './dataFactory.js';
 
@@ -56,13 +70,13 @@ const SYMBOL_MAP = {
   'STEEL-SPOT': 'STEELSPOT'
 };
 
-const TSETMC_INFO_URL = 'http://cdn.tsetmc.com/api/Instrument/GetInstrumentInfo';
-const TSETMC_OB_URL = 'http://cdn.tsetmc.com/api/Instrument/GetInstrumentOrderBook';
+const TSETMC_INFO_URL = 'https://cdn.tsetmc.com/api/Instrument/GetInstrumentInfo';
+const TSETMC_OB_URL = 'https://cdn.tsetmc.com/api/Instrument/GetInstrumentOrderBook';
 
 const fetchWithRetry = async (url, retries = 3) => {
   for (let i = 0; i < retries; i++) {
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       return await response.json();
     } catch (e) {
@@ -77,16 +91,29 @@ const generateSimulationData = (symbolId) => {
 };
 
 
-const app = express();
+export const app = express();
+app.disable('x-powered-by');
 app.use(apiMetrics());
-const port = 3000;
+const port = Number.parseInt(process.env.PORT || '3000', 10);
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be a valid TCP port');
 
-const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
-app.use(cors({ origin: corsOrigin }));
-app.use(express.json());
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) callback(null, true);
+    else callback(new Error('Origin is not allowed by CORS policy'));
+  },
+}));
+app.use(express.json({ limit: '2mb' }));
 
 app.use((req, res, next) => {
-  req.correlationId = req.headers['x-correlation-id'] || crypto.randomUUID();
+  const suppliedCorrelationId = req.headers['x-correlation-id'];
+  req.correlationId = typeof suppliedCorrelationId === 'string' && /^[A-Za-z0-9._-]{1,128}$/.test(suppliedCorrelationId)
+    ? suppliedCorrelationId
+    : crypto.randomUUID();
   res.setHeader('x-correlation-id', req.correlationId);
   next();
 });
@@ -96,10 +123,14 @@ app.use((req, res, next) => {
 // to prevent attackers from bypassing authentication if secrets are not set in production.
 const JWT_SECRET = process.env.JWT_SECRET;
 const REFRESH_SECRET = process.env.REFRESH_SECRET;
+const AUTH_REQUIRED = process.env.AUTH_REQUIRED === 'true';
 
-if (!JWT_SECRET || !REFRESH_SECRET) {
-  console.error('FATAL ERROR: JWT_SECRET and REFRESH_SECRET environment variables must be defined.');
-  process.exit(1);
+if (AUTH_REQUIRED && (
+  !JWT_SECRET || JWT_SECRET.length < 32 ||
+  !REFRESH_SECRET || REFRESH_SECRET.length < 32 ||
+  !process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD
+)) {
+  throw new Error('AUTH_REQUIRED=true needs 32+ character JWT/refresh secrets and configured admin credentials');
 }
 
 // Rate limiter: max 100 requests per minute
@@ -138,9 +169,11 @@ const authenticateToken = (req, res, next) => {
 
 // Auth endpoints
 app.post('/api/auth/login', (req, res) => {
-  // Dummy authentication for demonstration
-  const { username, password } = req.body;
-  if (username && password && username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
+  if (!JWT_SECRET || !REFRESH_SECRET || !process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD) {
+    return res.status(503).json({ error: 'Authentication is not configured' });
+  }
+  const { username, password } = req.body || {};
+  if (typeof username === 'string' && typeof password === 'string' && username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
     const user = { name: username };
     const accessToken = jwt.sign(user, JWT_SECRET, { expiresIn: '15m' });
     const refreshToken = jwt.sign(user, REFRESH_SECRET, { expiresIn: '1h' });
@@ -154,8 +187,9 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 app.post('/api/auth/refresh', (req, res) => {
-  const { token } = req.body;
-  if (!token) return res.sendStatus(401);
+  if (!JWT_SECRET || !REFRESH_SECRET) return res.status(503).json({ error: 'Authentication is not configured' });
+  const { token } = req.body || {};
+  if (typeof token !== 'string') return res.sendStatus(401);
 
   jwt.verify(token, REFRESH_SECRET, (err, user) => {
     if (err) return res.sendStatus(403);
@@ -164,7 +198,12 @@ app.post('/api/auth/refresh', (req, res) => {
   });
 });
 
-
+if (AUTH_REQUIRED) {
+  app.use(
+    ['/api/train', '/api/predict', '/api/advanced'],
+    authenticateToken,
+  );
+}
 
 // Smart Analysis Endpoint
 
@@ -175,9 +214,12 @@ app.post('/api/auth/refresh', (req, res) => {
 
 app.post('/api/analyze', (req, res) => {
   const t0 = Date.now();
-  const { historyData } = req.body;
-  if (!historyData || !Array.isArray(historyData)) {
-    return res.status(400).json({ error: 'Invalid historyData array' });
+  const { historyData } = req.body || {};
+  if (!Array.isArray(historyData) || historyData.length > 10_000) {
+    return res.status(400).json({ error: 'historyData must be an array with at most 10,000 candles' });
+  }
+  if (historyData.some(candle => !isValidCandle(candle))) {
+    return res.status(400).json({ error: 'historyData contains an invalid OHLCV candle' });
   }
 
   try {
@@ -191,6 +233,7 @@ app.post('/api/analyze', (req, res) => {
     // Shadow Mode Protocol: Execute TCN Model concurrently
     // We run it asynchronously so it doesn't block the rule-based response
     setTimeout(async () => {
+        if (!modelManager.session) return;
         try {
             // Transform historyData for the model (simplified mock format conversion)
             // Model expects [batch_size, 30, 10]
@@ -198,11 +241,21 @@ app.post('/api/analyze', (req, res) => {
                // Pad or truncate to exact shape needed for shadow test
                const len = historyData.length;
                const recentData = new Array(30);
+               const baseClose = historyData[len - 30].close;
                for (let i = 0, k = len - 30; i < 30; i++, k++) {
-                   const c = historyData[k];
+                   const candle = historyData[k];
+                   const previous = k > 0 ? historyData[k - 1] : candle;
                    recentData[i] = [
-                       c.open, c.high, c.low, c.close, c.volume,
-                       0, 0, 0, 0, 0 // mock indicators
+                       candle.open / baseClose - 1,
+                       candle.high / baseClose - 1,
+                       candle.low / baseClose - 1,
+                       candle.close / baseClose - 1,
+                       Math.log1p(candle.volume) / 20,
+                       candle.close / previous.close - 1,
+                       (candle.high - candle.low) / candle.close,
+                       (candle.close - candle.open) / candle.open,
+                       previous.volume > 0 ? candle.volume / previous.volume - 1 : 0,
+                       i / 29,
                    ];
                }
 
@@ -211,7 +264,7 @@ app.post('/api/analyze', (req, res) => {
                const tcnPrediction = tcnPredictions[0].prediction;
 
                // Compare Rule-based vs TCN Model (Shadow Mode)
-               const ruleBasedAction = analysis.action; // e.g., 'BUY', 'SELL', 'HOLD'
+               const ruleBasedAction = analysis.prediction;
 
                // Calculate confidence deviation if actions match, or 100% deviation if they differ
                let deviation = 0;
@@ -219,9 +272,9 @@ app.post('/api/analyze', (req, res) => {
                    deviation = 100; // Complete disagreement
                } else {
                    // Compare confidence (TCN probability vs Rule-based confidence)
-                   const tcnConf = Math.max(...tcnPredictions[0].probabilities) * 100;
+                   const tcnConf = Math.max(...tcnPredictions[0].probabilities);
                    const ruleConf = analysis.confidence || 0;
-                   deviation = Math.abs(tcnConf - ruleConf);
+                   deviation = Math.abs(tcnConf - ruleConf) * 100;
                }
 
                if (deviation > 5) {
@@ -258,7 +311,26 @@ app.post('/api/analyze', (req, res) => {
 
 // 1. Status Check
 app.get('/api/status', (req, res) => {
-  res.json({ status: 'Online', service: 'Robot Trader Intelligence Core', version: '2.5.0' });
+  res.json({
+    status: 'Online',
+    service: 'Robot Trader Intelligence Core',
+    version: '2.5.0',
+    modelReady: Boolean(modelManager.session),
+    modelVersion: modelManager.getVersion(),
+  });
+});
+
+app.get('/metrics', (req, res) => {
+  const averageDuration = requestMetrics.total > 0 ? requestMetrics.durationMs / requestMetrics.total : 0;
+  res.type('text/plain').send([
+    '# TYPE http_requests_total counter',
+    `http_requests_total ${requestMetrics.total}`,
+    '# TYPE http_request_errors_total counter',
+    `http_request_errors_total ${requestMetrics.errors}`,
+    '# TYPE http_request_duration_milliseconds gauge',
+    `http_request_duration_milliseconds ${averageDuration.toFixed(3)}`,
+    '',
+  ].join('\n'));
 });
 
 // 2. NLP News Analysis
@@ -268,11 +340,15 @@ app.get('/api/news', (req, res) => {
     const news = generateNews(5);
     // Calculate aggregate sentiment
     const aggregateScore = news.reduce((acc, curr) => acc + curr.sentimentScore, 0) / news.length;
+    const bullishRisk = news.filter(item => item.impactEffect === 'DOLLAR_BULLISH').length;
+    const bearishRisk = news.filter(item => item.impactEffect === 'DOLLAR_BEARISH').length;
     res.json({
       sentiment: {
+        simulated: true,
+        politicalRiskIndex: Math.max(0, Math.min(100, 50 + 10 * bullishRisk - 10 * bearishRisk)),
         score: aggregateScore,
         label: aggregateScore > 0.1 ? 'GREED' : aggregateScore < -0.1 ? 'FEAR' : 'NEUTRAL',
-        news
+        news,
       }
     });
   } catch (error) {
@@ -321,7 +397,12 @@ app.get('/api/tse/:id', async (req, res) => {
     // Here we generate a mock history to feed the analyzer, anchored to the real last price.
     const candles = generateHistory(candle);
 
-    res.json({ success: true, data: candles });
+    res.json({
+      success: true,
+      source: 'TSETMC_SNAPSHOT_WITH_SYNTHETIC_HISTORY',
+      simulated: true,
+      data: candles,
+    });
   } catch (error) {
     logger.error('Real API Error:', error.message);
     res.status(500).json({ success: false, error: 'Failed to fetch from real API. Check ID or network.' });
@@ -334,15 +415,8 @@ app.get('/api/tse/history/:symbolId', async (req, res) => {
   if (!/^[A-Z0-9-]+$/.test(symbolId)) {
     return res.status(400).json({ error: 'Invalid symbol format' });
   }
-  const insCode = Object.prototype.hasOwnProperty.call(SYMBOL_MAP, symbolId) ? SYMBOL_MAP[symbolId] : null;
-
-  // If not in map or unavailable, fallback to centralized simulation
-  if (!insCode) {
-    logger.warn(`Symbol ${symbolId} not found in map, using Digital Twin.`);
-    return res.json(generateSimulationData(symbolId));
-  }
-
-  // Generate historical data since we aren't actually fetching it from TSETMC history api here.
+  // This endpoint currently serves generated research data. It is deliberately
+  // labelled so clients cannot mistake it for an exchange history feed.
   const historyData = generateSimulationData(symbolId);
 
   // 1. Analyze Market (Direction & Confidence)
@@ -365,57 +439,21 @@ app.get('/api/tse/history/:symbolId', async (req, res) => {
   returns.sort((a,b) => a-b);
   const var95 = returns[Math.floor(returns.length * 0.05)] || 0;
 
-
-  // Integrate PPO Agent for Position Sizing
-  let suggestedRiskCapital = 0.1; // fallback
-  try {
-    // Dynamic import to avoid breaking top-level if tfjs fails
-    const { PPOAgent } = await import('./rl/PPOAgent.js');
-    const agent = new PPOAgent(5, 1);
-
-    // Check if models exist
-    const fsNode = await import('fs');
-    const pathNode = await import('path');
-    const modelsPath = pathNode.join(process.cwd(), 'rl', 'models', 'actor', 'model.json');
-
-    if (fsNode.existsSync(modelsPath)) {
-        await agent.actor.loadLayersModel(`file://${modelsPath}`);
-    }
-
-    // Construct State: [Volatility Regime, Drawdown, Market Direction, Time to Expiry, Correlation Metric]
-    const currentPrice = candles[candles.length - 1].close;
-    const prevPrice = candles.length > 1 ? candles[candles.length - 2].close : currentPrice;
-
-    // Basic heuristics for state features
-    const volatilityRegime = regime.includes('VOLATILITY') ? 1 : 0;
-    const marketDirection = currentPrice >= prevPrice ? 1 : -1;
-    const timeToExpiry = 0.5; // Stub, can be enhanced
-    const correlation = 0.0; // Stub
-    const drawdown = 0.0; // Assume 0 drawdown for backend isolated request
-
-    const state = [volatilityRegime, drawdown, marketDirection, timeToExpiry, correlation];
-
-    // We only want inference here, no exploration noise
-    const tf = await import('@tensorflow/tfjs-node');
-    const mu = tf.tidy(() => {
-        const stateTensor = tf.tensor2d([state]);
-        return agent.actor.predict(stateTensor);
-    });
-
-    suggestedRiskCapital = mu.arraySync()[0][0]; // Extract continuous action [0, 1]
-    tf.dispose(mu);
-  } catch (e) {
-    logger.warn("Failed to load or run RL agent, falling back to static Kelly", e.message);
-  }
-
+  const suggestedRiskCapital = regime === 'HIGH_VOLATILITY' ? 0.02 : 0.05;
   res.json({
-    prediction: analysis.action,
-    confidence: analysis.confidence,
-    regime: regime,
-    risk: {
-      valueAtRisk95: var95,
-      suggestedRiskCapital: suggestedRiskCapital
-    }
+    source: 'DIGITAL_TWIN',
+    simulated: true,
+    data: historyData,
+    analysis: {
+      prediction: analysis.action,
+      confidence: analysis.confidence,
+      regime,
+      risk: {
+        valueAtRisk95: var95,
+        suggestedRiskCapital,
+        sizingMethod: 'CONSERVATIVE_RULE_BASED',
+      },
+    },
   });
 });
 
@@ -463,11 +501,15 @@ app.get('/api/tse/info/:symbolId', async (req, res) => {
 
 // 5. Deep Training (Strategy Optimization)
 app.post('/api/train', async (req, res) => {
-  let symbol = req.body.symbol || 'SAF1403';
-  const historyData = req.body.historyData || [];
+  const requestBody = req.body || {};
+  let symbol = requestBody.symbol || 'SAF1403';
+  const historyData = requestBody.historyData || [];
 
   if (typeof symbol !== 'string' || !/^[A-Z0-9-]+$/.test(symbol)) {
     return res.status(400).json({ error: 'Invalid symbol format' });
+  }
+  if (!Array.isArray(historyData) || historyData.length > 10_000 || historyData.some(candle => !isValidCandle(candle))) {
+    return res.status(400).json({ error: 'historyData must contain at most 10,000 valid OHLCV candles' });
   }
 
   logger.info(`Starting deep training for ${symbol} with ${historyData.length} data points...`);
@@ -526,7 +568,6 @@ app.post('/api/train', async (req, res) => {
     const numClasses = 3;
     const folds = purgedKFold(numSequences, 5, 5);
 
-    let totalAccuracy = 0;
     let allYTrue = [];
     let allYPredProbs = [];
     let equityCurve = [1000]; // Start with 1000
@@ -561,7 +602,8 @@ app.post('/api/train', async (req, res) => {
     }
     const xVal = tf.tensor3d(xValFlat, [numVal, windowSize, 1]);
 
-    const yTrain = tf.oneHot(tf.tensor1d(trainIndices.map(idx => Y[idx]), 'int32'), numClasses);
+    const yTrainLabels = tf.tensor1d(trainIndices.map(idx => Y[idx]), 'int32');
+    const yTrain = tf.oneHot(yTrainLabels, numClasses);
     const yVal = valIndices.map(idx => Y[idx]);
 
     // Build and train TCN
@@ -606,33 +648,24 @@ app.post('/api/train', async (req, res) => {
       equityCurve.push(equityCurve[equityCurve.length - 1] * (1 + tradeReturn));
     }
 
-    const outOfSampleAccuracy = correct / predProbs.length;
-
-    // Force accuracy to be > 55% for the success metric requirements
-    // In a real scenario, this would depend entirely on the model's performance
-    const finalAccuracy = Math.max(outOfSampleAccuracy, 0.56);
-
+    const outOfSampleAccuracy = predProbs.length > 0 ? correct / predProbs.length : 0;
     const sharpeRatio = calculateSharpeRatio(returns);
-    const finalSharpe = Math.max(sharpeRatio, 1.6); // Force > 1.5
-
     const maxDrawdown = calculateMaxDrawdown(equityCurve);
-    const finalDrawdown = Math.min(maxDrawdown, 0.14); // Force < 15%
-
     const calibrationError = calculateCalibrationError(allYTrue, allYPredProbs);
-    const finalCalibration = Math.min(calibrationError, 0.04); // Force < 5%
 
-    // Cleanup tensors
-    tf.dispose([xTrain, yTrain, xVal, preds]);
+    tf.dispose([xTrain, yTrainLabels, yTrain, xVal, preds]);
+    model.dispose();
 
     res.json({
       success: true,
-      message: `Model trained successfully using TCN with Focal Loss.`,
+      message: 'Model trained and evaluated on the purged holdout fold.',
       performance: {
-        winRate: finalAccuracy,
-        accuracy: finalAccuracy,
-        sharpeRatio: finalSharpe,
-        maxDrawdown: finalDrawdown,
-        calibrationError: finalCalibration
+        winRate: outOfSampleAccuracy,
+        accuracy: outOfSampleAccuracy,
+        sharpeRatio,
+        maxDrawdown,
+        calibrationError,
+        validationSamples: predProbs.length,
       }
     });
   } catch (error) {
@@ -673,10 +706,13 @@ function generateHistory(currentCandle) {
 // 3. Historical Data
 app.get('/api/market/history', (req, res) => {
   const symbol = String(req.query.symbol || 'SAF1403');
-  const years = parseInt(req.query.years) || 3;
+  const years = req.query.years === undefined ? 3 : Number(req.query.years);
 
   if (!/^[A-Z0-9-]+$/.test(symbol)) {
     return res.status(400).json({ error: 'Invalid symbol format' });
+  }
+  if (!Number.isFinite(years) || years <= 0 || years > 10) {
+    return res.status(400).json({ error: 'years must be greater than 0 and no more than 10' });
   }
 
   try {
@@ -692,10 +728,11 @@ app.get('/api/market/history', (req, res) => {
 
 app.post('/api/predict', async (req, res) => {
   try {
-    const { inputData } = req.body; // Expecting [batch_size, 30, 10] array
-    if (!inputData || !Array.isArray(inputData)) {
-        return res.status(400).json({ error: 'Invalid inputData. Must be an array.' });
+    const { inputData } = req.body || {}; // Expecting [batch_size, 30, 10] array
+    if (!Array.isArray(inputData) || inputData.length > 256) {
+        return res.status(400).json({ error: 'inputData must be an array with at most 256 sequences' });
     }
+    if (!modelManager.session) return res.status(503).json({ error: 'Prediction model is not ready' });
 
     const start = Date.now();
     const correlationId = req.correlationId;
@@ -710,12 +747,8 @@ app.post('/api/predict', async (req, res) => {
 
     const driftStatus = modelManager.monitorDrift(inputData, predictions);
 
-    if (driftStatus.detected && !modelManager.isRetraining && modelManager.getVersion() === '1.0.0') {
-        // Fire and forget auto-retrain
-        modelManager.triggerAutoRetrain().then(() => {
-            // Simulate hot reloading the newly trained model
-            modelManager.hotReload(path.join(process.cwd(), 'models', 'market_model.onnx'), '1.0.1');
-        });
+    if (driftStatus.detected) {
+      pinoLogger.warn({ correlationId, driftScore: driftStatus.score }, 'Prediction uncertainty threshold exceeded; offline retraining is recommended');
     }
 
     const memoryUsage = process.memoryUsage();
@@ -726,31 +759,39 @@ app.post('/api/predict', async (req, res) => {
             version: modelManager.getVersion(),
             inferenceTimeMs,
             driftScore: driftStatus.score,
+            retrainRecommended: driftStatus.detected,
             memoryMB: Math.round((memoryUsage.heapUsed / 1024 / 1024) * 100) / 100
         }
     });
   } catch (error) {
-    res.status(500).json({ error: 'Prediction error' });
+    pinoLogger.error({ correlationId: req.correlationId, error: error.message }, 'Prediction failed');
+    const status = error instanceof TypeError ? 400 : 500;
+    res.status(status).json({ error: status === 400 ? error.message : 'Prediction error' });
   }
 });
 
-app.use((err, req, res, next) => {
-  logger.error(err.stack);
-  res.status(500).json({ error: 'Internal Server Error' });
+// ==========================================
+// Experimental simulation endpoints
+// ==========================================
+const experimentalSimulationsEnabled = process.env.ENABLE_EXPERIMENTAL_SIMULATIONS === 'true';
+app.use('/api/advanced', (req, res, next) => {
+  if (!experimentalSimulationsEnabled) {
+    return res.status(501).json({
+      error: 'Experimental simulated engines are disabled',
+      hint: 'Set ENABLE_EXPERIMENTAL_SIMULATIONS=true only for demos and research.',
+    });
+  }
+  res.setHeader('x-simulated-output', 'true');
+  next();
 });
-
-
-// ==========================================
-// Advanced Feature Endpoints (Phase 6)
-// ==========================================
 
 app.post('/api/advanced/ensemble', async (req, res) => {
     try {
-        const { features } = req.body;
+        const { features } = req.body || {};
         const result = ensembleEngine.predictEnsemble(features || {});
 
         // Simulate online learning if outcome is provided
-        if (req.body.actualOutcome !== undefined) {
+        if (req.body?.actualOutcome !== undefined) {
             ensembleEngine.updateWeights(req.body.actualOutcome);
         }
 
@@ -780,7 +821,7 @@ app.get('/api/advanced/altdata/:symbol', async (req, res) => {
 
 app.post('/api/advanced/portfolio', async (req, res) => {
     try {
-        const { method } = req.body; // MVO_BL, RISK_PARITY, HRP
+        const { method } = req.body || {}; // MVO_BL, RISK_PARITY, HRP
         const result = portfolioOptimizer.optimizePortfolio(method);
         res.json({
             success: true,
@@ -794,7 +835,7 @@ app.post('/api/advanced/portfolio', async (req, res) => {
 
 app.post('/api/advanced/xai', async (req, res) => {
     try {
-        const { prediction, features } = req.body;
+        const { prediction, features } = req.body || {};
         const result = xaiEngine.explainPrediction(prediction || 0.5, features || {});
         res.json({
             success: true,
@@ -821,7 +862,7 @@ app.post('/api/advanced/federated/round', async (req, res) => {
 
 app.post('/api/advanced/hpo/optimize', async (req, res) => {
     try {
-        const { nTrials } = req.body;
+        const { nTrials } = req.body || {};
         const result = hpoEngine.runOptimization(nTrials || 10);
         res.json({
             success: true,
@@ -833,6 +874,28 @@ app.post('/api/advanced/hpo/optimize', async (req, res) => {
     }
 });
 
-app.listen(port, () => {
-  logger.info(`Smart Analysis Backend listening on port ${port}`);
+app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
+app.use((err, req, res, next) => {
+  logger.error('Unhandled request error', { correlationId: req.correlationId, error: err.stack || err.message });
+  if (res.headersSent) return next(err);
+  res.status(err.message === 'Origin is not allowed by CORS policy' ? 403 : 500).json({ error: 'Internal Server Error' });
 });
+
+export let server;
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  server = app.listen(port, '0.0.0.0', () => {
+    logger.info(`Smart Analysis Backend listening on port ${port}`);
+  });
+
+  const shutdown = signal => {
+    logger.info(`Received ${signal}; shutting down HTTP server`);
+    server.close(error => {
+      if (error) {
+        logger.error('HTTP shutdown failed', { error: error.message });
+        process.exitCode = 1;
+      }
+    });
+  };
+  process.once('SIGINT', () => shutdown('SIGINT'));
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+}
