@@ -33,7 +33,7 @@ self.onmessage = async (e: MessageEvent) => {
         result = performWalkForwardBacktest(payload.candles);
         break;
       case 'trainModelEpoch':
-        result = await trainModelEpoch(payload.candles, payload.symbolId);
+        result = await trainModelEpoch(payload.candles, payload.symbolId, payload.accessToken);
         break;
       default:
         throw new Error(`Unknown worker message type: ${type}`);

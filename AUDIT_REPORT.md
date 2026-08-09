@@ -1,5 +1,9 @@
 # Engineering, Security, and ML Audit
 
+> This 2026-08-08 baseline is retained for history. See
+> [`FULL_STACK_AUDIT_REPORT.md`](./FULL_STACK_AUDIT_REPORT.md) for the current
+> 2026-08-09 end-to-end audit, remediation, evidence, and readiness decision.
+
 Audit date: 2026-08-08
 
 ## Executive summary

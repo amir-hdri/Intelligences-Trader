@@ -1,9 +1,10 @@
 import React from 'react';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from '../common/ui';
 import { generateDeterministicSparkline } from '../../utils/deterministic';
 const cn=(...c:(string|false|undefined)[])=>c.filter(Boolean).join(' ');
-export const MetricCard:React.FC<{title:string;value:string;sub?:string;icon:any;delta?:{v:number;pos:boolean};accent?:string;loading?:boolean; tooltip?:string}> = ({title,value,sub,icon:Icon,delta,accent,loading,tooltip})=>{
+export const MetricCard:React.FC<{title:string;value:string;sub?:string;icon:LucideIcon;delta?:{v:number;pos:boolean};accent?:string;loading?:boolean; tooltip?:string}> = ({title,value,sub,icon:Icon,delta,accent,loading,tooltip})=>{
  if(loading) return <div className="glass-card rounded-2xl p-4 space-y-3"><Skeleton className="h-3 w-24"/><Skeleton className="h-7 w-32"/><Skeleton className="h-[28px] w-full"/></div>
  return <div title={tooltip} tabIndex={0} className="glass-card rounded-2xl p-4 flex flex-col gap-3 hover:border-white/10 transition-colors focus-within:ring-2 focus-within:ring-violet-500/30">
   <div className="flex items-center justify-between"><span className="text-[10px] tracking-[0.16em] font-bold text-[#64748B] uppercase">{title}</span><Icon className={cn("w-4 h-4",accent||"text-[#94A3B8]")} /></div>

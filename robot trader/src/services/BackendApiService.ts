@@ -1,7 +1,6 @@
-/**
- * Backend API Service - Phase 1
- * Connects Frontend to real Backend ledgers, replacing mocks
- */
+/** Typed client for the analysis/paper-trading API boundary. */
+import type { ExpertForecast } from '../types';
+import { apiJson } from './apiFetch';
 
 export interface Position {
   id: string;
@@ -13,7 +12,7 @@ export interface Position {
   pnl: number;
   pnlPercent: number;
   timestamp: number;
-  status: string;
+  status: 'OPEN' | 'CLOSED';
   regime?: string;
   rsi?: number;
 }
@@ -22,11 +21,11 @@ export interface Order {
   id: string;
   symbol: string;
   side: 'BUY' | 'SELL';
-  type: string;
+  type: 'MARKET' | 'LIMIT';
   price: number;
   quantity: number;
   filledQuantity: number;
-  status: string;
+  status: 'PENDING' | 'FILLED' | 'PARTIAL_FILLED' | 'CANCELLED' | 'REJECTED';
   timestamp: number;
   leverage?: number;
 }
@@ -37,126 +36,187 @@ export interface PerformanceMetrics {
   cagr: number;
   maxDrawdown: number;
   winRate: number;
-  profitFactor: number;
+  profitFactor: number | null;
   totalTrades: number;
   avgWin: number;
   avgLoss: number;
+  totalPnl: number;
+  finalEquity: number;
 }
 
 export interface ModelMetrics {
   version: string;
-  modelVersion: string;
+  modelVersion?: string;
   inferenceLatency: number;
   modelReady: boolean;
-  accuracy: number;
-  precision: number;
-  recall: number;
-  f1Score: number;
-  memoryMB: number;
+  accuracy?: number | null;
+  precision?: number | null;
+  recall?: number | null;
+  f1Score?: number | null;
+  memoryMB?: number;
+}
+
+export interface LearningRecord {
+  id: string;
+  timestamp: number;
+  symbol: string;
+  action: 'BUY' | 'SELL' | 'HOLD';
+  status: 'WIN' | 'LOSS' | 'PENDING';
+  confidence: number;
 }
 
 export interface LearningData {
-  history: any[];
+  history: LearningRecord[];
   currentWeights: Record<string, number>;
   winRate: number;
   totalSignals: number;
   modelVersion: string;
 }
 
+export interface LegacyPaperOrder {
+  action: 'BUY' | 'SELL';
+  qty: number;
+  entry: number;
+  stopLoss: number;
+  takeProfit: number;
+  leverage: number;
+  symbol: string;
+}
+
+export interface AuthSession {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: 'Bearer';
+  expiresIn: number;
+}
+
+export interface PaperTradeResult {
+  success: boolean;
+  simulated: true;
+  isWin: boolean;
+  pnl: number;
+  newBalance: number;
+  trade: {
+    id: string;
+    timestamp: number;
+    reason: string;
+  };
+}
+
+interface ApiEnvelope<T> {
+  success: boolean;
+  data: T;
+  source?: string;
+  simulated?: boolean;
+}
+
 export class BackendApiService {
-  private baseUrl: string;
+  private readonly baseUrl: string;
+  private readonly accessToken: string;
 
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl.replace(/\/$/, '');
+  constructor(baseUrl: string, accessToken = '') {
+    this.baseUrl = baseUrl.trim().replace(/\/$/, '');
+    this.accessToken = accessToken;
   }
 
-  private async fetchJson(path: string, options?: RequestInit) {
-    const url = `${this.baseUrl}${path}`;
-    const res = await fetch(url, {
-      headers: { 'Content-Type': 'application/json' },
-      ...options,
+  private url(path: string): string {
+    return `${this.baseUrl}${path}`;
+  }
+
+  private fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
+    return apiJson<T>(this.url(path), this.accessToken, options);
+  }
+
+  async testConnection(): Promise<ModelMetrics> {
+    return this.getModelStatus();
+  }
+
+  login(username: string, password: string): Promise<AuthSession> {
+    return apiJson<AuthSession>(this.url('/api/auth/login'), '', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
     });
-    if (!res.ok) {
-      throw new Error(`API ${path} failed: ${res.status}`);
-    }
-    return res.json();
   }
 
-  // Positions - /api/positions
+  refresh(refreshToken: string): Promise<Omit<AuthSession, 'refreshToken'>> {
+    return apiJson(this.url('/api/auth/refresh'), '', {
+      method: 'POST',
+      body: JSON.stringify({ token: refreshToken }),
+    });
+  }
+
   async getPositions(symbol = 'SAF1403'): Promise<Position[]> {
-    const data = await this.fetchJson(`/api/positions?symbol=${encodeURIComponent(symbol)}`);
-    return data.data || data;
+    const response = await this.fetchJson<ApiEnvelope<Position[]>>(`/api/positions?symbol=${encodeURIComponent(symbol)}`);
+    return response.data;
   }
 
   async getAllPositions(): Promise<Position[]> {
-    const data = await this.fetchJson('/api/positions/all');
-    return data.data || [];
+    const response = await this.fetchJson<ApiEnvelope<Position[]>>('/api/positions/all');
+    return response.data;
   }
 
-  // Orders - /api/orders
   async getOrders(symbol = 'SAF1403'): Promise<Order[]> {
-    const data = await this.fetchJson(`/api/orders?symbol=${encodeURIComponent(symbol)}`);
-    return data.data || [];
+    const response = await this.fetchJson<ApiEnvelope<Order[]>>(`/api/orders?symbol=${encodeURIComponent(symbol)}`);
+    return response.data;
   }
 
   async getAllOrders(): Promise<Order[]> {
-    const data = await this.fetchJson('/api/orders/all');
-    return data.data || [];
+    const response = await this.fetchJson<ApiEnvelope<Order[]>>('/api/orders/all');
+    return response.data;
   }
 
-  // Performance - /api/performance
   async getPerformance(symbol = 'SAF1403'): Promise<PerformanceMetrics> {
-    const data = await this.fetchJson(`/api/performance?symbol=${encodeURIComponent(symbol)}`);
-    return data.data || data;
+    const response = await this.fetchJson<ApiEnvelope<PerformanceMetrics>>(`/api/performance?symbol=${encodeURIComponent(symbol)}`);
+    return response.data;
   }
 
-  async calculatePerformance(trades: { profit: number }[]): Promise<PerformanceMetrics> {
-    const data = await this.fetchJson('/api/performance/calculate', {
+  async calculatePerformance(trades: Array<{ profit: number; timestamp?: number }>): Promise<PerformanceMetrics> {
+    const response = await this.fetchJson<ApiEnvelope<PerformanceMetrics>>('/api/performance/calculate', {
       method: 'POST',
       body: JSON.stringify({ trades }),
     });
-    return data.data;
+    return response.data;
   }
 
-  // Models - /api/models
   async getModelMetrics(): Promise<ModelMetrics> {
-    const data = await this.fetchJson('/api/models');
-    return data.data || data;
+    const response = await this.fetchJson<ApiEnvelope<ModelMetrics>>('/api/models');
+    return response.data;
   }
 
-  async getModelStatus(): Promise<any> {
-    return this.fetchJson('/api/status');
+  getModelStatus(): Promise<ModelMetrics> {
+    return this.fetchJson<ModelMetrics>('/api/status');
   }
 
-  // Learning - /api/learning
   async getLearningData(symbol = 'SAF1403'): Promise<LearningData> {
-    const data = await this.fetchJson(`/api/learning?symbol=${encodeURIComponent(symbol)}`);
-    return data.data || data;
+    const response = await this.fetchJson<ApiEnvelope<LearningData>>(`/api/learning?symbol=${encodeURIComponent(symbol)}`);
+    return response.data;
   }
 
-  async getLearningWeights(): Promise<{ weights: Record<string, number>; history: any[] }> {
-    const data = await this.fetchJson('/api/learning/weights');
-    return data;
+  async getLearningWeights(): Promise<{ weights: Record<string, number>; history: LearningRecord[] }> {
+    return this.fetchJson('/api/learning/weights');
   }
 
-  // Paper Trading - /api/paper-trading
-  async executePaperTrade(order: any, forecast: any, marketPrice?: number) {
-    const data = await this.fetchJson('/api/paper-trading/execute', {
+  async executePaperTrade(
+    order: LegacyPaperOrder,
+    forecast: ExpertForecast,
+    marketPrice?: number,
+  ): Promise<PaperTradeResult> {
+    const response = await this.fetchJson<ApiEnvelope<PaperTradeResult>>('/api/paper-trading/execute', {
       method: 'POST',
       body: JSON.stringify({ order, forecast, marketPrice }),
     });
-    return data.data;
+    return response.data;
   }
 
-  async getPaperTrades() {
-    const data = await this.fetchJson('/api/paper-trading/trades');
-    return data.data;
+  async getPaperTrades(): Promise<unknown[]> {
+    const response = await this.fetchJson<ApiEnvelope<{ trades: unknown[] }>>('/api/paper-trading/trades');
+    return response.data.trades;
   }
 
-  async getPaperStats() {
-    const data = await this.fetchJson('/api/paper-trading/stats');
-    return data.data;
+  async getPaperStats(): Promise<{ winRate: number; totalPnl: number; totalTrades: number; balance: number }> {
+    const response = await this.fetchJson<ApiEnvelope<{ winRate: number; totalPnl: number; totalTrades: number; balance: number }>>('/api/paper-trading/stats');
+    return response.data;
   }
 }
 
-export const createBackendApi = (proxyUrl: string) => new BackendApiService(proxyUrl);
+export const createBackendApi = (proxyUrl: string, accessToken = '') => new BackendApiService(proxyUrl, accessToken);

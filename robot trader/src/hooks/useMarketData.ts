@@ -146,6 +146,7 @@ export const useMarketData = (
       const accuracy = await marketAnalyzerPool.executeTask<number>('trainModelEpoch', {
         candles: data,
         symbolId: selectedSymbol.id,
+        accessToken: apiConfig.apiKey,
       });
       if (!Number.isFinite(accuracy) || accuracy < 0 || accuracy > 1) {
         throw new Error('Training service returned an invalid accuracy');

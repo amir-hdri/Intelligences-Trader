@@ -4,7 +4,6 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  define: { 'process.env.VITE_API_KEY': JSON.stringify(process.env.VITE_API_KEY || '') },
   plugins: [
     react(),
     tailwindcss(),
@@ -24,6 +23,16 @@ export default defineConfig({
     host: '0.0.0.0',
     allowedHosts: true,
     proxy: {
+      '/api/orderbook': {
+        target: process.env.VITE_MARKET_API_URL || 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/api/market': {
+        target: process.env.VITE_MARKET_API_URL || 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      },
       '/api': {
         target: process.env.VITE_API_URL || 'http://localhost:3000',
         changeOrigin: true,

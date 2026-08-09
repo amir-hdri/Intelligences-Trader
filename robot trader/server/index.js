@@ -111,6 +111,19 @@ const generateSimulationData = (symbolId) => {
 
 export const app = express();
 app.disable('x-powered-by');
+const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS || '0', 10);
+if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 10) {
+  throw new Error('TRUST_PROXY_HOPS must be an integer between 0 and 10');
+}
+if (trustProxyHops > 0) app.set('trust proxy', trustProxyHops);
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+  next();
+});
 app.use(apiMetrics());
 const port = Number.parseInt(process.env.PORT || '3000', 10);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be a valid TCP port');
@@ -137,11 +150,14 @@ app.use((req, res, next) => {
 });
 
 
-// SECURITY FIX: Removed the vulnerable fallback values (|| 'default-dev-secret' and 'default-dev-refresh-secret')
-// to prevent attackers from bypassing authentication if secrets are not set in production.
+// Authentication fails closed when explicitly enabled and never uses fallback secrets.
 const JWT_SECRET = process.env.JWT_SECRET;
 const REFRESH_SECRET = process.env.REFRESH_SECRET;
-const AUTH_REQUIRED = process.env.AUTH_REQUIRED === 'true';
+const authSetting = process.env.AUTH_REQUIRED?.trim().toLowerCase();
+if (authSetting && !['true', 'false'].includes(authSetting)) {
+  throw new Error('AUTH_REQUIRED must be true or false');
+}
+const AUTH_REQUIRED = authSetting ? authSetting === 'true' : process.env.NODE_ENV === 'production';
 
 if (AUTH_REQUIRED && (
   !JWT_SECRET || JWT_SECRET.length < 32 ||
@@ -153,37 +169,45 @@ if (AUTH_REQUIRED && (
 
 // Rate limiter: max 100 requests per minute
 const apiLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again after a minute',
-  standardHeaders: true,
+  windowMs: 60_000,
+  max: 100,
+  message: { error: 'Too many requests; retry after one minute' },
+  standardHeaders: 'draft-8',
   legacyHeaders: false,
 });
+const authLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  max: 10,
+  message: { error: 'Too many authentication attempts; retry later' },
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+});
 
-// Apply rate limiter to all API routes
 app.use('/api/', apiLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/refresh', authLimiter);
 
-// JWT Middleware
 const authenticateToken = (req, res, next) => {
-  // Allow /api/status without auth
-  if (req.path === '/status' || req.path === '/auth/login' || req.path === '/auth/refresh') {
-    return next();
-  }
+  if (req.path === '/status') return next();
+  const authHeader = req.headers.authorization;
+  const match = typeof authHeader === 'string' ? /^Bearer\s+([^\s]+)$/.exec(authHeader) : null;
+  if (!match) return res.status(401).json({ error: 'Bearer access token required' });
 
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (token == null) return res.sendStatus(401);
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
-    req.user = user;
+  jwt.verify(match[1], JWT_SECRET, { algorithms: ['HS256'] }, (error, user) => {
+    if (error || !user || typeof user.name !== 'string') {
+      return res.status(403).json({ error: 'Access token is invalid or expired' });
+    }
+    req.user = { name: user.name };
     next();
   });
 };
 
-// Apply auth middleware to API routes (disabled for now to avoid breaking existing frontend if it doesn't send token)
-// app.use('/api/', authenticateToken);
+const secureCredentialMatch = (supplied, expected) => {
+  const left = crypto.createHash('sha256').update(String(supplied)).digest();
+  const right = crypto.createHash('sha256').update(String(expected)).digest();
+  return crypto.timingSafeEqual(left, right);
+};
 
 // Auth endpoints
 app.post('/api/auth/login', (req, res) => {
@@ -191,37 +215,48 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(503).json({ error: 'Authentication is not configured' });
   }
   const { username, password } = req.body || {};
-  if (typeof username === 'string' && typeof password === 'string' && username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
-    const user = { name: username };
-    const accessToken = jwt.sign(user, JWT_SECRET, { expiresIn: '15m' });
-    const refreshToken = jwt.sign(user, REFRESH_SECRET, { expiresIn: '1h' });
-
-    auditLogger.log('LOGIN_SUCCESS', req.ip, username);
-    res.json({ accessToken, refreshToken });
-  } else {
-    auditLogger.log('LOGIN_FAILED', req.ip, username);
-    res.status(401).json({ error: 'Invalid credentials' });
+  const validShape = typeof username === 'string' && username.length <= 128
+    && typeof password === 'string' && password.length <= 1024;
+  const validCredentials = validShape
+    && secureCredentialMatch(username, process.env.ADMIN_USERNAME)
+    && secureCredentialMatch(password, process.env.ADMIN_PASSWORD);
+  if (!validCredentials) {
+    auditLogger.log('LOGIN_FAILED', req.ip, typeof username === 'string' ? username.slice(0, 128) : 'invalid');
+    return res.status(401).json({ error: 'Invalid credentials' });
   }
+
+  const user = { name: username };
+  const accessToken = jwt.sign(user, JWT_SECRET, { algorithm: 'HS256', expiresIn: '15m' });
+  const refreshToken = jwt.sign(user, REFRESH_SECRET, { algorithm: 'HS256', expiresIn: '1h' });
+  auditLogger.log('LOGIN_SUCCESS', req.ip, username);
+  res.setHeader('Cache-Control', 'no-store');
+  return res.json({ accessToken, refreshToken, tokenType: 'Bearer', expiresIn: 900 });
 });
 
 app.post('/api/auth/refresh', (req, res) => {
   if (!JWT_SECRET || !REFRESH_SECRET) return res.status(503).json({ error: 'Authentication is not configured' });
   const { token } = req.body || {};
-  if (typeof token !== 'string') return res.sendStatus(401);
+  if (typeof token !== 'string' || token.length > 4096) {
+    return res.status(401).json({ error: 'Refresh token required' });
+  }
 
-  jwt.verify(token, REFRESH_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
-    const accessToken = jwt.sign({ name: user.name }, JWT_SECRET, { expiresIn: '15m' });
-    res.json({ accessToken });
+  jwt.verify(token, REFRESH_SECRET, { algorithms: ['HS256'] }, (error, user) => {
+    if (error || !user || typeof user.name !== 'string') {
+      return res.status(403).json({ error: 'Refresh token is invalid or expired' });
+    }
+    const accessToken = jwt.sign(
+      { name: user.name },
+      JWT_SECRET,
+      { algorithm: 'HS256', expiresIn: '15m' },
+    );
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ accessToken, tokenType: 'Bearer', expiresIn: 900 });
   });
 });
 
-if (AUTH_REQUIRED) {
-  app.use(
-    ['/api/train', '/api/predict', '/api/advanced', '/api/backtests'],
-    authenticateToken,
-  );
-}
+// In secured deployments every API route is protected except health and the
+// two authentication endpoints, which were registered above this middleware.
+if (AUTH_REQUIRED) app.use('/api', authenticateToken);
 
 // Phase 3 deterministic, point-in-time backtesting API.
 app.use('/api/backtests', createBacktestRouter(backtestService));
@@ -282,6 +317,7 @@ app.post('/api/analyze', (req, res) => {
 
                const tcnStart = Date.now();
                const tcnPredictions = await modelManager.predict([recentData], correlationId);
+               modelRegistryInstance.recordInference(Date.now() - tcnStart);
                const tcnPrediction = tcnPredictions[0].prediction;
 
                // Compare Rule-based vs TCN Model (Shadow Mode)
@@ -329,21 +365,6 @@ app.post('/api/analyze', (req, res) => {
 
 
 
-
-// 1. Status Check - will be overridden by real Model Registry later, keep placeholder for early boot
-app.get('/api/status', (req, res, next) => {
-  // If modelRegistryInstance already initialized, use real metrics, else fallback
-  if (typeof modelRegistryInstance !== 'undefined' && modelRegistryInstance) {
-    return next();
-  }
-  res.json({
-    status: 'Online',
-    service: 'Robot Trader Intelligence Core',
-    version: '2.5.0',
-    modelReady: Boolean(modelManager.session),
-    modelVersion: modelManager.getVersion(),
-  });
-});
 
 app.get('/metrics', (req, res) => {
   const averageDuration = requestMetrics.total > 0 ? requestMetrics.durationMs / requestMetrics.total : 0;
@@ -423,7 +444,7 @@ app.get('/api/tse/:id', async (req, res) => {
     };
 
     // Construct array of candles for analysis (normally you would fetch history)
-    // Here we generate a mock history to feed the analyzer, anchored to the real last price.
+    // Generate explicitly-labelled synthetic history anchored to the real last price.
     const candles = generateHistory(candle);
 
     res.json({
@@ -528,7 +549,8 @@ app.get('/api/tse/info/:symbolId', async (req, res) => {
   }
 });
 
-// 5. Deep Training (Strategy Optimization)
+// 5. Bounded research training (single process-local job at a time)
+let trainingInProgress = false;
 app.post('/api/train', async (req, res) => {
   const requestBody = req.body || {};
   let symbol = requestBody.symbol || 'SAF1403';
@@ -551,6 +573,10 @@ app.post('/api/train', async (req, res) => {
     });
   }
 
+  if (trainingInProgress) {
+    return res.status(409).json({ error: 'A research training job is already running' });
+  }
+  trainingInProgress = true;
   try {
     // 1. Prepare data
     // Extract close prices
@@ -681,6 +707,14 @@ app.post('/api/train', async (req, res) => {
     const sharpeRatio = calculateSharpeRatio(returns);
     const maxDrawdown = calculateMaxDrawdown(equityCurve);
     const calibrationError = calculateCalibrationError(allYTrue, allYPredProbs);
+    modelRegistryInstance.recordEvaluation({
+      accuracy: outOfSampleAccuracy,
+      precision: null,
+      recall: null,
+      f1Score: null,
+      driftScore: calibrationError,
+      timestamp: Date.now(),
+    });
 
     tf.dispose([xTrain, yTrainLabels, yTrain, xVal, preds]);
     model.dispose();
@@ -700,9 +734,11 @@ app.post('/api/train', async (req, res) => {
   } catch (error) {
     logger.error("Training error:", error);
     res.status(500).json({ error: 'Internal server error during training' });
+  } finally {
+    trainingInProgress = false;
   }
 });
-// Helper to generate fake history anchored to real price
+// Helper to generate explicitly-labelled synthetic history anchored to real price
 function generateHistory(currentCandle) {
     const count = 100;
     const candles = new Array(count);
@@ -746,7 +782,7 @@ app.get('/api/market/history', (req, res) => {
 
   try {
     const data = generateHistoricalData(symbol, years);
-    res.json(data);
+    res.json({ source: 'DIGITAL_TWIN_HISTORY', simulated: true, data });
   } catch (error) {
     logger.error('Error in /api/market/history:', error);
     res.status(500).json({ error: 'Failed to generate historical data' });
@@ -771,6 +807,7 @@ app.post('/api/predict', async (req, res) => {
 
     const end = Date.now();
     const inferenceTimeMs = end - start;
+    modelRegistryInstance.recordInference(inferenceTimeMs);
     pinoLogger.info({ correlationId, inferenceTimeMs, event: 'predict_success' }, 'Model prediction completed');
 
 
@@ -921,7 +958,14 @@ app.get('/api/positions', (req, res) => {
     const symbol = String(req.query.symbol || 'SAF1403');
     if (!/^[A-Z0-9-]+$/.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
     const positions = positionLedger.getPositions(symbol);
-    res.json({ success: true, source: 'POSITION_LEDGER', simulated: false, data: positions, count: positions.length });
+    res.json({
+      success: true,
+      source: 'PROCESS_LOCAL_PAPER_POSITION_LEDGER',
+      simulated: true,
+      simulationType: 'PAPER_TRADING',
+      data: positions,
+      count: positions.length,
+    });
   } catch (error) {
     logger.error('Error in /api/positions:', error);
     res.status(500).json({ error: 'Failed to fetch positions' });
@@ -931,7 +975,7 @@ app.get('/api/positions', (req, res) => {
 app.get('/api/positions/all', (req, res) => {
   try {
     const positions = positionLedger.getAllPositions();
-    res.json({ success: true, source: 'POSITION_LEDGER', data: positions });
+    res.json({ success: true, source: 'PROCESS_LOCAL_PAPER_POSITION_LEDGER', simulated: true, simulationType: 'PAPER_TRADING', data: positions });
   } catch (error) {
     logger.error('Error in /api/positions/all:', error);
     res.status(500).json({ error: 'Failed to fetch positions' });
@@ -944,7 +988,7 @@ app.get('/api/orders', (req, res) => {
     const symbol = String(req.query.symbol || 'SAF1403');
     if (!/^[A-Z0-9-]+$/.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
     const orders = orderLedger.getOrders(symbol);
-    res.json({ success: true, source: 'ORDER_STATE_MACHINE', simulated: false, data: orders });
+    res.json({ success: true, source: 'PROCESS_LOCAL_PAPER_ORDER_LEDGER', simulated: true, simulationType: 'PAPER_TRADING', data: orders });
   } catch (error) {
     logger.error('Error in /api/orders:', error);
     res.status(500).json({ error: 'Failed to fetch orders' });
@@ -954,7 +998,7 @@ app.get('/api/orders', (req, res) => {
 app.get('/api/orders/all', (req, res) => {
   try {
     const orders = orderLedger.getAllOrders();
-    res.json({ success: true, data: orders });
+    res.json({ success: true, source: 'PROCESS_LOCAL_PAPER_ORDER_LEDGER', simulated: true, simulationType: 'PAPER_TRADING', data: orders });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch orders' });
   }
@@ -965,8 +1009,14 @@ app.get('/api/performance', (req, res) => {
   try {
     const symbol = String(req.query.symbol || 'SAF1403');
     if (!/^[A-Z0-9-]+$/.test(symbol)) return res.status(400).json({ error: 'Invalid symbol' });
-    const perf = performanceLedger.getPerformance(symbol);
-    res.json({ success: true, source: 'TRADE_LEDGER', simulated: false, data: perf });
+    const perf = performanceLedger.getPerformance(symbol, paperTradingEngine.getTrades(), 1_000_000);
+    res.json({
+      success: true,
+      source: 'REALIZED_PAPER_TRADE_LEDGER',
+      simulated: true,
+      simulationType: 'PAPER_TRADING',
+      data: perf,
+    });
   } catch (error) {
     logger.error('Error in /api/performance:', error);
     res.status(500).json({ error: 'Failed to calculate performance' });
@@ -975,12 +1025,15 @@ app.get('/api/performance', (req, res) => {
 
 app.post('/api/performance/calculate', (req, res) => {
   try {
-    const { trades } = req.body || {};
-    if (!Array.isArray(trades)) return res.status(400).json({ error: 'trades must be array' });
-    const perf = performanceLedger.calculatePerformanceFromTrades(trades);
+    const { trades, initialCapital } = req.body || {};
+    if (!Array.isArray(trades) || trades.length > 10_000) {
+      return res.status(400).json({ error: 'trades must be an array with at most 10,000 items' });
+    }
+    const perf = performanceLedger.calculatePerformanceFromTrades(trades, initialCapital ?? 1_000_000);
     res.json({ success: true, data: perf });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to calculate performance' });
+    if (error instanceof TypeError) return res.status(400).json({ error: error.message });
+    return res.status(500).json({ error: 'Failed to calculate performance' });
   }
 });
 
@@ -1013,7 +1066,7 @@ app.get('/api/learning', (req, res) => {
   try {
     const symbol = String(req.query.symbol || 'SAF1403');
     const data = learningPipeline.getLearningData(symbol);
-    res.json({ success: true, source: 'PYTHON_RESEARCH_PIPELINE', simulated: false, data });
+    res.json({ success: true, source: 'DETERMINISTIC_RESEARCH_FIXTURE', simulated: true, simulationType: 'RESEARCH', data });
   } catch (error) {
     logger.error('Error in /api/learning:', error);
     res.status(500).json({ error: 'Failed to fetch learning data' });
@@ -1023,23 +1076,60 @@ app.get('/api/learning', (req, res) => {
 app.get('/api/learning/weights', (req, res) => {
   try {
     const data = learningPipeline.getLearningData();
-    res.json({ success: true, weights: data.currentWeights, history: data.history.slice(0,20) });
+    res.json({ success: true, source: 'DETERMINISTIC_RESEARCH_FIXTURE', simulated: true, weights: data.currentWeights, history: data.history.slice(0,20) });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch weights' });
   }
 });
 
-// Paper Trading - Real Engine (no Math.random)
+const normalizeLegacyPaperTrade = body => {
+  const { order, forecast } = body || {};
+  if (!order || typeof order !== 'object' || !forecast || typeof forecast !== 'object') {
+    throw new TypeError('order and forecast objects are required');
+  }
+  const action = String(order.action || '').toUpperCase();
+  const symbol = String(order.symbol || '').toUpperCase();
+  if (!['BUY', 'SELL'].includes(action)) throw new TypeError('order.action must be BUY or SELL');
+  if (!/^[A-Z0-9-]{1,64}$/.test(symbol)) throw new TypeError('order.symbol is invalid');
+  const numeric = (value, name, { min = 0, max = 1e15, required = true } = {}) => {
+    if (value == null && !required) return undefined;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= min || parsed > max) throw new TypeError(`${name} is invalid`);
+    return parsed;
+  };
+  const entry = numeric(order.entry ?? body.marketPrice, 'order.entry');
+  const qty = numeric(order.qty, 'order.qty', { max: 1e9 });
+  const leverage = numeric(order.leverage ?? 1, 'order.leverage', { max: 100 });
+  const stopLoss = numeric(order.stopLoss, 'order.stopLoss', { required: false });
+  const takeProfit = numeric(order.takeProfit, 'order.takeProfit', { required: false });
+  if (stopLoss != null && takeProfit != null) {
+    const validBracket = action === 'BUY'
+      ? stopLoss < entry && takeProfit > entry
+      : stopLoss > entry && takeProfit < entry;
+    if (!validBracket) throw new TypeError('stop-loss/take-profit bracket is inconsistent with order side');
+  }
+  const forecastAction = String(forecast.action || 'HOLD').toUpperCase();
+  if (!['BUY', 'SELL', 'HOLD'].includes(forecastAction)) throw new TypeError('forecast.action is invalid');
+  const confidence = Number(forecast.confidence);
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw new TypeError('forecast.confidence must be in [0, 1]');
+  return {
+    order: { ...order, action, symbol, qty, entry, leverage, stopLoss, takeProfit },
+    forecast: { ...forecast, action: forecastAction, confidence },
+    marketPrice: numeric(body.marketPrice ?? entry, 'marketPrice'),
+  };
+};
+
+// Legacy deterministic paper outcome simulator. It is explicitly labelled as
+// simulated; P2 execution should be used when fill-level behavior is required.
 app.post('/api/paper-trading/execute', (req, res) => {
   try {
-    const { order, forecast, marketPrice } = req.body || {};
-    if (!order || !forecast) return res.status(400).json({ error: 'order and forecast required' });
-    const result = paperTradingEngine.executeTrade(order, forecast, marketPrice || order.entry);
-    modelRegistryInstance.recordInference(result.trade ? 15 : 0);
-    res.json({ success: true, source: 'PAPER_TRADING_ENGINE', simulated: false, data: result });
+    const { order, forecast, marketPrice } = normalizeLegacyPaperTrade(req.body);
+    const result = paperTradingEngine.executeTrade(order, forecast, marketPrice);
+    res.json({ success: true, source: 'DETERMINISTIC_PAPER_SIMULATOR', simulated: true, simulationType: 'PAPER_TRADING', data: result });
   } catch (error) {
+    if (error instanceof TypeError) return res.status(400).json({ error: error.message });
     logger.error('Error in paper trading execute:', error);
-    res.status(500).json({ error: 'Failed to execute paper trade' });
+    return res.status(500).json({ error: 'Failed to execute paper trade' });
   }
 });
 
@@ -1053,7 +1143,7 @@ app.post('/api/paper-trading/p2/execute-ml', (req, res) => {
       ...(size != null ? { size } : {}),
       ...(confidenceThreshold != null ? { confidenceThreshold } : {}),
     });
-    res.json({ success: true, source: 'P2_ML_BRIDGE', data: result });
+    res.json({ success: true, source: 'P2_ML_BRIDGE', simulated: true, simulationType: 'PAPER_TRADING', data: result });
   } catch (error) {
     logger.error('Error in P2 ML execute:', error);
     res.status(500).json({ error: 'Failed to execute ML-driven paper trade' });
@@ -1064,7 +1154,7 @@ app.get('/api/paper-trading/p2/metrics', (req, res) => {
   try {
     paperTradingEngine.analytics.updateTrades(paperTradingEngine.getTrades());
     const metrics = paperTradingEngine.analytics.getMetrics();
-    res.json({ success: true, source: 'P2_ANALYTICS', data: metrics });
+    res.json({ success: true, source: 'P2_ANALYTICS', simulated: true, simulationType: 'PAPER_TRADING', data: metrics });
   } catch (error) {
     res.status(500).json({ error: 'Failed to calculate P2 metrics' });
   }
@@ -1078,7 +1168,7 @@ app.post('/api/paper-trading/p2/report', (req, res) => {
     const { period = 'daily' } = req.body || {};
     const generator = new ReportGenerator(paperTradingEngine.getTrades());
     const report = generator.generateReport(period);
-    res.json({ success: true, data: report });
+    res.json({ success: true, source: 'P2_REPORT_SIMULATOR', simulated: true, simulationType: 'PAPER_TRADING', data: report });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate report' });
   }
@@ -1104,7 +1194,7 @@ app.post('/api/paper-trading/p2/backtest', async (req, res) => {
     }
     paperTradingEngine._ensureP2();
     const result = paperTradingEngine.backtestHarness.run(candles, signals);
-    res.json({ success: true, source: 'P2_BACKTEST', data: result });
+    res.json({ success: true, source: 'P2_BACKTEST', simulated: true, simulationType: 'PAPER_TRADING', data: result });
   } catch (error) {
     logger.error('Error in P2 backtest:', error);
     res.status(500).json({ error: 'Failed to run backtest' });
@@ -1116,7 +1206,7 @@ app.get('/api/paper-trading/p2/orderbook', (req, res) => {
   try {
     paperTradingEngine._ensureP2();
     const depth = paperTradingEngine.orderBook.depth(Number(req.query.levels) || 5);
-    res.json({ success: true, source: 'P2_ORDER_BOOK', data: depth });
+    res.json({ success: true, source: 'P2_ORDER_BOOK', simulated: true, simulationType: 'PAPER_TRADING', data: depth });
   } catch (error) {
     res.status(500).json({ error: 'Failed to read order book' });
   }
@@ -1167,7 +1257,7 @@ app.post('/api/paper-trading/p2/orderbook/cancel', (req, res) => {
 app.get('/api/paper-trading/p2/orders', (req, res) => {
   try {
     paperTradingEngine._ensureP2();
-    res.json({ success: true, source: 'P2_ORDER_STATE_MACHINE', data: paperTradingEngine.orderStateMachine.getAllOrders() });
+    res.json({ success: true, source: 'P2_ORDER_STATE_MACHINE', simulated: true, simulationType: 'PAPER_TRADING', data: paperTradingEngine.orderStateMachine.getAllOrders() });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch orders' });
   }
@@ -1276,7 +1366,7 @@ app.get('/api/paper-trading/p2/trades', async (req, res) => {
   try {
     paperTradingEngine._ensureP2();
     const trades = await paperTradingEngine.tradeRepository.getRecentTrades(Number(req.query.limit) || 100);
-    res.json({ success: true, source: 'P2_TRADE_REPOSITORY', data: trades });
+    res.json({ success: true, source: 'P2_TRADE_REPOSITORY', simulated: true, simulationType: 'PAPER_TRADING', data: trades });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch persisted trades' });
   }
@@ -1309,7 +1399,7 @@ app.get('/api/paper-trading/trades', (req, res) => {
   try {
     const trades = paperTradingEngine.getTrades();
     const stats = paperTradingEngine.getStats();
-    res.json({ success: true, data: { trades, stats } });
+    res.json({ success: true, source: 'DETERMINISTIC_PAPER_SIMULATOR', simulated: true, simulationType: 'PAPER_TRADING', data: { trades, stats } });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch paper trades' });
   }
@@ -1318,14 +1408,13 @@ app.get('/api/paper-trading/trades', (req, res) => {
 app.get('/api/paper-trading/stats', (req, res) => {
   try {
     const stats = paperTradingEngine.getStats();
-    res.json({ success: true, data: stats });
+    res.json({ success: true, source: 'DETERMINISTIC_PAPER_SIMULATOR', simulated: true, simulationType: 'PAPER_TRADING', data: stats });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch stats' });
   }
 });
 
-// Override /api/status to include real model metrics (no hard-coded Inference: 18ms)
-const originalStatusHandler = app._getStatusHandler;
+// Public liveness/readiness status with measured model-registry values.
 app.get('/api/status', (req, res) => {
   const registryMetrics = modelRegistryInstance ? modelRegistryInstance.getMetrics() : { inferenceLatency: 0, version: '2.5.0', modelReady: Boolean(modelManager.session) };
   res.json({
