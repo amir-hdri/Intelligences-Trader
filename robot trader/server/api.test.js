@@ -45,6 +45,23 @@ describe('Analysis API integration', () => {
     assert.match(response.body.error, /disabled/);
   });
 
+  test('keeps empty ledgers honest and labels paper data as simulated', async () => {
+    const positions = await request(app).get('/api/positions?symbol=SAF1403');
+    assert.strictEqual(positions.status, 200);
+    assert.strictEqual(positions.body.simulated, true);
+    assert.deepStrictEqual(positions.body.data, []);
+
+    const model = await request(app).get('/api/models');
+    assert.strictEqual(model.status, 200);
+    assert.strictEqual(model.body.data.accuracy, null);
+
+    const invalidPaper = await request(app).post('/api/paper-trading/execute').send({
+      order: { action: 'BUY', symbol: 'SAF1403', qty: 0, entry: 100 },
+      forecast: { action: 'BUY', confidence: 2 },
+    });
+    assert.strictEqual(invalidPaper.status, 400);
+  });
+
   test('exports process metrics', async () => {
     const response = await request(app).get('/metrics');
     assert.strictEqual(response.status, 200);

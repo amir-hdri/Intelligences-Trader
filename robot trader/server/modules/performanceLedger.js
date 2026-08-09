@@ -1,12 +1,22 @@
-import { createSeededRng } from '../utils/deterministic.js';
-import { generateHistoricalData } from '../dataFactory.js';
-
 /**
- * Performance Metrics from Trade Ledger - replaces hard-coded Sharpe, CAGR etc.
+ * Performance metrics calculated only from an explicit realized-trade ledger.
+ * No sample history or filtered synthetic winners are generated here.
  */
+export function calculatePerformanceFromTrades(trades, initialCapital = 1_000_000) {
+  if (!Array.isArray(trades)) throw new TypeError('trades must be an array');
+  if (!Number.isFinite(initialCapital) || initialCapital <= 0) throw new TypeError('initialCapital must be positive');
 
-export function calculatePerformanceFromTrades(trades) {
-  if (!trades || trades.length === 0) {
+  const normalized = trades.map((trade, index) => {
+    const pnl = Number(trade?.pnl ?? trade?.profit);
+    if (!Number.isFinite(pnl)) throw new TypeError(`trades[${index}] requires finite pnl or profit`);
+    const timestamp = Number(trade?.timestamp);
+    return { ...trade, pnl, timestamp: Number.isFinite(timestamp) ? timestamp : null, inputIndex: index };
+  }).sort((a, b) => {
+    if (a.timestamp == null || b.timestamp == null) return a.inputIndex - b.inputIndex;
+    return a.timestamp - b.timestamp;
+  });
+
+  if (normalized.length === 0) {
     return {
       sharpe: 0,
       sortino: 0,
@@ -17,72 +27,76 @@ export function calculatePerformanceFromTrades(trades) {
       totalTrades: 0,
       avgWin: 0,
       avgLoss: 0,
+      totalPnl: 0,
+      finalEquity: initialCapital,
+      equityCurve: [],
     };
   }
 
-  const wins = trades.filter(t => t.pnl > 0 || t.profit > 0);
-  const losses = trades.filter(t => (t.pnl ?? t.profit) <= 0);
-  const winRate = wins.length / trades.length;
-  const totalGain = wins.reduce((s, t) => s + (t.pnl ?? t.profit ?? 0), 0);
-  const totalLoss = Math.abs(losses.reduce((s, t) => s + (t.pnl ?? t.profit ?? 0), 0));
-  const profitFactor = totalLoss > 0 ? totalGain / totalLoss : 10;
-
-  const returns = trades.map(t => (t.pnl ?? t.profit ?? 0) / 1000000);
-  const avgReturn = returns.reduce((a,b)=>a+b,0)/returns.length;
-  const variance = returns.reduce((s,r)=>s+Math.pow(r-avgReturn,2),0)/returns.length;
-  const stdDev = Math.sqrt(variance) || 0.001;
-  const sharpe = (avgReturn / stdDev) * Math.sqrt(252);
-  const downsideReturns = returns.filter(r=>r<0);
-  const downsideVar = downsideReturns.length ? downsideReturns.reduce((s,r)=>s+r*r,0)/downsideReturns.length : variance;
-  const downsideDev = Math.sqrt(downsideVar) || stdDev;
-  const sortino = (avgReturn / downsideDev) * Math.sqrt(252);
-  const cagr = avgReturn * 252 * 100;
-
-  // Max drawdown from equity curve
-  let equity = 1000000;
-  let peak = equity;
-  let maxDD = 0;
-  for (const t of trades) {
-    equity += (t.pnl ?? t.profit ?? 0);
-    if (equity > peak) peak = equity;
-    const dd = (peak - equity)/peak;
-    if (dd > maxDD) maxDD = dd;
+  let equity = initialCapital;
+  let peak = initialCapital;
+  let maxDrawdown = 0;
+  const returns = [];
+  const equityCurve = [];
+  for (const trade of normalized) {
+    const previousEquity = equity;
+    equity += trade.pnl;
+    returns.push(previousEquity > 0 ? trade.pnl / previousEquity : 0);
+    peak = Math.max(peak, equity);
+    const drawdown = peak > 0 ? Math.max(0, (peak - equity) / peak) : 1;
+    maxDrawdown = Math.max(maxDrawdown, drawdown);
+    equityCurve.push({
+      time: trade.timestamp,
+      equity,
+      drawdown,
+    });
   }
 
+  const wins = normalized.filter(trade => trade.pnl > 0);
+  const losses = normalized.filter(trade => trade.pnl < 0);
+  const totalGain = wins.reduce((sum, trade) => sum + trade.pnl, 0);
+  const totalLoss = -losses.reduce((sum, trade) => sum + trade.pnl, 0);
+  const mean = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+  const variance = returns.reduce((sum, value) => sum + (value - mean) ** 2, 0) / returns.length;
+  const stdDev = Math.sqrt(Math.max(0, variance));
+  const downside = returns.filter(value => value < 0);
+  const downsideVariance = downside.length
+    ? downside.reduce((sum, value) => sum + value ** 2, 0) / downside.length
+    : 0;
+  const downsideDev = Math.sqrt(downsideVariance);
+
+  const firstTimestamp = normalized.find(trade => trade.timestamp != null)?.timestamp;
+  const lastTimestamp = [...normalized].reverse().find(trade => trade.timestamp != null)?.timestamp;
+  const elapsedDays = firstTimestamp != null && lastTimestamp != null
+    ? Math.max(0, (lastTimestamp - firstTimestamp) / 86_400_000)
+    : 0;
+  const growth = equity / initialCapital;
+  const cagr = elapsedDays > 0 && growth > 0
+    ? (growth ** (365 / elapsedDays) - 1) * 100
+    : (growth - 1) * 100;
+
+  const finiteOrZero = value => Number.isFinite(value) ? value : 0;
   return {
-    sharpe: Number(sharpe.toFixed(2)),
-    sortino: Number(sortino.toFixed(2)),
-    cagr: Number(cagr.toFixed(2)),
-    maxDrawdown: Number((maxDD*100).toFixed(2)),
-    winRate: Number(winRate.toFixed(4)),
-    profitFactor: Number(profitFactor.toFixed(2)),
-    totalTrades: trades.length,
-    avgWin: wins.length ? Number((totalGain/wins.length).toFixed(2)) : 0,
-    avgLoss: losses.length ? Number((totalLoss/losses.length).toFixed(2)) : 0,
-    equityCurve: trades.map((t,i)=> ({ time: t.timestamp || Date.now()-i*86400000, equity: 1000000 + trades.slice(0,i+1).reduce((s,x)=>s+(x.pnl??x.profit??0),0) }))
+    sharpe: Number(finiteOrZero(stdDev > Number.EPSILON ? (mean / stdDev) * Math.sqrt(252) : 0).toFixed(4)),
+    sortino: Number(finiteOrZero(downsideDev > Number.EPSILON ? (mean / downsideDev) * Math.sqrt(252) : 0).toFixed(4)),
+    cagr: Number(finiteOrZero(cagr).toFixed(4)),
+    maxDrawdown: Number((maxDrawdown * 100).toFixed(4)),
+    winRate: Number((wins.length / normalized.length).toFixed(6)),
+    profitFactor: totalLoss > Number.EPSILON ? Number((totalGain / totalLoss).toFixed(4)) : null,
+    totalTrades: normalized.length,
+    avgWin: wins.length ? Number((totalGain / wins.length).toFixed(4)) : 0,
+    avgLoss: losses.length ? Number((totalLoss / losses.length).toFixed(4)) : 0,
+    totalPnl: Number((equity - initialCapital).toFixed(4)),
+    finalEquity: Number(equity.toFixed(4)),
+    equityCurve,
   };
 }
 
-export function getPerformance(symbolId = 'SAF1403') {
-  // Deterministic performance based on historical backtest, not hard-coded
-  const history = generateHistoricalData(symbolId, 1);
-  // Simulate trades from history price action
-  const rng = createSeededRng(`perf-${symbolId}`);
-  const trades = [];
-  for (let i=50; i<history.length-1; i+=10) {
-    const entry = history[i].close;
-    const exit = history[i+1].close;
-    // Determine action based on moving average cross (deterministic)
-    const sma20 = history.slice(i-20,i).reduce((s,c)=>s+c.close,0)/20;
-    const sma50 = history.slice(i-50,i).reduce((s,c)=>s+c.close,0)/50;
-    const action = entry > sma20 && sma20 > sma50 ? 'BUY' : entry < sma20 && sma20 < sma50 ? 'SELL' : 'HOLD';
-    if (action === 'HOLD') continue;
-    const profit = action === 'BUY' ? exit-entry : entry-exit;
-    // Only keep profitable-ish deterministic filter to simulate edge
-    if (rng() < 0.75 && profit < 0) continue; // reduce losses deterministically using seeded rng for reproducibility
-    trades.push({ profit, timestamp: history[i].timestamp });
-  }
-  return calculatePerformanceFromTrades(trades);
+export function getPerformance(symbolId = 'SAF1403', trades = [], initialCapital = 1_000_000) {
+  const selected = Array.isArray(trades)
+    ? trades.filter(trade => !symbolId || trade?.symbol === symbolId)
+    : [];
+  return calculatePerformanceFromTrades(selected, initialCapital);
 }
 
 export const performanceLedger = { getPerformance, calculatePerformanceFromTrades };

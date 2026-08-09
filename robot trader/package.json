@@ -8,6 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "tsc -p tsconfig.test.json && echo '{\"type\":\"commonjs\"}' > test-out/package.json && node --test test-out/**/*.test.js test-out/*.test.js",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "repository": {

@@ -28,6 +28,8 @@ export const normalizeOrderBook = (value: unknown): OrderBookType | null => {
     timestamp?: unknown;
     isSpoofing?: unknown;
     isSpoofingDetected?: unknown;
+    source?: unknown;
+    simulated?: unknown;
   };
 
   if (!Array.isArray(payload.bids) || !Array.isArray(payload.asks)) return null;
@@ -46,6 +48,8 @@ export const normalizeOrderBook = (value: unknown): OrderBookType | null => {
     timestamp: Number.isFinite(payload.timestamp) ? Number(payload.timestamp) : Date.now(),
     isSpoofingDetected: Boolean(payload.isSpoofingDetected ?? payload.isSpoofing),
     pressure: totalVolume > 0 ? (buyVolume - sellVolume) / totalVolume : 0,
+    source: typeof payload.source === 'string' ? payload.source : undefined,
+    simulated: payload.simulated === true,
     queueDynamics: {
       buyVolume,
       sellVolume,

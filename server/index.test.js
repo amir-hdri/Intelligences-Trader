@@ -31,10 +31,13 @@ describe('Proxy server integration', () => {
     const health = await request(app).get('/api/status');
     assert.strictEqual(health.status, 200);
     assert.strictEqual(health.body.status, 'Online');
+    assert.strictEqual(health.headers['x-content-type-options'], 'nosniff');
+    assert.strictEqual(health.headers['x-frame-options'], 'DENY');
 
     const metrics = await request(app).get('/metrics');
     assert.strictEqual(metrics.status, 200);
-    assert.match(metrics.text, /http_requests_total/);
+    assert.match(metrics.text, /^# TYPE http_requests_total counter\nhttp_requests_total \d+/);
+    assert.ok(!metrics.text.includes('\\n'), 'metrics must contain real newlines, not escaped text');
   });
 
   test('returns normalized external market history', async () => {
@@ -61,6 +64,15 @@ describe('Proxy server integration', () => {
     assert.strictEqual(response.body.data.length, 100);
   });
 
+  test('labels generated order-book depth as simulated', async () => {
+    const response = await request(app).get('/api/orderbook/GOLD');
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.source, 'DIGITAL_TWIN_ORDER_BOOK');
+    assert.strictEqual(response.body.simulated, true);
+    assert.ok(Array.isArray(response.body.data.bids));
+    assert.ok(Array.isArray(response.body.data.asks));
+  });
+
   test('rejects malformed symbols', async () => {
     const response = await request(app).get('/api/market/not%20valid');
     assert.strictEqual(response.status, 400);
@@ -77,6 +89,8 @@ describe('Proxy server integration', () => {
 
       ws.on('message', data => {
         const message = JSON.parse(String(data));
+        assert.strictEqual(message.data.simulated, true);
+        assert.strictEqual(message.data.source, 'DIGITAL_TWIN_WEBSOCKET');
         messageTypes.add(message.type);
         if (messageTypes.has('ORDER_BOOK') && messageTypes.has('TRADE_TICK') && messageTypes.has('PRICE_CHANGE')) {
           clearTimeout(timeout);

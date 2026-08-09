@@ -1,6 +1,6 @@
 import React from 'react';
 import { SentimentData } from '../../types';
-import { Newspaper, MessageSquare, TrendingUp, ShieldAlert, Sparkles } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 
 const cn = (...c: (string | false | undefined | null)[]) => c.filter(Boolean).join(' ');
 
@@ -10,10 +10,9 @@ interface SentimentMonitorProps {
 }
 
 export const SentimentMonitor: React.FC<SentimentMonitorProps> = ({ data, className }) => {
-  const politicalRisk = data?.politicalRiskIndex || 50;
-  const score = data?.score || 0.45;
-  const sentimentLabel = data?.label || 'GREED';
-  const confidence = 88;
+  const politicalRisk = Number.isFinite(data.politicalRiskIndex) ? data.politicalRiskIndex : 50;
+  const score = Number.isFinite(data.score) ? data.score : 0;
+  const sentimentLabel = data.label;
 
   return (
     <div className={cn("glass-panel p-4 lg:p-5 rounded-3xl space-y-4", className)}>
@@ -23,6 +22,7 @@ export const SentimentMonitor: React.FC<SentimentMonitorProps> = ({ data, classN
           <h3 className="text-slate-300 font-black text-xs uppercase tracking-widest">
             NLP Sentiment & Political Risk
           </h3>
+          {data.simulated && <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-black uppercase text-amber-300">Simulated news</span>}
         </div>
 
         <span className={cn(
@@ -83,10 +83,9 @@ export const SentimentMonitor: React.FC<SentimentMonitorProps> = ({ data, classN
             )}>
               {sentimentLabel} BIAS
             </span>
-            <span className="text-[10px] text-[#64748B]">• Conf: {confidence}%</span>
           </div>
           <div className="text-[11px] text-[#94A3B8] leading-relaxed">
-            Market regime sentiment shows positive commodity momentum with moderate macro variance.
+            Aggregate score {(score * 100).toFixed(1)} from {data.news.length} labelled research news items; no confidence estimate is available.
           </div>
         </div>
       </div>

@@ -28,6 +28,19 @@ const SYMBOL_PATTERN = /^[A-Z0-9-]{1,64}$/;
 
 export const app = express();
 app.disable('x-powered-by');
+const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS || '0', 10);
+if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 10) {
+  throw new Error('TRUST_PROXY_HOPS must be an integer between 0 and 10');
+}
+if (trustProxyHops > 0) app.set('trust proxy', trustProxyHops);
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+  next();
+});
 app.use((req, res, next) => {
   const startedAt = performance.now();
   requestMetrics.total += 1;
@@ -151,7 +164,11 @@ app.get('/api/market/:symbol', requireSymbol, async (req, res) => {
 
 app.get('/api/orderbook/:symbol', requireSymbol, (req, res) => {
   const basePrice = req.marketSymbol.includes('GOLD') ? 35_000_000 : 1_200_000;
-  res.json(generateOrderBook(basePrice, req.marketSymbol));
+  res.json({
+    source: 'DIGITAL_TWIN_ORDER_BOOK',
+    simulated: true,
+    data: generateOrderBook(basePrice, req.marketSymbol),
+  });
 });
 
 app.get('/api/status', (req, res) => {
@@ -168,7 +185,7 @@ app.get('/metrics', (req, res) => {
     '# TYPE http_request_duration_milliseconds gauge',
     `http_request_duration_milliseconds ${averageDuration.toFixed(3)}`,
     '',
-  ].join('\\n'));
+  ].join('\n'));
 });
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
@@ -231,14 +248,15 @@ export const startServer = (port = configuredPort) => {
       const change = (ws.rng() - 0.5) * 1_000;
       ws.currentPrice = Math.max(1, ws.currentPrice + change);
       const orderBook = generateOrderBook(ws.currentPrice, `${ws.symbol}-${ws.rng()}`);
-      ws.send(JSON.stringify({ type: 'ORDER_BOOK', data: orderBook }));
+      const provenance = { source: 'DIGITAL_TWIN_WEBSOCKET', simulated: true };
+      ws.send(JSON.stringify({ type: 'ORDER_BOOK', data: { ...orderBook, ...provenance } }));
       ws.send(JSON.stringify({
         type: 'TRADE_TICK',
-        data: { price: ws.currentPrice, volume: Math.floor(ws.rng() * 100), timestamp: Date.now() },
+        data: { price: ws.currentPrice, volume: Math.floor(ws.rng() * 100), timestamp: Date.now(), ...provenance },
       }));
       ws.send(JSON.stringify({
         type: 'PRICE_CHANGE',
-        data: { price: ws.currentPrice, change, timestamp: Date.now() },
+        data: { price: ws.currentPrice, change, timestamp: Date.now(), ...provenance },
       }));
     }
   }, 100);

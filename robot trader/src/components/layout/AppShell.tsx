@@ -28,11 +28,12 @@ import {
   RefreshCw,
   TrendingDown
 } from 'lucide-react';
-import { TimeFrame } from '../../types';
+import type { LucideIcon } from 'lucide-react';
+import type { ExpertForecast, SymbolInfo, SystemMetrics } from '../../types';
 
 export type NavGroup = {
   label: string;
-  items: { id: string; label: string; icon: any }[];
+  items: { id: string; label: string; icon: LucideIcon }[];
 };
 
 export const NAV: NavGroup[] = [
@@ -96,14 +97,13 @@ interface HeaderProps {
   onMenu: () => void;
   onCmd: () => void;
   onNotif: () => void;
-  connectionState: string;
-  forecast: any;
-  symbolName: string;
-  theme: string;
-  setTheme: (t: any) => void;
+  connectionState: 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING';
+  forecast: ExpertForecast | null;
+  theme: 'dark' | 'light';
+  setTheme: (theme: 'dark' | 'light') => void;
   collapsed: boolean;
   setCollapsed: (b: boolean) => void;
-  symbols: any[];
+  symbols: SymbolInfo[];
   selectedId: string;
   setSelected: (s: string) => void;
   currentPrice?: number;
@@ -118,7 +118,6 @@ export const Header: React.FC<HeaderProps> = ({
   onNotif,
   connectionState,
   forecast,
-  symbolName,
   theme,
   setTheme,
   collapsed,
@@ -126,13 +125,11 @@ export const Header: React.FC<HeaderProps> = ({
   symbols,
   selectedId,
   setSelected,
-  currentPrice = 2481.42,
-  priceChange = 3.42,
+  currentPrice = 0,
+  priceChange = 0,
   onRefresh,
   isLoading
 }) => {
-  const selectedSymbol = symbols.find((s) => s.id === selectedId) || symbols[0];
-
   return (
     <header className="sticky top-0 z-30 border-b bg-[#080B12]/95 backdrop-blur-xl border-white/[0.07]">
       {/* DESKTOP & TABLET HEADER BAR */}
@@ -157,8 +154,11 @@ export const Header: React.FC<HeaderProps> = ({
               IME • AI Terminal
             </div>
           </div>
-          <span className="inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black tracking-widest">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE
+          <span className={cn(
+            "inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full border text-[10px] font-black tracking-widest",
+            connectionState === 'CONNECTED' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-amber-500/10 border-amber-500/20 text-amber-300",
+          )}>
+            <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" /> {connectionState === 'CONNECTED' ? 'STREAM' : connectionState}
           </span>
         </div>
 
@@ -184,7 +184,7 @@ export const Header: React.FC<HeaderProps> = ({
               onChange={(e) => setSelected(e.target.value)}
               className="h-9 rounded-xl bg-[#101620] border border-white/[0.07] px-3 text-xs font-bold text-slate-200 min-h-[36px] font-vazir"
             >
-              {symbols.map((s: any) => (
+              {symbols.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} ({s.id})
                 </option>
@@ -278,8 +278,11 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
           </div>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-black tracking-widest">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE
+          <span className={cn(
+            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-black tracking-widest",
+            connectionState === 'CONNECTED' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-amber-500/10 border-amber-500/20 text-amber-300",
+          )}>
+            <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" /> {connectionState === 'CONNECTED' ? 'STREAM' : 'OFFLINE'}
           </span>
         </div>
 
@@ -291,7 +294,7 @@ export const Header: React.FC<HeaderProps> = ({
             onChange={(e) => setSelected(e.target.value)}
             className="w-full bg-[#101620] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-black text-white font-vazir outline-none min-h-[36px]"
           >
-            {symbols.map((s: any) => (
+            {symbols.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name} ({s.id})
               </option>
@@ -341,7 +344,7 @@ export const Sidebar: React.FC<{
   activeTab: string;
   setActiveTab: (s: string) => void;
   collapsed: boolean;
-  metrics: any;
+  metrics: SystemMetrics;
 }> = ({ activeTab, setActiveTab, collapsed, metrics }) => (
   <aside
     className={cn(

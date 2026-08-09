@@ -1,20 +1,36 @@
 # API Documentation — Data, Paper Trading, and Backtesting
 
-Phase 1 ledger endpoints return a `source` field indicating the data boundary. Phase 3 backtests retain dataset/model/scenario provenance and explicitly report whether a snapshot or scenario is synthetic.
+Every market, ledger, learning, and paper endpoint returns provenance metadata. Generated research data uses `simulated: true`; empty ledgers remain empty instead of manufacturing sample records. Phase 3 backtests retain dataset/model/scenario hashes and explicitly report whether a snapshot or scenario is synthetic. When authentication is enabled, all `/api` routes except status/login/refresh require `Authorization: Bearer <access-token>`.
 
 Base URL: `http://localhost:3000` (or `apiConfig.proxyUrl`)
+
+## Authentication
+
+When `AUTH_REQUIRED=true` (or `NODE_ENV=production` with no explicit override),
+all `/api` routes except status/login/refresh require a Bearer access token.
+
+- `POST /api/auth/login` — `{ "username": "...", "password": "..." }`
+- `POST /api/auth/refresh` — `{ "token": "REFRESH_TOKEN" }`
+- Header — `Authorization: Bearer ACCESS_TOKEN`
+
+Access tokens expire after 15 minutes; refresh tokens expire after one hour.
+Token responses use `Cache-Control: no-store`. The built-in single-admin identity
+boundary is intended for restricted research deployments, not public multi-user
+identity/RBAC.
 
 ## Positions
 
 ### GET /api/positions?symbol=SAF1403
-- **Source**: POSITION_LEDGER
-- **Description**: دریافت موقعیت‌های واقعی از Position Ledger (deterministic, بدون random)
+- **Source**: `PROCESS_LOCAL_PAPER_POSITION_LEDGER`
+- **Description**: Explicitly recorded open paper positions only. If no position has been recorded, `data` is an empty array; the service never creates sample positions.
+- **Provenance**: `simulated: true`, `simulationType: PAPER_TRADING`
 - **Response**:
 ```json
 {
   "success": true,
-  "source": "POSITION_LEDGER",
-  "simulated": false,
+  "source": "PROCESS_LOCAL_PAPER_POSITION_LEDGER",
+  "simulated": true,
+  "simulationType": "PAPER_TRADING",
   "data": [
     {
       "id": "pos-SAF1403-0-171...",
@@ -41,8 +57,9 @@ Base URL: `http://localhost:3000` (or `apiConfig.proxyUrl`)
 ## Orders
 
 ### GET /api/orders?symbol=SAF1403
-- **Source**: ORDER_STATE_MACHINE
-- **Description**: سفارش‌های واقعی از Order State Machine
+- **Source**: `PROCESS_LOCAL_PAPER_ORDER_LEDGER`
+- **Description**: Explicitly submitted legacy paper orders; generated sample orders are not returned. Prefer the P2 order-state endpoints for fill transitions.
+- **Provenance**: `simulated: true`, `simulationType: PAPER_TRADING`
 - **States**: PENDING, FILLED, PARTIAL_FILLED, CANCELLED, REJECTED
 - **Response**:
 ```yaml
@@ -62,8 +79,8 @@ timestamp: number
 ## Performance
 
 ### GET /api/performance?symbol=SAF1403
-- **Source**: TRADE_LEDGER
-- **Calculates** from real trades, not hard-coded:
+- **Source**: `REALIZED_PAPER_TRADE_LEDGER`
+- **Calculates** only from explicitly recorded paper outcomes, never generated winners. Metrics are zero/null for an empty ledger:
 ```json
 {
   "sharpe": 1.84,
@@ -91,10 +108,10 @@ timestamp: number
   "version": "2.5.0",
   "inferenceLatency": 14.2,
   "modelReady": true,
-  "accuracy": 0.847,
-  "precision": 0.838,
-  "recall": 0.83,
-  "f1Score": 0.834,
+  "accuracy": null,
+  "precision": null,
+  "recall": null,
+  "f1Score": null,
   "memoryMB": 245
 }
 ```
@@ -110,8 +127,8 @@ timestamp: number
   "version": "2.5.0",
   "modelReady": true,
   "inferenceLatency": 12,
-  "accuracy": 0.847,
-  "precision": 0.838,
+  "accuracy": null,
+  "precision": null,
   "memoryMB": 245
 }
 ```
@@ -119,8 +136,9 @@ timestamp: number
 ## Learning
 
 ### GET /api/learning?symbol=SAF1403
-- **Source**: PYTHON_RESEARCH_PIPELINE
-- Returns adaptive weights history:
+- **Source**: `DETERMINISTIC_RESEARCH_FIXTURE`
+- **Provenance**: `simulated: true`, `simulationType: RESEARCH`
+- Returns deterministic fixture history for UI/research testing; it is not a live Python training ledger:
 ```json
 {
   "history": [
@@ -153,8 +171,9 @@ timestamp: number
 ## Paper Trading
 
 ### POST /api/paper-trading/execute
-- **Source**: PAPER_TRADING_ENGINE
-- **No Math.random** - deterministic logic:
+- **Source**: `DETERMINISTIC_PAPER_SIMULATOR`
+- **Provenance**: `simulated: true`, `simulationType: PAPER_TRADING`
+- This compatibility endpoint resolves a deterministic research outcome from forecast alignment; it is not a broker fill. Use P2 or Phase 3 for fill/path-based simulation:
 ```
 if forecastAlignment==1 && confidence>=threshold => WIN
 else if regime==TRENDING_UP && side==BUY && confidence>=0.55 => WIN

@@ -17,8 +17,6 @@
     "src/dataUtils.test.ts",
     "src/riskEngine.ts",
     "src/riskEngine.test.ts",
-    "src/historicalData.ts",
-    "src/historicalData.test.ts",
     "src/services/PredictionHistoryService.ts",
     "src/services/PredictionHistoryService.test.ts",
     "src/workers/workerPool.ts",

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { MarketCandle, TimeFrame } from '../../types';
+import { apiJson } from '../../services/apiFetch';
 
 type ScenarioType = 'HISTORICAL' | 'VOLATILITY' | 'TREND' | 'GAP' | 'LIQUIDITY_STRESS';
 type StrategyType = 'RULE' | 'ML';
@@ -48,6 +49,13 @@ interface Props {
   timeframe: TimeFrame;
   candles: MarketCandle[];
   sourceIsSynthetic?: boolean;
+  accessToken?: string;
+}
+
+interface ApiEnvelope<T> {
+  success: boolean;
+  data: T;
+  error?: string;
 }
 
 const sha256 = async (value: string) => {
@@ -58,7 +66,7 @@ const sha256 = async (value: string) => {
 
 const metricText = (value: number | null, digits = 2) => value == null ? 'N/A' : value.toFixed(digits);
 
-export const BacktestingDashboard: React.FC<Props> = ({ symbolId, timeframe, candles, sourceIsSynthetic = false }) => {
+export const BacktestingDashboard: React.FC<Props> = ({ symbolId, timeframe, candles, sourceIsSynthetic = false, accessToken = '' }) => {
   const [scenario, setScenario] = useState<ScenarioType>('HISTORICAL');
   const [strategyType, setStrategyType] = useState<StrategyType>('RULE');
   const [fastPeriod, setFastPeriod] = useState(5);
@@ -76,16 +84,17 @@ export const BacktestingDashboard: React.FC<Props> = ({ symbolId, timeframe, can
 
   useEffect(() => {
     let active = true;
-    void fetch('/api/status')
-      .then(response => response.ok ? response.json() : Promise.reject(new Error('Model status unavailable')))
+    void apiJson<{ modelReady: boolean; modelVersion?: string; version?: string }>('/api/status', accessToken)
       .then(data => {
         if (!active) return;
         setModelReady(Boolean(data.modelReady));
-        if (data.modelVersion || data.version) setModelVersion(data.modelVersion || data.version);
+        if (data.modelVersion || data.version) setModelVersion(data.modelVersion || data.version || 'unknown');
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) setModelReady(false);
+      });
     return () => { active = false; };
-  }, []);
+  }, [accessToken]);
 
   const validCandles = useMemo(() => candles.filter(candle =>
     Number.isFinite(candle.timestamp)
@@ -111,9 +120,8 @@ export const BacktestingDashboard: React.FC<Props> = ({ symbolId, timeframe, can
     try {
       const datasetFingerprint = await sha256(JSON.stringify({ symbolId, timeframe, sourceIsSynthetic, candles: validCandles }));
       const datasetId = `ui-${symbolId.replace(/[^A-Za-z0-9._-]/g, '-')}-${timeframe}-${datasetFingerprint.slice(0, 20)}`;
-      const datasetResponse = await fetch('/api/backtests/datasets', {
+      await apiJson<ApiEnvelope<unknown>>('/api/backtests/datasets', accessToken, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: datasetId,
           instrumentId: symbolId,
@@ -124,8 +132,6 @@ export const BacktestingDashboard: React.FC<Props> = ({ symbolId, timeframe, can
           metadata: { registeredBy: 'BACKTEST_UI' },
         }),
       });
-      const datasetPayload = await datasetResponse.json();
-      if (!datasetResponse.ok) throw new Error(datasetPayload.error || 'Dataset registration failed');
 
       const positiveMagnitude = Math.max(0.01, Math.abs(scenarioMagnitude));
       const scenarioParameters: Record<string, number> = scenario === 'VOLATILITY'
@@ -138,9 +144,8 @@ export const BacktestingDashboard: React.FC<Props> = ({ symbolId, timeframe, can
               ? { volumeMultiplier: Math.max(0.01, 1 / positiveMagnitude), spreadMultiplier: positiveMagnitude }
               : {};
 
-      const response = await fetch('/api/backtests?wait=true&timeoutMs=60000', {
+      const payload = await apiJson<ApiEnvelope<CompletedRun>>('/api/backtests?wait=true&timeoutMs=60000', accessToken, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           schemaVersion: '1.0',
           datasetSnapshotId: datasetId,
@@ -178,10 +183,9 @@ export const BacktestingDashboard: React.FC<Props> = ({ symbolId, timeframe, can
           qualityPolicy: 'FAIL',
           endOfRunPositionPolicy: 'LIQUIDATE',
         }),
-      });
-      const payload = await response.json();
-      if (!response.ok || payload.data?.status !== 'COMPLETED') {
-        throw new Error(payload.data?.error?.message || payload.error || `Backtest ended with ${payload.data?.status || 'an error'}`);
+      }, 65_000);
+      if (payload.data?.status !== 'COMPLETED') {
+        throw new Error(payload.error || `Backtest ended with ${payload.data?.status || 'an error'}`);
       }
       setRun(payload.data);
     } catch (caught) {

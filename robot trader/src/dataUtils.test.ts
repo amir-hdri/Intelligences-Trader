@@ -218,7 +218,11 @@ describe('TseApiClient', () => {
       if (url.toString().includes('api/orderbook/')) {
         return {
           ok: true,
-          json: async () => mockOrderBookData
+          json: async () => ({
+            source: 'DIGITAL_TWIN_ORDER_BOOK',
+            simulated: true,
+            data: mockOrderBookData,
+          })
         } as any;
       }
       return { ok: false } as any;
@@ -237,6 +241,8 @@ describe('TseApiClient', () => {
     assert.deepStrictEqual(data.bids, mockOrderBookData.bids);
     assert.deepStrictEqual(data.asks, mockOrderBookData.asks);
     assert.strictEqual(data.timestamp, mockOrderBookData.timestamp);
+    assert.strictEqual(data.source, 'DIGITAL_TWIN_ORDER_BOOK');
+    assert.strictEqual(data.simulated, true);
     assert.strictEqual(data.queueDynamics.buyVolume, 150);
     assert.strictEqual(data.queueDynamics.sellVolume, 120);
     assert.strictEqual(data.queueDynamics.totalVolume, 270);

@@ -1,81 +1,66 @@
-import { createSeededRng, hashString } from '../utils/deterministic.js';
-
 /**
- * Order State Machine - Real Order Management replacing Math.random orders
+ * Process-local order ledger for explicitly submitted paper orders.
+ *
+ * Empty ledgers stay empty; this module does not generate synthetic orders.
+ * The richer P2 OrderStateMachine remains the preferred execution boundary.
  */
-
-const ORDER_STATES = ['PENDING', 'FILLED', 'PARTIAL_FILLED', 'CANCELLED', 'REJECTED'];
+const VALID_STATES = new Set(['PENDING', 'FILLED', 'PARTIAL_FILLED', 'CANCELLED', 'REJECTED']);
+const VALID_TRANSITIONS = Object.freeze({
+  PENDING: new Set(['FILLED', 'PARTIAL_FILLED', 'CANCELLED', 'REJECTED']),
+  PARTIAL_FILLED: new Set(['FILLED', 'CANCELLED']),
+  FILLED: new Set(),
+  CANCELLED: new Set(),
+  REJECTED: new Set(),
+});
 
 class OrderLedger {
   constructor() {
     this.orders = [];
   }
 
-  // Deterministic order generation based on symbol and time, no random
   getOrders(symbolId = 'SAF1403') {
-    const now = Date.now();
-    const rng = createSeededRng(`orders-${symbolId}-${Math.floor(now / 60000)}`);
-    const count = 3 + Math.floor(rng() * 4);
-    const orders = [];
-
-    for (let i = 0; i < count; i++) {
-      const orderRng = createSeededRng(`order-${symbolId}-${i}-${now}`);
-      const side = orderRng() > 0.5 ? 'BUY' : 'SELL';
-      const price = 1000000 + Math.floor((orderRng() - 0.5) * 200000);
-      const qty = 1 + Math.floor(orderRng() * 50);
-      const filledQty = Math.floor(orderRng() * (qty + 1));
-      // Deterministic state transition based on hash, not random
-      const stateIdx = Math.floor(orderRng() * ORDER_STATES.length);
-      const state = ORDER_STATES[
-        // Bias to FILLED for higher filledQty
-        filledQty === qty ? 1 : filledQty === 0 ? 0 : 2
-      ];
-      orders.push({
-        id: `ord-${symbolId}-${i}-${now - i * 10000}`,
-        symbol: symbolId,
-        side,
-        type: orderRng() > 0.7 ? 'LIMIT' : 'MARKET',
-        price,
-        quantity: qty,
-        filledQuantity: filledQty,
-        status: state,
-        timestamp: now - Math.floor(orderRng() * 86400000),
-        timeInForce: 'GTC',
-        leverage: 1 + Math.floor(orderRng() * 5),
-        stopLoss: price * (side === 'BUY' ? 0.95 : 1.05),
-        takeProfit: price * (side === 'BUY' ? 1.08 : 0.92),
-      });
-    }
-    return orders.sort((a,b)=>b.timestamp-a.timestamp);
-  }
-
-  addOrder(order) {
-    this.orders.unshift(order);
+    return this.orders
+      .filter(order => order.symbol === symbolId)
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .map(order => ({ ...order }));
   }
 
   getAllOrders() {
-    const symbols = ['SAF1403', 'GOLD1403'];
-    const all = [];
-    for (const s of symbols) all.push(...this.getOrders(s));
-    return all.concat(this.orders).sort((a,b)=>b.timestamp-a.timestamp).slice(0,50);
+    return this.orders
+      .slice()
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .map(order => ({ ...order }));
   }
 
-  // Order State Machine real transitions
-  transitionOrder(orderId, newStatus) {
-    const order = this.orders.find(o => o.id === orderId);
-    if (!order) return null;
-    const validTransitions = {
-      'PENDING': ['FILLED', 'PARTIAL_FILLED', 'CANCELLED', 'REJECTED'],
-      'PARTIAL_FILLED': ['FILLED', 'CANCELLED'],
-      'FILLED': [],
-      'CANCELLED': [],
-      'REJECTED': []
+  addOrder(order) {
+    if (!order || typeof order.id !== 'string' || !order.id) throw new TypeError('order requires a non-empty id');
+    if (this.orders.some(existing => existing.id === order.id)) return { ...this.orders.find(existing => existing.id === order.id) };
+    if (typeof order.symbol !== 'string' || !/^[A-Z0-9-]{1,64}$/.test(order.symbol)) throw new TypeError('order requires a valid symbol');
+    if (!['BUY', 'SELL'].includes(order.side)) throw new TypeError('order side must be BUY or SELL');
+    if (!['MARKET', 'LIMIT'].includes(order.type)) throw new TypeError('order type must be MARKET or LIMIT');
+    if (!Number.isFinite(order.quantity) || order.quantity <= 0) throw new TypeError('order quantity must be positive');
+    if (order.type === 'LIMIT' && (!Number.isFinite(order.price) || order.price <= 0)) throw new TypeError('limit order price must be positive');
+    const normalized = {
+      ...order,
+      filledQuantity: Number.isFinite(order.filledQuantity) ? order.filledQuantity : 0,
+      status: order.status || 'PENDING',
+      timestamp: Number.isFinite(order.timestamp) ? order.timestamp : Date.now(),
     };
-    if (validTransitions[order.status]?.includes(newStatus)) {
-      order.status = newStatus;
-      return order;
-    }
-    return null;
+    if (!VALID_STATES.has(normalized.status)) throw new TypeError('order status is invalid');
+    this.orders.unshift(normalized);
+    return { ...normalized };
+  }
+
+  transitionOrder(orderId, newStatus) {
+    const order = this.orders.find(candidate => candidate.id === orderId);
+    if (!order || !VALID_STATES.has(newStatus) || !VALID_TRANSITIONS[order.status]?.has(newStatus)) return null;
+    order.status = newStatus;
+    order.updatedAt = Date.now();
+    return { ...order };
+  }
+
+  clear() {
+    this.orders = [];
   }
 }
 
