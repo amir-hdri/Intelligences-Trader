@@ -1,0 +1,46 @@
+{
+  "description": "Immutable daily OHLCV snapshots used by the reproducible integration backtest.",
+  "range_requested": {
+    "start": "2023-10-27",
+    "end": "2024-11-29"
+  },
+  "price_note": "The AAPL source is a Yahoo Finance snapshot with adjusted historical OHLC. Crypto records are Binance BTCUSDT/ETHUSDT spot klines.",
+  "datasets": [
+    {
+      "symbol": "BTC/USDT",
+      "timeframe": "1d",
+      "file": "BTCUSDT_1d.csv",
+      "rows": 400,
+      "first_date": "2023-10-27",
+      "last_date": "2024-11-29",
+      "source_name": "Binance spot klines",
+      "source_url": "https://github.com/congde/web3-quant-sandbox/blob/e6731d872ff0c807559d2741249248b9ff9dd6a6/data/investment_gate/BTCUSDT.csv",
+      "upstream_commit": "e6731d872ff0c807559d2741249248b9ff9dd6a6",
+      "sha256": "473613646d70a2a767b1f9bc1a3fa681fe19f6239c0e61603d29f8d0196d9222"
+    },
+    {
+      "symbol": "ETH/USDT",
+      "timeframe": "1d",
+      "file": "ETHUSDT_1d.csv",
+      "rows": 400,
+      "first_date": "2023-10-27",
+      "last_date": "2024-11-29",
+      "source_name": "Binance spot klines",
+      "source_url": "https://github.com/congde/web3-quant-sandbox/blob/e6731d872ff0c807559d2741249248b9ff9dd6a6/data/investment_gate/ETHUSDT.csv",
+      "upstream_commit": "e6731d872ff0c807559d2741249248b9ff9dd6a6",
+      "sha256": "222e233cb1d5e2ec4e5d6b6897fe2af56f28ea6299477b64287bea674c34c830"
+    },
+    {
+      "symbol": "AAPL",
+      "timeframe": "1d",
+      "file": "AAPL_1d.csv",
+      "rows": 275,
+      "first_date": "2023-10-27",
+      "last_date": "2024-11-29",
+      "source_name": "Yahoo Finance snapshot",
+      "source_url": "https://github.com/FarhanAli97/Apple-AAPL-Stock-Data-1980-to-December-2024/blob/35431ef9c6a0f1408d3a9218ef4c47034704c126/Apple%20(AAPL)%20From%201980%20To%20Dec-2024.csv",
+      "upstream_commit": "35431ef9c6a0f1408d3a9218ef4c47034704c126",
+      "sha256": "3e28f885ca1dee0a3951bf684159538e48d888dffbff27eee3f3956b75c9550d"
+    }
+  ]
+}

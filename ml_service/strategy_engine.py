@@ -253,185 +253,219 @@ def simulate_orders(
     initial_capital: float,
     slippage: float = 0.001,
     commission: float = 0.001,
+    liquidate_at_end: bool = False,
 ) -> Dict[str, Any]:
-    """شبیه‌سازی سفارشات با در نظر گرفتن Slippage و Commission.
+    """Simulate event signals with next-bar execution and deterministic liquidation.
 
-    فرضیات:
-        - سیگنال 1 یعنی ورود به موقعیت بلند (Long).
-        - سیگنال -1 یعنی ورود به موقعیت کوتاه (Short).
-        - اجرای سفارش بر روی `next_open` صورت می‌گیرد در صورت وجود؛ در غیر این
-          صورت از `price` استفاده می‌شود.
-        - کارمزد به‌صورت درصدی از حجم معامله (Notional) اعمال می‌شود.
-        - لغزش (Slippage) در قیمت پر کردن (Fill Price) لحاظ می‌شود.
+    ``signal`` is an event/target-direction column: ``1`` opens or keeps a long
+    position, ``-1`` opens or keeps a short position, and ``0`` does nothing.
+    When present, ``next_open`` is the execution price for a signal generated
+    at the current close.  ``price`` is used for mark-to-market observations.
+    An optional ``size`` column controls the fraction of available capital used
+    when a new position is opened; rule-based strategies default to 100%.
 
-    پارامترها:
-        signals: DataFrame با حداقل ستون `signal` و `price` یا `next_open`.
-        initial_capital: سرمایه اولیه (باید > 0).
-        slippage: لغزش در بازه‌ی [0, 1).
-        commission: کارمزد در بازه‌ی [0, 1).
-
-    خروجی:
-        dict شامل:
-        - `trades`: لیست معاملات با جزئیات (entry_time, exit_time, entry_price,
-          exit_price, volume, profit_loss, commission, slippage_cost).
-        - `equity_curve`: لیست نقطه‌ای-زمانی از موجودی سهام (cash + position*price).
-        - `final_cash`: نقدینگی نهایی.
-        - `final_position`: حجم نهایی موقعیت.
-        - `metrics`: معیارهای عملکرد (total_return, sharpe_ratio, max_drawdown,
-          win_rate, profit_factor, total_commission, total_slippage_cost).
+    Set ``liquidate_at_end=True`` for a finite backtest in which all P/L and
+    both entry/exit costs appear in the realised trade ledger consumed by
+    :class:`PerformanceMetrics`.  The default remains ``False`` for backwards
+    compatibility with callers that intentionally carry an open position.
     """
-    # ----- اعتبارسنجی دقیق -----
+    if not isinstance(liquidate_at_end, (bool, np.bool_)):
+        raise ValueError("liquidate_at_end باید boolean باشد.")
     if not isinstance(signals, pd.DataFrame):
         raise ValueError("signals باید یک pandas.DataFrame باشد.")
     if "signal" not in signals.columns:
         raise ValueError("signals باید ستون 'signal' داشته باشد.")
-    _validate_positive_finite(initial_capital, "initial_capital")
-    _validate_rate(slippage, "slippage")
-    _validate_rate(commission, "commission")
-    # ----- آماده‌سازی -----
+    initial_capital = _validate_positive_finite(initial_capital, "initial_capital")
+    slippage = _validate_rate(slippage, "slippage")
+    commission = _validate_rate(commission, "commission")
+    if signals.empty:
+        return {
+            "trades": [],
+            "equity_curve": [],
+            "final_cash": float(initial_capital),
+            "final_position": 0.0,
+            "metrics": _compute_metrics([], []),
+        }
+    if "next_open" not in signals.columns and "price" not in signals.columns:
+        raise ValueError("signals باید ستون 'price' یا 'next_open' داشته باشد.")
+
     cash = float(initial_capital)
-    position = 0.0  # مثبت = بلند، منفی = کوتاه
+    position = 0.0  # positive=long shares, negative=short shares
+    open_trade: Optional[Dict[str, Any]] = None
     trades: List[Dict[str, Any]] = []
     equity_curve: List[Dict[str, Any]] = []
-    open_trade: Optional[Dict[str, Any]] = None
-    # انتخاب ستون قیمت
-    if "next_open" in signals.columns and signals["next_open"].notnull().any():
-        price_col = "next_open"
-    elif "price" in signals.columns:
-        price_col = "price"
-    else:
-        raise ValueError("signals باید ستون 'price' یا 'next_open' داشته باشد.")
-    # ----- حلقه‌ی شبیه‌سازی -----
-    for idx, row in signals.iterrows():
-        price_ref_raw = row.get(price_col)
-        price_ref = float(price_ref_raw) if pd.notnull(price_ref_raw) else np.nan
-        # ثبت منحنی سهام در زمان فعلی
-        if np.isfinite(price_ref) and price_ref > 0:
-            current_equity = cash + position * price_ref
+
+    def _finite_price(value: Any) -> Optional[float]:
+        try:
+            price = float(value)
+        except (TypeError, ValueError):
+            return None
+        return price if np.isfinite(price) and price > 0.0 else None
+
+    def _position_size(row: pd.Series) -> float:
+        raw_size = row.get("size", 1.0)
+        try:
+            size = float(raw_size)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("size باید عددی در بازه‌ی [0, 1] باشد.") from exc
+        if not np.isfinite(size) or not 0.0 <= size <= 1.0:
+            raise ValueError("size باید عددی در بازه‌ی [0, 1] باشد.")
+        return size
+
+    def _open(direction: int, reference_price: float, when: Any, size: float) -> None:
+        nonlocal cash, position, open_trade
+        if size <= 0.0 or cash <= 0.0:
+            return
+
+        budget = cash * size
+        if direction > 0:
+            fill_price = reference_price * (1.0 + slippage)
+            # Include entry commission in the requested capital allocation.
+            entry_notional = budget / (1.0 + commission)
+            volume = entry_notional / fill_price
+            entry_commission = entry_notional * commission
+            cash -= entry_notional + entry_commission
+            position = volume
+            side = "buy"
+            entry_slippage = volume * (fill_price - reference_price)
         else:
-            current_equity = cash
-        equity_curve.append({
-            "time": idx,
-            "equity": float(current_equity),
-            "cash": float(cash),
-            "position": float(position),
-        })
-        # در صورت قیمت نامعتبر، ادامه بده (فقط ثبت سهام)
-        if not np.isfinite(price_ref) or price_ref <= 0:
+            fill_price = reference_price * (1.0 - slippage)
+            entry_notional = budget / (1.0 + commission)
+            volume = entry_notional / fill_price
+            entry_commission = entry_notional * commission
+            # A short sale receives proceeds; equity still subtracts the short
+            # liability via cash + position * mark_price.
+            cash += entry_notional - entry_commission
+            position = -volume
+            side = "sell"
+            entry_slippage = volume * (reference_price - fill_price)
+
+        open_trade = {
+            "entry_time": when,
+            "entry_price": float(fill_price),
+            "volume": float(volume),
+            "size": float(size),
+            "side": side,
+            "entry_commission": float(entry_commission),
+            "commission": float(entry_commission),
+            "slippage_cost": float(entry_slippage),
+            "profit_loss": None,
+            "exit_time": None,
+            "exit_price": None,
+            "exit_reason": None,
+        }
+
+    def _close(reference_price: float, when: Any, reason: str) -> None:
+        nonlocal cash, position, open_trade
+        if position == 0.0 or open_trade is None:
+            return
+
+        volume = abs(position)
+        entry_price = float(open_trade["entry_price"])
+        entry_commission = float(open_trade["entry_commission"])
+        if position > 0.0:
+            fill_price = reference_price * (1.0 - slippage)
+            exit_notional = volume * fill_price
+            exit_commission = exit_notional * commission
+            cash += exit_notional - exit_commission
+            profit = (fill_price - entry_price) * volume - entry_commission - exit_commission
+            exit_slippage = volume * (reference_price - fill_price)
+        else:
+            fill_price = reference_price * (1.0 + slippage)
+            exit_notional = volume * fill_price
+            exit_commission = exit_notional * commission
+            cash -= exit_notional + exit_commission
+            profit = (entry_price - fill_price) * volume - entry_commission - exit_commission
+            exit_slippage = volume * (fill_price - reference_price)
+
+        open_trade.update(
+            {
+                "exit_time": when,
+                "exit_price": float(fill_price),
+                "exit_commission": float(exit_commission),
+                "commission": float(entry_commission + exit_commission),
+                "slippage_cost": float(open_trade["slippage_cost"] + exit_slippage),
+                "profit_loss": float(profit),
+                "exit_reason": reason,
+            }
+        )
+        trades.append(open_trade)
+        open_trade = None
+        position = 0.0
+
+    has_next_open = "next_open" in signals.columns
+    for idx, row in signals.iterrows():
+        mark_price = _finite_price(row.get("price"))
+        if mark_price is None:
+            mark_price = _finite_price(row.get("next_open"))
+        current_equity = cash + position * mark_price if mark_price is not None else cash
+        equity_curve.append(
+            {
+                "time": idx,
+                "equity": float(current_equity),
+                "cash": float(cash),
+                "position": float(position),
+            }
+        )
+
+        execution_price = _finite_price(row.get("next_open")) if has_next_open else mark_price
+        if execution_price is None:
+            # In particular, the final next_open is intentionally NaN: there is
+            # no future bar on which that final signal can be executed.
             continue
-        signal = int(round(float(row["signal"])))
-        # ----- پردازش سیگنال -----
-        if signal == 1:  # ورود به بلند (Buy / Long)
-            if position < 0:
-                # بستن موقعیت کوتاه (Close Short)
-                exit_price = price_ref * (1.0 + slippage)  # خرید مجدد در قیمت بالاتر
-                notional = abs(position) * exit_price
-                cash += notional * (1.0 - commission)
-                # ثبت معامله‌ی بسته‌شده
-                if open_trade is not None:
-                    entry_price = open_trade["entry_price"]
-                    volume = open_trade["volume"]
-                    entry_notional = entry_price * volume
-                    exit_notional = exit_price * volume
-                    total_comm = (entry_notional + exit_notional) * commission
-                    # سود/زیان: برای کوتاه، سود = (entry - exit) * volume
-                    profit = (entry_price - exit_price) * volume - total_comm
-                    open_trade["exit_time"] = idx
-                    open_trade["exit_price"] = exit_price
-                    open_trade["profit_loss"] = float(profit)
-                    open_trade["commission"] = float(total_comm)
-                    open_trade["slippage_cost"] = float(volume * (exit_price - price_ref))
-                    trades.append(open_trade)
-                    open_trade = None
-                position = 0.0
-            if position == 0.0:
-                # ورود به بلند جدید
-                entry_price = price_ref * (1.0 + slippage)
-                # تقسیم نقدینگی به گونه‌ای که پس از کسر کارمزد، نقدینگی صفر شود
-                if cash > 0:
-                    notional = cash / (1.0 + commission)
-                    shares = notional / entry_price if entry_price > 0 else 0.0
-                else:
-                    notional = 0.0
-                    shares = 0.0
-                entry_comm = notional * commission
-                cash -= notional + entry_comm  # بعد از این، cash باید صفر باشد
-                position = float(shares)
-                open_trade = {
-                    "entry_time": idx,
-                    "entry_price": float(entry_price),
-                    "volume": float(abs(shares)),
-                    "side": "buy",
-                    "commission": float(entry_comm),
-                    "slippage_cost": float(shares * (entry_price - price_ref)),
-                    "profit_loss": None,
-                    "exit_time": None,
-                    "exit_price": None,
-                }
-            # اگر قبلاً بلند بودم (position > 0) و سیگنال باز هم 1: نگه‌دار (هیچ کاری نکن)
-        elif signal == -1:  # ورود به کوتاه (Sell / Short)
-            if position > 0:
-                # بستن موقعیت بلند (Close Long)
-                exit_price = price_ref * (1.0 - slippage)
-                notional = position * exit_price
-                cash += notional * (1.0 - commission)
-                if open_trade is not None:
-                    entry_price = open_trade["entry_price"]
-                    volume = open_trade["volume"]
-                    entry_notional = entry_price * volume
-                    exit_notional = exit_price * volume
-                    total_comm = (entry_notional + exit_notional) * commission
-                    profit = (exit_price - entry_price) * volume - total_comm
-                    open_trade["exit_time"] = idx
-                    open_trade["exit_price"] = float(exit_price)
-                    open_trade["profit_loss"] = float(profit)
-                    open_trade["commission"] = float(total_comm)
-                    open_trade["slippage_cost"] = float(volume * (price_ref - exit_price))
-                    trades.append(open_trade)
-                    open_trade = None
-                position = 0.0
-            if position == 0.0:
-                # ورود به کوتاه جدید
-                entry_price = price_ref * (1.0 - slippage)
-                if cash > 0:
-                    notional = cash / (1.0 + commission)
-                    shares = -notional / entry_price if entry_price > 0 else 0.0
-                else:
-                    notional = 0.0
-                    shares = 0.0
-                entry_comm = notional * commission
-                cash -= notional + entry_comm
-                position = float(shares)
-                open_trade = {
-                    "entry_time": idx,
-                    "entry_price": float(entry_price),
-                    "volume": float(abs(shares)),
-                    "side": "sell",
-                    "commission": float(entry_comm),
-                    "slippage_cost": float(abs(shares) * (price_ref - entry_price)),
-                    "profit_loss": None,
-                    "exit_time": None,
-                    "exit_price": None,
-                }
-            # اگر قبلاً کوتاه بودم (position < 0) و سیگنال -1: نگه‌دار
-        else:  # signal == 0 -> هیچ اقدامی
-            pass
-    # ----- بستن موقعیت باز در انتها (اختیاری برای سهام نهایی دقیق) -----
-    if open_trade is not None and len(equity_curve) > 0:
-        last_price = float(signals[price_col].dropna().iloc[-1]) if not signals[price_col].dropna().empty else float(equity_curve[-1]["equity"] / max(position, 1))
-        # برای سادگی، در پایان تست‌ها با سیگنال مشخص بسته می‌شوند؛ در اینجا فقط ثبت می‌کنیم
-        # بدون بستن برای جلوگیری از پیچیدگی در محاسبات نهایی
-        pass
-    # ----- محاسبه معیارها -----
-    metrics = _compute_metrics(trades, equity_curve)
-    result = {
+
+        try:
+            signal_value = float(row["signal"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("signal باید یکی از مقادیر -1، 0 یا 1 باشد.") from exc
+        if not np.isfinite(signal_value):
+            raise ValueError("signal باید محدود باشد.")
+        signal = int(round(signal_value))
+        if signal not in (-1, 0, 1):
+            raise ValueError("signal باید یکی از مقادیر -1، 0 یا 1 باشد.")
+        size = _position_size(row)
+
+        if signal == 1 and position <= 0.0:
+            if position < 0.0:
+                _close(execution_price, idx, "reversal")
+            _open(1, execution_price, idx, size)
+        elif signal == -1 and position >= 0.0:
+            if position > 0.0:
+                _close(execution_price, idx, "reversal")
+            _open(-1, execution_price, idx, size)
+
+    # Settle all remaining exposure at the final observed close.  If ``price``
+    # is unavailable, use the last valid execution/mark price as a fallback.
+    final_index = signals.index[-1]
+    final_price: Optional[float] = None
+    for column in ("price", "next_open"):
+        if column in signals.columns:
+            valid = [_finite_price(value) for value in signals[column].tolist()]
+            valid = [value for value in valid if value is not None]
+            if valid:
+                final_price = valid[-1]
+                break
+    if liquidate_at_end and position != 0.0:
+        if final_price is None:
+            raise ValueError("برای تسویه‌ی موقعیت نهایی قیمت معتبر وجود ندارد.")
+        _close(final_price, final_index, "end_of_backtest")
+
+    if liquidate_at_end and equity_curve:
+        equity_curve[-1].update(
+            {
+                "equity": float(cash),
+                "cash": float(cash),
+                "position": 0.0,
+            }
+        )
+
+    return {
         "trades": trades,
         "equity_curve": equity_curve,
         "final_cash": float(cash),
         "final_position": float(position),
-        "metrics": metrics,
+        "metrics": _compute_metrics(trades, equity_curve),
     }
-    return result
 
 
 def _compute_metrics(trades: List[Dict[str, Any]], equity_curve: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -593,6 +627,7 @@ class StrategyEngine:
             initial_capital=_validate_positive_finite(cap, "initial_capital"),
             slippage=_validate_rate(slip, "slippage"),
             commission=_validate_rate(comm, "commission"),
+            liquidate_at_end=parameters.get("liquidate_at_end", False),
         )
         self.trades = result.get("trades", [])
         return result
@@ -626,6 +661,7 @@ class StrategyEngine:
         initial_capital: Optional[float] = None,
         slippage: Optional[float] = None,
         commission: Optional[float] = None,
+        liquidate_at_end: bool = False,
     ) -> Dict[str, Any]:
         """شبیه‌سازی سفارشات از روی سیگنال."""
         return simulate_orders(
@@ -633,6 +669,7 @@ class StrategyEngine:
             initial_capital=initial_capital if initial_capital is not None else self.initial_capital,
             slippage=slippage if slippage is not None else self.slippage,
             commission=commission if commission is not None else self.commission,
+            liquidate_at_end=liquidate_at_end,
         )
 
     # --- پیاده‌سازی خاص هر استراتژی ---
