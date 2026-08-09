@@ -60,6 +60,16 @@ uv sync --locked
 uv run pytest -q
 ```
 
+Reproduce the integrated 3-symbol × 3-strategy backtest, comparison CSV,
+Markdown report, and equity/drawdown PNGs:
+
+```bash
+uv run python run_backtests.py
+```
+
+See [`ml_service/backtest_report.md`](./ml_service/backtest_report.md) for the
+measured results and data/model provenance.
+
 Training dependencies are optional because PyTorch/ONNX are large:
 
 ```bash

@@ -87,6 +87,32 @@ full_report = report.generate_report("artifacts")
 نبود timestamp، برای annualization به‌صورت قطعی یک روز برای هر معامله فرض
 می‌شود.
 
+## موتور یکپارچه‌ی Backtesting
+
+کلاس `BacktestingEngine` در `backtesting_engine.py` سه مرز `DataLoader`،
+`StrategyEngine` و `PerformanceMetrics` را یکپارچه می‌کند. اجرای مرجع از سه
+snapshot واقعی و ثابت BTC/USDT، ETH/USDT و AAPL استفاده می‌کند و هر سه
+استراتژی MA(50/200)، Mean Reversion(20,2) و مدل ازپیش‌آموزش‌دیده‌ی PPO/TCN
+در `market_model.onnx` را می‌آزماید:
+
+```bash
+uv sync --locked
+uv run python run_backtests.py
+```
+
+خروجی‌های بازتولیدپذیر:
+
+- `backtest_results.csv`: ۹ اجرای مقایسه‌ای (۳ نماد × ۳ استراتژی)
+- `backtest_report.md`: جدول، تحلیل، محدودیت‌های مدل و منشأ داده
+- `backtest_artifacts/*_equity_curve.png` و `*_drawdown.png`: ۱۸ نمودار
+- `data/historical/manifest.json`: URL، commit و SHA-256 هر snapshot
+
+سیگنال‌ها در Close ساخته و در Open کندل بعدی اجرا می‌شوند. موتور یکپارچه
+موقعیت انتهای بازه را در آخرین Close تسویه می‌کند تا P/L و هزینه‌های دو سمت
+به‌طور کامل در دفتر معاملات ثبت شوند. مدل ONNX با قرارداد `[batch, 30, 5]`
+اجرا می‌شود؛ در نبود داده‌ی L2، ویژگی OBI صریحاً صفر خنثی است. مدل موجود روی
+داده‌ی مصنوعی آموزش دیده، بنابراین خروجی ML فقط آزمون یکپارچگی پژوهشی است.
+
 برای نصب وابستگی‌ها و اجرای کل تست‌های Python:
 
 ```bash
