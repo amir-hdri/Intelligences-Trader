@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: robot trader/Dockerfile.frontend
     ports:
-      - "5173:80"
+      - "5173:8080"
     environment:
       ML_BACKEND_HOST: backend-ml
       ML_BACKEND_PORT: 3000
@@ -17,73 +17,91 @@ services:
         condition: service_healthy
     init: true
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   backend-ml:
     build:
       context: .
       dockerfile: robot trader/server/Dockerfile.backend-ml
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3000
       CORS_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:5173}
-      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-}
       JWT_SECRET: ${JWT_SECRET:-}
       REFRESH_SECRET: ${REFRESH_SECRET:-}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
-      REDIS_URL: redis://redis:6379
-      DATABASE_URL: postgres://paper:paper@postgres:5432/paper_trading
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      DATABASE_URL: ${DATABASE_URL:-postgres://paper:development-only-paper@postgres:5432/paper_trading}
       BACKTEST_MAX_CONCURRENT: ${BACKTEST_MAX_CONCURRENT:-2}
       BACKTEST_MAX_QUEUED: ${BACKTEST_MAX_QUEUED:-100}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      ENABLE_EXPERIMENTAL_SIMULATIONS: ${ENABLE_EXPERIMENTAL_SIMULATIONS:-false}
     volumes:
       - "./robot trader/server/models:/app/robot trader/server/models:ro"
     depends_on:
       redis:
-        condition: service_started
+        condition: service_healthy
       postgres:
         condition: service_healthy
     init: true
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   backend-proxy:
     build:
       context: .
       dockerfile: server/Dockerfile.backend-proxy
-    ports:
-      - "3001:3001"
+    expose:
+      - "3001"
     environment:
       NODE_ENV: production
       PORT: 3001
       CORS_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:5173}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
     init: true
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    init: true
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: paper
-      POSTGRES_PASSWORD: paper
-      POSTGRES_DB: paper_trading
-    ports:
-      - "5432:5432"
-    volumes:
-      - paper-trading-db:/var/lib/postgresql/data
+    expose:
+      - "6379"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U paper -d paper_trading"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
     init: true
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-paper}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-development-only-paper}
+      POSTGRES_DB: ${POSTGRES_DB:-paper_trading}
+    expose:
+      - "5432"
+    volumes:
+      - paper-trading-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    init: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   paper-trading-db:

@@ -25,6 +25,12 @@ variable "kubernetes_version" {
   default     = "1.33"
 }
 
+variable "cluster_endpoint_public_access" {
+  type        = bool
+  description = "Expose the EKS API publicly. Keep false unless restricted public CIDRs are configured by an environment overlay."
+  default     = false
+}
+
 variable "environment" {
   type        = string
   default     = "research"
@@ -74,8 +80,10 @@ module "eks" {
   vpc_id             = module.vpc.vpc_id
   subnet_ids         = module.vpc.private_subnets
 
-  endpoint_public_access                   = true
+  endpoint_public_access                   = var.cluster_endpoint_public_access
+  endpoint_private_access                  = true
   enable_cluster_creator_admin_permissions = true
+  enabled_log_types                        = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 
   eks_managed_node_groups = {
     general = {

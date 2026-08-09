@@ -1,5 +1,4 @@
-import { createSeededRng, hashString } from '../utils/deterministic.js';
-import { positionLedger } from './positionLedger.js';
+import { hashString } from '../utils/deterministic.js';
 import { P2ExecutionEngine } from './paperTradingEngine/p2/execution/P2ExecutionEngine.js';
 import { MLSignalBridge } from './paperTradingEngine/p2/ml/MLSignalBridge.js';
 import { PerformanceAnalytics } from './paperTradingEngine/p2/analytics/PerformanceAnalytics.js';
@@ -10,7 +9,7 @@ import { TradeRepository } from './paperTradingEngine/p2/storage/TradeRepository
 import { RedisCache } from './paperTradingEngine/p2/data/RedisCache.js';
 
 /**
- * Paper Trading Engine - Real engine replacing Math.random() < winRate
+ * Deterministic paper-outcome simulator (never a live broker engine).
  */
 
 export class PaperTradingEngine {
@@ -92,15 +91,19 @@ export class PaperTradingEngine {
   // Deterministic trade outcome evaluation
   executeTrade(order, forecast, marketPrice) {
     const now = Date.now();
-    // Validate order deterministically
-    if (!order.action || !['BUY','SELL'].includes(order.action)) {
-      return { success: false, reason: 'Invalid action' };
+    if (!order || !['BUY', 'SELL'].includes(order.action)) throw new TypeError('Invalid paper order action');
+    if (typeof order.symbol !== 'string' || !/^[A-Z0-9-]{1,64}$/.test(order.symbol)) throw new TypeError('Invalid paper order symbol');
+    if (!Number.isFinite(order.qty) || order.qty <= 0) throw new TypeError('Invalid paper order quantity');
+    if (!Number.isFinite(order.entry) || order.entry <= 0 || !Number.isFinite(marketPrice) || marketPrice <= 0) {
+      throw new TypeError('Invalid paper order price');
     }
 
-    // Determine outcome based on forecast alignment, not random
-    const forecastAction = forecast?.action || 'HOLD';
-    const confidence = forecast?.confidence || 0.5;
-    const politicalRisk = forecast?.politicalRiskIndex || 50;
+    const forecastAction = forecast?.action ?? 'HOLD';
+    const confidence = forecast?.confidence ?? 0.5;
+    const politicalRisk = forecast?.politicalRiskIndex ?? 50;
+    if (!['BUY', 'SELL', 'HOLD'].includes(forecastAction) || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+      throw new TypeError('Invalid paper forecast');
+    }
 
     // Real logic:
     // - If forecast aligns with order side and confidence > threshold, profit
@@ -156,20 +159,10 @@ export class PaperTradingEngine {
     this.trades.unshift(trade);
     if (this.trades.length > 500) this.trades = this.trades.slice(0,500);
 
-    // Also push to position ledger
-    positionLedger.addTradeLog({
-      id: trade.id,
-      timestamp: trade.timestamp,
-      symbol: trade.symbol,
-      action: trade.action,
-      price: trade.entryPrice,
-      reason: trade.reason,
-      metricsAtTrade: { rsi: forecast?.indicators?.rsi || 50, regime: forecast?.regime || 'RANGING', sentiment: forecast?.sentimentScore || 0 },
-      pnl: trade.pnl,
-      isWin: trade.isWin,
-    });
-
-    return { success: true, trade, isWin, pnl, newBalance: this.balance };
+    // Legacy paper trades are resolved immediately and therefore are closed
+    // outcomes, not open portfolio positions. They must not be inserted into
+    // the open-position ledger.
+    return { success: true, trade, isWin, pnl, newBalance: this.balance, simulated: true };
   }
 
   getTrades() {

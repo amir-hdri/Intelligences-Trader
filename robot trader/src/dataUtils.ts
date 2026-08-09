@@ -96,8 +96,9 @@ export class TseApiClient {
           { headers: this.requestHeaders() },
         );
         if (response.ok) {
-          const json = await response.json();
-          if (json.bids && json.asks) {
+          const responsePayload = await response.json();
+          const json = responsePayload?.data ?? responsePayload;
+          if (Array.isArray(json?.bids) && Array.isArray(json?.asks)) {
             const buyVolume = json.bids.reduce((sum: number, item: OrderBookItem) => sum + item.quantity, 0);
             const sellVolume = json.asks.reduce((sum: number, item: OrderBookItem) => sum + item.quantity, 0);
             const totalVolume = buyVolume + sellVolume;
@@ -110,6 +111,8 @@ export class TseApiClient {
               timestamp: json.timestamp || now,
               isSpoofingDetected: json.isSpoofing || false,
               pressure,
+              source: responsePayload?.source ?? json.source,
+              simulated: Boolean(responsePayload?.simulated ?? json.simulated),
               queueDynamics: {
                 buyVolume,
                 sellVolume,
@@ -225,6 +228,8 @@ export class TseApiClient {
       timestamp: now,
       isSpoofingDetected,
       pressure,
+      source: "BROWSER_DIGITAL_TWIN",
+      simulated: true,
       queueDynamics: { buyVolume, sellVolume, totalVolume, buyRatio, isHerdingDetected, momentumMultiplier },
     };
 
@@ -250,6 +255,7 @@ export class TseApiClient {
     const jitter = (mul: number) => (baseRng() - 0.5) * mul;
 
     return {
+      simulated: true,
       usdFree: 650000 + jitter(5000),
       usdNima: 420000 + jitter(500),
       globalGold: 2350 + jitter(10),
@@ -296,7 +302,7 @@ export class TseApiClient {
     let politicalRiskIndex = 50 + bullishCount * 15 - bearishCount * 15;
     politicalRiskIndex = Math.max(0, Math.min(100, politicalRiskIndex));
 
-    return { politicalRiskIndex, score, label, news };
+    return { simulated: true, politicalRiskIndex, score, label, news };
   }
 
   async fetchMultiTimeframeData(symbolId: string): Promise<Record<TimeFrame, MarketCandle[]>> {
@@ -717,7 +723,7 @@ export const calculateStrategyMetrics = (trades: { profit: number }[]) => {
   const winRate = trades.length > 0 ? wins.length / trades.length : 0;
   const totalGain = wins.reduce((sum, t) => sum + t.profit, 0);
   const totalLoss = Math.abs(trades.filter((t) => t.profit <= 0).reduce((sum, t) => sum + t.profit, 0));
-  const profitFactor = totalLoss > 0 ? totalGain / totalLoss : 10;
+  const profitFactor = totalLoss > 0 ? totalGain / totalLoss : totalGain > 0 ? null : 0;
   return { winRate, profitFactor };
 };
 
@@ -819,16 +825,18 @@ export const optimizeStrategyWeights = (candles: MarketCandle[]): { weights: Str
   return { weights: bestWeights, accuracy: maxWinRate };
 };
 
-export const trainModelEpoch = async (candles: MarketCandle[], symbolId: string): Promise<number> => {
+export const trainModelEpoch = async (candles: MarketCandle[], symbolId: string, accessToken = ""): Promise<number> => {
   try {
     const response = await fetch("/api/train", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(accessToken.trim() ? { Authorization: `Bearer ${accessToken.trim()}` } : {}),
+      },
       body: JSON.stringify({ symbol: symbolId, historyData: candles }),
     });
     if (response.ok) {
       const result = await response.json();
-      console.log("Deep Learning Result:", result);
       return result.performance.winRate;
     }
   } catch (error) {

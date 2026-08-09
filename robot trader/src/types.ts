@@ -36,9 +36,12 @@ export interface OrderBook {
   isSpoofingDetected: boolean;
   pressure: number; // -1 to 1
   queueDynamics: QueueDynamics;
+  source?: string;
+  simulated?: boolean;
 }
 
 export interface CorrelationMetrics {
+  simulated?: boolean;
   usdFree: number;
   usdNima: number;
   globalGold: number; // Ounce
@@ -192,7 +195,8 @@ export interface SystemMetrics {
   status: 'OPERATIONAL' | 'WARNING' | 'CRITICAL' | 'KILL_SWITCH_ACTIVE';
   marketCorrelation: CorrelationMetrics;
   sentiment: SentimentData;
-  balance: number; // Added for persistence
+  balance: number;
+  lastPrice?: number;
 }
 
 export interface Order {
@@ -208,7 +212,7 @@ export interface Order {
 export interface WalkForwardResult {
   period: string;
   winRate: number;
-  profitFactor: number;
+  profitFactor: number | null;
   profit: number;
 }
 

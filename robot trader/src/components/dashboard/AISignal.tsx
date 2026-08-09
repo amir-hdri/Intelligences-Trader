@@ -1,9 +1,10 @@
 import React from 'react';
-import { TrendingUp, TrendingDown, Sparkles, Activity, ShieldCheck, Clock, Layers } from 'lucide-react';
+import { TrendingUp, TrendingDown, Sparkles } from 'lucide-react';
+import type { ExpertForecast } from '../../types';
 
 const cn = (...c: (string | false | undefined | null)[]) => c.filter(Boolean).join(' ');
 
-export const AISignal: React.FC<{ forecast: any; compact?: boolean; className?: string }> = ({
+export const AISignal: React.FC<{ forecast: ExpertForecast | null; compact?: boolean; className?: string }> = ({
   forecast,
   compact,
   className
@@ -22,6 +23,9 @@ export const AISignal: React.FC<{ forecast: any; compact?: boolean; className?: 
   const color = isBuy ? 'text-[#22C55E]' : isSell ? 'text-[#EF4444]' : 'text-[#94A3B8]';
   const badge = isBuy ? 'BUY' : isSell ? 'SELL' : 'HOLD';
   const confPct = Math.round(forecast.confidence * 100);
+  const expectedReturn = forecast.entryPrice > 0
+    ? ((forecast.targetPrice - forecast.entryPrice) / forecast.entryPrice) * 100
+    : null;
 
   return (
     <section aria-label="AI market signal" className={cn("glass-card rounded-2xl p-5 space-y-4", className)}>
@@ -52,7 +56,7 @@ export const AISignal: React.FC<{ forecast: any; compact?: boolean; className?: 
       {/* Clean Non-Gimmicky Confidence Meter */}
       <div className="space-y-1.5">
         <div className="flex justify-between text-[10px] uppercase font-bold tracking-wider text-[#64748B]">
-          <span>Model: Market Forecast v1.4</span>
+          <span>Research signal pipeline</span>
           <span className="text-violet-300 mono">{confPct}% Confidence</span>
         </div>
         <div className="h-2 w-full bg-slate-800/80 rounded-full overflow-hidden p-0.5">
@@ -73,8 +77,8 @@ export const AISignal: React.FC<{ forecast: any; compact?: boolean; className?: 
 
         <div className="elevated rounded-xl p-3">
           <div className="text-[#64748B] text-[9px] uppercase tracking-widest font-bold">Expected Return</div>
-          <div className="text-[#22C55E] font-black mono text-sm mt-0.5">
-            +{forecast.targetPrice && forecast.entryPrice ? (Math.abs(forecast.targetPrice - forecast.entryPrice) / forecast.entryPrice * 100).toFixed(2) : '3.42'}%
+          <div className={cn("font-black mono text-sm mt-0.5", expectedReturn == null ? "text-[#64748B]" : expectedReturn >= 0 ? "text-[#22C55E]" : "text-[#EF4444]")}>
+            {expectedReturn == null ? '—' : `${expectedReturn >= 0 ? '+' : ''}${expectedReturn.toFixed(2)}%`}
           </div>
           <div className="text-[10px] text-[#64748B]">Target Projection</div>
         </div>
@@ -88,9 +92,9 @@ export const AISignal: React.FC<{ forecast: any; compact?: boolean; className?: 
         </div>
 
         <div className="elevated rounded-xl p-3">
-          <div className="text-[#64748B] text-[9px] uppercase tracking-widest font-bold">Kelly Sizing</div>
-          <div className="text-violet-300 font-black mono text-xs mt-1">12.5%</div>
-          <div className="text-[10px] text-[#64748B]">Max Allocation</div>
+          <div className="text-[#64748B] text-[9px] uppercase tracking-widest font-bold">Book Pressure</div>
+          <div className="text-violet-300 font-black mono text-xs mt-1">{(forecast.orderBookPressure * 100).toFixed(1)}%</div>
+          <div className="text-[10px] text-[#64748B]">Observed / simulated input</div>
         </div>
       </div>
 

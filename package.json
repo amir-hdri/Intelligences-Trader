@@ -10,6 +10,7 @@
     "build": "npm run build --workspace app",
     "typecheck": "npm run typecheck --workspace app",
     "test": "npm test --workspaces --if-present",
+    "test:e2e": "npm run test:e2e --workspace app",
     "check": "npm run typecheck && npm run build && npm test --workspaces --if-present"
   },
   "overrides": {

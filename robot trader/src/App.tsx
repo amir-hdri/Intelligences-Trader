@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { IME_SYMBOLS, DEFAULT_API_CONFIG, INITIAL_METRICS, DEFAULT_RISK_LIMITS } from './constants';
-import type { ApiConfig, SystemMetrics, TradeLogEntry, RiskLimits, RiskStatus, TimeFrame } from './types';
+import type { SystemMetrics, TradeLogEntry, RiskLimits, RiskStatus, TimeFrame } from './types';
 import { DEFAULT_WEIGHTS, calculateStrategyMetrics } from './dataUtils';
 import { RiskEngine } from './riskEngine';
 import { useMarketData } from './hooks/useMarketData';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useLocalStorage } from './hooks/useLocalStorage';
+import { useApiConfig } from './hooks/useApiConfig';
 import { ProfessionalChart } from './components/charts/ProfessionalChart';
 import { OrderBook as OrderBookView } from './components/analytics/OrderBook';
 import { MarketCorrelation } from './components/analytics/MarketCorrelation';
@@ -25,6 +26,7 @@ import { Skeleton } from './components/common/ui';
 import { predictionService } from './services/PredictionHistoryService';
 import { learningEngine } from './services/LearningEngine';
 import { createBackendApi } from './services/BackendApiService';
+import type { Order as BackendOrder, Position as BackendPosition, PaperTradeResult } from './services/BackendApiService';
 import {
   AlertTriangle, Zap, ShieldCheck, BarChart3, TrendingUp, ShieldAlert,
   RefreshCw, Eye, Download, Search, X, ChevronDown, ChevronUp
@@ -32,16 +34,30 @@ import {
 
 const cn = (...c: (string | false | undefined | null)[]) => c.filter(Boolean).join(' ');
 
+type LedgerDisplayRow = {
+  id: string;
+  timestamp: number;
+  symbol: string;
+  action: 'BUY' | 'SELL' | 'HOLD';
+  price: number;
+  currentPrice?: number;
+  pnl?: number;
+  status: string;
+  regime?: string;
+  reason?: string;
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileNav, setMobileNav] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [cmdQuery, setCmdQuery] = useState('');
   const [notifOpen, setNotifOpen] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   const [selectedSymbolId, setSelectedSymbolId] = useLocalStorage<string>('selectedSymbolId', IME_SYMBOLS[0].id);
-  const [apiConfig, setApiConfig] = useLocalStorage<ApiConfig>('apiConfig', DEFAULT_API_CONFIG);
+  const [apiConfig, setApiConfig] = useApiConfig(DEFAULT_API_CONFIG);
   const [metrics, setMetrics] = useLocalStorage<SystemMetrics>('metrics', INITIAL_METRICS);
   const [riskLimits, setRiskLimits] = useLocalStorage<RiskLimits>('riskLimits', DEFAULT_RISK_LIMITS);
   const [tradeLogs, setTradeLogs] = useLocalStorage<TradeLogEntry[]>('tradeLogs', []);
@@ -53,9 +69,16 @@ export default function App() {
     modelReady: false,
   });
   const [performanceApi, setPerformanceApi] = useState<{ sharpe: number; sortino: number; cagr: number } | null>(null);
-  const [backendPositions, setBackendPositions] = useState<any[]>([]);
-  const [backendOrders, setBackendOrders] = useState<any[]>([]);
-  const backendApi = useMemo(() => createBackendApi(apiConfig.proxyUrl || 'http://localhost:3000'), [apiConfig.proxyUrl]);
+  const [backendPositions, setBackendPositions] = useState<BackendPosition[]>([]);
+  const [backendOrders, setBackendOrders] = useState<BackendOrder[]>([]);
+  const [apiTestState, setApiTestState] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
+  const [authUsername, setAuthUsername] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authPending, setAuthPending] = useState(false);
+  const backendApi = useMemo(
+    () => createBackendApi(apiConfig.proxyUrl || window.location.origin, apiConfig.apiKey),
+    [apiConfig.proxyUrl, apiConfig.apiKey],
+  );
 
   const [toasts, setToasts] = useState<{ id: string; msg: string }[]>([]);
   const pushToast = (msg: string) => {
@@ -82,7 +105,7 @@ export default function App() {
 
   const handlePriceUpdate = useCallback(
     (price: number) => {
-      setMetrics((prev) => ({ ...prev, lastPrice: price } as any));
+      setMetrics((prev) => ({ ...prev, lastPrice: price }));
       // Evaluate prediction history against real price movement
       predictionService.evaluatePredictions(price, selectedSymbol.name);
     },
@@ -115,7 +138,7 @@ export default function App() {
     }
 
     // Try backend paper trading engine first
-    let backendResult: any = null;
+    let backendResult: PaperTradeResult | null = null;
     try {
       backendResult = await backendApi.executePaperTrade(
         { ...order, symbol: selectedSymbol.id },
@@ -174,35 +197,33 @@ export default function App() {
   useEffect(() => {
     const fetchModelStatus = async () => {
       try {
-        const res = await fetch(`${apiConfig.proxyUrl}/api/status`);
-        if (res.ok) {
-          const data = await res.json();
-          setModelStatus({
-            inferenceLatency: data.inferenceLatency || 0,
-            version: data.version || data.modelVersion || 'v2.5.0',
-            modelReady: Boolean(data.modelReady),
-          });
-        }
+        const data = await backendApi.getModelStatus();
+        setModelStatus({
+          inferenceLatency: data.inferenceLatency || 0,
+          version: data.version || data.modelVersion || 'unknown',
+          modelReady: Boolean(data.modelReady),
+        });
       } catch {
-        // keep default
+        setModelStatus({ inferenceLatency: 0, version: 'unavailable', modelReady: false });
       }
     };
     void fetchModelStatus();
-  }, [apiConfig.proxyUrl]);
+  }, [backendApi]);
 
   // Fetch performance metrics from backend or calculate from ledger
   useEffect(() => {
     const fetchPerformance = async () => {
       try {
         const perf = await backendApi.getPerformance(selectedSymbolId);
-        setPerformanceApi(perf as any);
+        setPerformanceApi({ sharpe: perf.sharpe, sortino: perf.sortino, cagr: perf.cagr });
       } catch {
         // fallback to local calculation
         const trades = tradeLogs.map((t) => ({ profit: t.pnl ?? 0 }));
         if (trades.length > 0) {
           const { winRate, profitFactor } = calculateStrategyMetrics(trades);
-          const sharpe = (profitFactor * winRate) / Math.max(0.1, 1 - winRate);
-          setPerformanceApi({ sharpe, sortino: sharpe * 1.26, cagr: winRate * profitFactor * 12 });
+          const finiteProfitFactor = profitFactor ?? 0;
+          const sharpe = (finiteProfitFactor * winRate) / Math.max(0.1, 1 - winRate);
+          setPerformanceApi({ sharpe, sortino: sharpe * 1.26, cagr: winRate * finiteProfitFactor * 12 });
         }
       }
     };
@@ -227,6 +248,46 @@ export default function App() {
     };
     void fetchLedger();
   }, [activeTab, selectedSymbolId, backendApi]);
+
+  const loginToApi = useCallback(async () => {
+    if (!authUsername.trim() || !authPassword) {
+      pushToast('Username and password are required.');
+      return;
+    }
+    setAuthPending(true);
+    try {
+      const session = await backendApi.login(authUsername.trim(), authPassword);
+      sessionStorage.setItem('refreshToken', session.refreshToken);
+      setApiConfig(previous => ({ ...previous, apiKey: session.accessToken, isConnected: true }));
+      setAuthPassword('');
+      pushToast('Authenticated API session established.');
+    } catch (error) {
+      pushToast(error instanceof Error ? `Login failed: ${error.message}` : 'Login failed.');
+    } finally {
+      setAuthPending(false);
+    }
+  }, [authPassword, authUsername, backendApi, setApiConfig]);
+
+  const logoutFromApi = useCallback(() => {
+    sessionStorage.removeItem('refreshToken');
+    setApiConfig(previous => ({ ...previous, apiKey: '', isConnected: false }));
+    pushToast('API session cleared.');
+  }, [setApiConfig]);
+
+  const testApiConnection = useCallback(async () => {
+    setApiTestState('testing');
+    try {
+      const status = await backendApi.testConnection();
+      if (!status || typeof status.modelReady !== 'boolean') throw new Error('Malformed status response');
+      setApiConfig((previous) => ({ ...previous, isConnected: true }));
+      setApiTestState('ok');
+      pushToast('API connection verified successfully.');
+    } catch (error) {
+      setApiConfig((previous) => ({ ...previous, isConnected: false }));
+      setApiTestState('error');
+      pushToast(error instanceof Error ? `API connection failed: ${error.message}` : 'API connection failed.');
+    }
+  }, [backendApi, setApiConfig]);
 
   useEffect(() => {
     void loadData();
@@ -273,6 +334,11 @@ export default function App() {
   }, []);
 
   const allNavItems = useMemo(() => NAV.flatMap((g) => g.items), []);
+  const filteredNavItems = useMemo(() => {
+    const query = cmdQuery.trim().toLowerCase();
+    if (!query) return allNavItems;
+    return allNavItems.filter(item => item.label.toLowerCase().includes(query) || item.id.toLowerCase().includes(query));
+  }, [allNavItems, cmdQuery]);
   const currentPrice =
     mtfData[timeframe]?.[mtfData[timeframe].length - 1]?.close ??
     forecast?.entryPrice ??
@@ -289,10 +355,62 @@ export default function App() {
   const predictionHistory = useMemo(() => predictionService.getHistory(), [tradeLogs, forecast]);
   const adaptiveWeights = useMemo(() => learningEngine.calculateAdaptiveWeights(predictionHistory), [predictionHistory]);
 
+  const ledgerRows = useMemo<LedgerDisplayRow[]>(() => {
+    if (activeTab === 'positions') {
+      return backendPositions.map(position => ({
+        id: position.id,
+        timestamp: position.timestamp,
+        symbol: position.symbol,
+        action: position.side,
+        price: position.entryPrice,
+        currentPrice: position.currentPrice,
+        pnl: position.pnl,
+        status: position.status,
+        regime: position.regime,
+      }));
+    }
+    if (activeTab === 'orders') {
+      return backendOrders.map(order => ({
+        id: order.id,
+        timestamp: order.timestamp,
+        symbol: order.symbol,
+        action: order.side,
+        price: order.price,
+        status: order.status,
+        reason: `${order.type} • ${order.filledQuantity}/${order.quantity} filled`,
+      }));
+    }
+    return tradeLogs.map(log => ({
+      id: log.id,
+      timestamp: log.timestamp,
+      symbol: log.symbol,
+      action: log.action,
+      price: log.price,
+      pnl: log.pnl,
+      status: log.isWin ? 'WIN' : 'LOSS',
+      regime: log.metricsAtTrade.regime,
+      reason: log.reason,
+    }));
+  }, [activeTab, backendOrders, backendPositions, tradeLogs]);
+
+  const exportLedgerCsv = useCallback(() => {
+    const escape = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    const header = ['id', 'timestamp', 'symbol', 'action', 'price', 'currentPrice', 'pnl', 'status', 'regime', 'reason'];
+    const lines = [header.join(','), ...ledgerRows.map(row => header.map(key => escape(row[key as keyof LedgerDisplayRow])).join(','))];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${activeTab}-ledger-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    pushToast(`Exported ${ledgerRows.length} ${activeTab} records.`);
+  }, [activeTab, ledgerRows]);
+
   const notifications = [
-    { cat: 'AI', title: 'AI Model Convergence', desc: `${selectedSymbol.name} shifted to ${forecast?.action || 'HOLD'} (Confidence: ${(forecast?.confidence ? forecast.confidence * 100 : 0).toFixed(0)}%)`, time: '2m ago' },
-    { cat: 'Risk', title: 'Portfolio Margin Safe', desc: `Margin level healthy at ${riskStatus.margin.marginLevel.toFixed(1)}% within volatility constraints`, time: '14m ago' },
-    { cat: 'Market', title: 'Queue Dynamics', desc: `Buy side queue imbalance ${orderBook ? (orderBook.queueDynamics.buyRatio * 100).toFixed(1) : '—'}%`, time: '31m ago' },
+    { cat: 'AI', title: 'Current model signal', desc: `${selectedSymbol.name}: ${forecast?.action || 'HOLD'} (Confidence: ${(forecast?.confidence ? forecast.confidence * 100 : 0).toFixed(0)}%)`, time: 'Current snapshot' },
+    { cat: 'Risk', title: 'Current margin state', desc: `Margin level ${riskStatus.margin.marginLevel.toFixed(1)}% within configured simulation constraints`, time: 'Current snapshot' },
+    { cat: 'Market', title: orderBook?.simulated ? 'Simulated queue dynamics' : 'Queue dynamics', desc: `Buy-side queue ratio ${orderBook ? (orderBook.queueDynamics.buyRatio * 100).toFixed(1) : '—'}%`, time: 'Current snapshot' },
   ];
 
   return (
@@ -303,7 +421,6 @@ export default function App() {
         onNotif={() => setNotifOpen((v) => !v)}
         connectionState={connectionState}
         forecast={forecast}
-        symbolName={selectedSymbol.name}
         theme={theme}
         setTheme={setTheme}
         collapsed={collapsed}
@@ -496,7 +613,7 @@ export default function App() {
                     <div className="glass-panel p-4 lg:p-5 rounded-2xl">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-black uppercase tracking-widest text-violet-300">
-                          Active Position Summary
+                          Latest Resolved Paper Outcome
                         </span>
                         <button
                           onClick={() => setActiveTab('positions')}
@@ -517,7 +634,7 @@ export default function App() {
                         </div>
                       ) : (
                         <div className="text-xs text-[#64748B] py-2">
-                          No open positions currently active. Open Trade tab to place a paper order.
+                          No resolved paper outcomes yet. Open the Trade tab to run a labelled simulation.
                         </div>
                       )}
                     </div>
@@ -557,7 +674,7 @@ export default function App() {
             )}
 
             {activeTab === 'paper' && (
-              <FullPaperTradingDashboard />
+              <FullPaperTradingDashboard accessToken={apiConfig.apiKey} />
             )}
 
             {/* Current multi-timeframe data includes a generated intraday path, so retain synthetic provenance. */}
@@ -567,6 +684,7 @@ export default function App() {
                 timeframe={timeframe}
                 candles={mtfData[timeframe] || []}
                 sourceIsSynthetic={true}
+                accessToken={apiConfig.apiKey}
               />
             )}
 
@@ -593,7 +711,7 @@ export default function App() {
                       <div className="elevated rounded-xl p-3">
                         <div className="text-[#64748B] text-[9px] uppercase">Kelly Criterion Sizing</div>
                         <div className="font-black text-violet-300 text-sm mt-0.5">
-                          {forecast ? (riskEngine.calculateKellySize(forecast.entryPrice, forecast.indicators.atr, forecast.backendRisk?.suggestedRiskCapital) * 100).toFixed(1) : 12.5}%
+                          {forecast ? `${(riskEngine.calculateKellySize(forecast.entryPrice, forecast.indicators.atr, forecast.backendRisk?.suggestedRiskCapital) * 100).toFixed(1)}%` : '—'}
                         </div>
                       </div>
                       <div className="elevated rounded-xl p-3">
@@ -677,13 +795,17 @@ export default function App() {
                       {activeTab === 'positions' ? 'Active Portfolio Positions' : activeTab === 'orders' ? 'Order Management Ledger' : 'Historical Trade Execution Journal'}
                     </h3>
                     <p className="text-xs text-[#94A3B8] mt-0.5">
-                      {activeTab === 'positions' ? `${backendPositions.length || tradeLogs.length} positions from Position Ledger API (deterministic, no random)` : activeTab === 'orders' ? `${backendOrders.length || tradeLogs.length} orders from Order State Machine` : `${tradeLogs.length} total logged operations - from Position Ledger API.`}
+                      {activeTab === 'positions'
+                        ? `${backendPositions.length} explicitly recorded open paper positions`
+                        : activeTab === 'orders'
+                          ? `${backendOrders.length} explicitly submitted legacy paper orders`
+                          : `${tradeLogs.length} resolved paper simulation outcomes`}
                     </p>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => pushToast('Exporting CSV audit log…')}
+                      onClick={exportLedgerCsv}
                       className="px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/10 text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1.5 min-h-[36px]"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -706,7 +828,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5 mono">
-                      {tradeLogs.slice(0, 25).map((l) => (
+                      {ledgerRows.slice(0, 25).map((l) => (
                         <tr key={l.id} className="hover:bg-white/[0.02] transition-colors">
                           <td className="px-6 py-4 text-[#64748B]">
                             {new Date(l.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -723,13 +845,13 @@ export default function App() {
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right text-white font-bold">{l.price.toLocaleString()} IRR</td>
-                          <td className={cn("px-6 py-4 text-right font-bold", (l.pnl ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                            {(l.pnl ?? 0) >= 0 ? '+' : ''}{(l.pnl ?? 0).toFixed(0)} IRR
+                          <td className={cn("px-6 py-4 text-right font-bold", l.pnl == null ? "text-slate-300" : l.pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                            {l.pnl == null ? l.status : `${l.pnl >= 0 ? '+' : ''}${l.pnl.toFixed(0)} IRR`}
                           </td>
-                          <td className="px-6 py-4 text-center text-slate-300 font-sans text-[11px]">{l.metricsAtTrade.regime.replace('_', ' ')}</td>
+                          <td className="px-6 py-4 text-center text-slate-300 font-sans text-[11px]">{l.regime?.replace('_', ' ') || l.status}</td>
                           <td className="px-6 py-4 text-right">
                             <button
-                              onClick={() => pushToast(`Position details: ${l.reason}`)}
+                              onClick={() => pushToast(l.reason || `${l.symbol} ${l.status}`)}
                               className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-sans font-bold"
                             >
                               Details
@@ -738,10 +860,10 @@ export default function App() {
                         </tr>
                       ))}
 
-                      {tradeLogs.length === 0 && (
+                      {ledgerRows.length === 0 && (
                         <tr>
                           <td colSpan={7} className="px-6 py-16 text-center text-[#64748B]">
-                            No trade execution logs found. Open the Trade tab to place a paper order.
+                            No {activeTab} records exist. Empty ledgers remain empty; the system does not fabricate sample records.
                           </td>
                         </tr>
                       )}
@@ -750,7 +872,7 @@ export default function App() {
                 </div>
 
                 <div className="md:hidden divide-y divide-white/5 px-3">
-                  {tradeLogs.slice(0, 20).map((l) => {
+                  {ledgerRows.slice(0, 20).map((l) => {
                     const isExpanded = expandedRowId === l.id;
                     return (
                       <div key={l.id} className="p-3.5 space-y-2.5 rounded-2xl bg-white/[0.02] my-2 border border-white/[0.04]">
@@ -761,8 +883,8 @@ export default function App() {
                               {l.action} • {l.price.toLocaleString()} IRR
                             </div>
                           </div>
-                          <span className={cn("text-xs font-black mono", (l.pnl ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                            {(l.pnl ?? 0) >= 0 ? '+' : ''}{(l.pnl ?? 0).toFixed(0)} IRR
+                          <span className={cn("text-xs font-black mono", l.pnl == null ? "text-slate-300" : l.pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                            {l.pnl == null ? l.status : `${l.pnl >= 0 ? '+' : ''}${l.pnl.toFixed(0)} IRR`}
                           </span>
                         </div>
 
@@ -773,15 +895,15 @@ export default function App() {
                           </div>
                           <div className="flex justify-between text-[#94A3B8]">
                             <span>Current:</span>
-                            <span className="text-white font-bold">{(l.price * 1.02).toFixed(0)}</span>
+                            <span className="text-white font-bold">{l.currentPrice?.toFixed(0) || '—'}</span>
                           </div>
                           <div className="flex justify-between text-[#94A3B8]">
-                            <span>Risk:</span>
-                            <span className="text-amber-400 font-bold">Medium</span>
+                            <span>Status:</span>
+                            <span className="text-amber-400 font-bold">{l.status}</span>
                           </div>
                           <div className="flex justify-between text-[#94A3B8]">
-                            <span>RSI:</span>
-                            <span className="text-violet-300 font-bold">{l.metricsAtTrade.rsi.toFixed(0)}</span>
+                            <span>Regime:</span>
+                            <span className="text-violet-300 font-bold">{l.regime || '—'}</span>
                           </div>
                         </div>
 
@@ -795,19 +917,19 @@ export default function App() {
 
                         {isExpanded && (
                           <div className="pt-2 border-t border-white/5 text-[11px] text-[#94A3B8] space-y-1 animate-in fade-in duration-150 font-sans">
-                            <div><strong className="text-slate-300">Regime:</strong> {l.metricsAtTrade.regime}</div>
-                            <div><strong className="text-slate-300">Execution Reason:</strong> {l.reason}</div>
-                            <div><strong className="text-slate-300">Log Timestamp:</strong> {new Date(l.timestamp).toLocaleString()}</div>
-                            <div><strong className="text-slate-300">P&L:</strong> {(l.pnl ?? 0).toFixed(0)} IRR ({l.isWin ? 'WIN' : 'LOSS'})</div>
+                            <div><strong className="text-slate-300">Regime:</strong> {l.regime || 'N/A'}</div>
+                            <div><strong className="text-slate-300">Details:</strong> {l.reason || 'No additional details'}</div>
+                            <div><strong className="text-slate-300">Timestamp:</strong> {new Date(l.timestamp).toLocaleString()}</div>
+                            <div><strong className="text-slate-300">P&L:</strong> {l.pnl == null ? 'Not realized' : `${l.pnl.toFixed(0)} IRR`} ({l.status})</div>
                           </div>
                         )}
                       </div>
                     );
                   })}
 
-                  {tradeLogs.length === 0 && (
+                  {ledgerRows.length === 0 && (
                     <div className="py-12 text-center text-xs text-[#64748B]">
-                      No trade logs. Go to Trade tab to create an execution.
+                      No {activeTab} records exist. Empty ledgers are reported honestly.
                     </div>
                   )}
                 </div>
@@ -817,8 +939,6 @@ export default function App() {
             {activeTab === 'performance' && (
               <PerformanceAnalytics
                 balance={metrics.balance}
-                winRate={metrics.winRate}
-                profitFactor={metrics.profitFactor}
                 tradeHistory={tradeLogs.map(t => ({ profit: t.pnl ?? 0, timestamp: t.timestamp }))}
               />
             )}
@@ -852,7 +972,7 @@ export default function App() {
                         ONNX Model Status - Real Backend Data
                       </div>
                       <div className="space-y-2 text-xs">
-                        <div className="flex justify-between"><span className="text-[#64748B]">Inference Latency</span><span className="mono text-white">{modelStatus.inferenceLatency ? `${modelStatus.inferenceLatency}ms` : `${(performanceApi ? 12 + Math.floor(performanceApi.sharpe) : 15)}ms`}</span></div>
+                        <div className="flex justify-between"><span className="text-[#64748B]">Inference Latency</span><span className="mono text-white">{modelStatus.inferenceLatency > 0 ? `${modelStatus.inferenceLatency}ms` : '—'}</span></div>
                         <div className="flex justify-between"><span className="text-[#64748B]">Model Version</span><span className="mono text-white">{modelStatus.version}</span></div>
                         <div className="flex justify-between"><span className="text-[#64748B]">Model Accuracy</span><span className="mono text-emerald-400 font-bold">{(metrics.accuracy * 100).toFixed(1)}%</span></div>
                         <div className="flex justify-between"><span className="text-[#64748B]">Ready</span><span className={cn("mono font-bold", modelStatus.modelReady ? "text-emerald-400" : "text-amber-400")}>{modelStatus.modelReady ? 'YES' : 'LOADING'}</span></div>
@@ -885,8 +1005,48 @@ export default function App() {
                       className="w-full rounded-xl bg-[#101620] border border-white/10 px-3.5 py-2.5 mono text-xs text-white min-h-[44px]"
                     />
                   </label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block space-y-1 text-sm">
+                      <span className="text-[#94A3B8]">Username</span>
+                      <input
+                        autoComplete="username"
+                        value={authUsername}
+                        onChange={(event) => setAuthUsername(event.target.value)}
+                        className="w-full rounded-xl bg-[#101620] border border-white/10 px-3.5 py-2.5 text-xs text-white min-h-[44px]"
+                      />
+                    </label>
+                    <label className="block space-y-1 text-sm">
+                      <span className="text-[#94A3B8]">Password</span>
+                      <input
+                        type="password"
+                        autoComplete="current-password"
+                        value={authPassword}
+                        onChange={(event) => setAuthPassword(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') void loginToApi();
+                        }}
+                        className="w-full rounded-xl bg-[#101620] border border-white/10 px-3.5 py-2.5 text-xs text-white min-h-[44px]"
+                      />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => void loginToApi()}
+                      disabled={authPending}
+                      className="min-h-[44px] rounded-xl bg-emerald-600 text-xs font-black text-white hover:bg-emerald-500 disabled:opacity-60"
+                    >
+                      {authPending ? 'Signing in…' : 'Sign in'}
+                    </button>
+                    <button
+                      onClick={logoutFromApi}
+                      disabled={!apiConfig.apiKey}
+                      className="min-h-[44px] rounded-xl border border-white/10 bg-white/5 text-xs font-black text-slate-300 disabled:opacity-40"
+                    >
+                      Clear session
+                    </button>
+                  </div>
                   <label className="block space-y-1 text-sm">
-                    <span className="text-[#94A3B8]">API Key</span>
+                    <span className="text-[#94A3B8]">Bearer Access Token (advanced/manual)</span>
                     <div className="relative">
                       <input
                         type="password"
@@ -908,10 +1068,11 @@ export default function App() {
                     <span>Use Digital Twin (Adaptive Simulation fallback)</span>
                   </label>
                   <button
-                    onClick={() => pushToast('API Configuration saved and verified!')}
-                    className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-black text-xs min-h-[44px]"
+                    onClick={() => void testApiConnection()}
+                    disabled={apiTestState === 'testing'}
+                    className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:cursor-wait disabled:opacity-60 text-white font-black text-xs min-h-[44px]"
                   >
-                    Save & Test Connection
+                    {apiTestState === 'testing' ? 'Testing Connection…' : apiTestState === 'ok' ? 'Connection Verified ✓' : apiTestState === 'error' ? 'Retry Connection Test' : 'Save & Test Connection'}
                   </button>
                 </div>
 
@@ -950,6 +1111,7 @@ export default function App() {
                   <button
                     onClick={() => {
                       localStorage.clear();
+                      sessionStorage.clear();
                       location.reload();
                     }}
                     className="w-full py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 font-black text-xs min-h-[44px]"
@@ -979,8 +1141,17 @@ export default function App() {
               <Search className="w-4 h-4 text-[#64748B]" />
               <input
                 autoFocus
-                aria-label="Search"
-                placeholder="Search symbol, tool, chart, risk console… (try: Gold, Order Book, VaR)"
+                aria-label="Search navigation"
+                value={cmdQuery}
+                onChange={(event) => setCmdQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') setCmdOpen(false);
+                  if (event.key === 'Enter' && filteredNavItems[0]) {
+                    setActiveTab(filteredNavItems[0].id);
+                    setCmdOpen(false);
+                  }
+                }}
+                placeholder="Search navigation…"
                 className="flex-1 bg-transparent outline-none text-xs text-white"
               />
               <button onClick={() => setCmdOpen(false)} className="text-[10px] text-[#64748B] border border-white/10 rounded-lg px-2 py-1">
@@ -988,7 +1159,10 @@ export default function App() {
               </button>
             </div>
             <div className="p-2 max-h-[360px] overflow-y-auto space-y-1">
-              {allNavItems.map((it) => (
+              {filteredNavItems.length === 0 && (
+                <div className="px-3 py-8 text-center text-xs text-[#64748B]">No matching navigation items.</div>
+              )}
+              {filteredNavItems.map((it) => (
                 <button
                   key={it.id}
                   onClick={() => {

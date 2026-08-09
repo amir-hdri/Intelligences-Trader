@@ -17,12 +17,24 @@ spec:
       labels:
         app: backend-ml
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: backend-ml
         image: kalaybot-ml:latest
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
         resources:
           requests:
             memory: "512Mi"
@@ -39,6 +51,8 @@ spec:
           value: "2"
         - name: BACKTEST_MAX_QUEUED
           value: "100"
+        - name: TRUST_PROXY_HOPS
+          value: "1"
         envFrom:
         - secretRef:
             name: kalaybot-secrets
@@ -54,6 +68,10 @@ spec:
             port: 3000
           initialDelaySeconds: 15
           periodSeconds: 10
+      volumes:
+      - name: tmp
+        emptyDir:
+          sizeLimit: 64Mi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -74,12 +92,24 @@ spec:
       labels:
         app: backend-proxy
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: backend-proxy
         image: kalaybot-proxy:latest
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3001
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
         resources:
           requests:
             memory: "256Mi"
@@ -87,6 +117,11 @@ spec:
           limits:
             memory: "1Gi"
             cpu: "500m"
+        env:
+        - name: NODE_ENV
+          value: production
+        - name: TRUST_PROXY_HOPS
+          value: "1"
         envFrom:
         - secretRef:
             name: kalaybot-secrets
@@ -102,6 +137,10 @@ spec:
             port: 3001
           initialDelaySeconds: 15
           periodSeconds: 10
+      volumes:
+      - name: tmp
+        emptyDir:
+          sizeLimit: 32Mi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -122,12 +161,20 @@ spec:
       labels:
         app: frontend
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: frontend
         image: kalaybot-frontend:latest
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
         imagePullPolicy: IfNotPresent
         ports:
-        - containerPort: 80
+        - containerPort: 8080
         env:
         - name: ML_BACKEND_HOST
           value: backend-ml-svc
@@ -147,12 +194,12 @@ spec:
         livenessProbe:
           httpGet:
             path: /
-            port: 80
+            port: 8080
           initialDelaySeconds: 15
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /
-            port: 80
+            port: 8080
           initialDelaySeconds: 10
           periodSeconds: 10
