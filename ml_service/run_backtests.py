@@ -86,8 +86,13 @@ def _strategy_specs(model_path: Path) -> Sequence[Dict[str, Any]]:
         {
             "name": "ML-Based PPO/TCN",
             "slug": "ppo_tcn_onnx",
-            "strategy": model,
-            "parameters": {},
+            "strategy": "ML_Based",
+            "parameters": {"model": model},
+            "display_parameters": {
+                "model": model_path.name,
+                "sequence_length": model.sequence_length,
+            },
+            "model_adapter": model,
         },
     )
 
@@ -141,13 +146,17 @@ def run_suite(
             execution = engine.last_result["execution"]
             trades = engine.last_result["trades"]
             model_summary: Mapping[str, Any] = {}
-            if isinstance(spec["strategy"], PPOONNXStrategy):
-                model_summary = spec["strategy"].last_inference_summary
+            model_adapter = spec.get("model_adapter")
+            if isinstance(model_adapter, PPOONNXStrategy):
+                model_summary = model_adapter.last_inference_summary
 
             row = {
                 "symbol": symbol,
                 "strategy": spec["name"],
-                "parameters": json.dumps(spec["parameters"], sort_keys=True),
+                "parameters": json.dumps(
+                    spec.get("display_parameters", spec["parameters"]),
+                    sort_keys=True,
+                ),
                 "start_date": START_DATE,
                 "end_date": END_DATE,
                 "timeframe": TIMEFRAME,
