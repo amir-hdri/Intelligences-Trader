@@ -3,6 +3,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar,
 } from 'recharts';
+import { apiJson } from '../../services/apiFetch';
 
 interface Trade {
   id: string;
@@ -54,12 +55,23 @@ const DETERMINISTIC_SIGNALS: { action: 'BUY' | 'SELL'; confidence: number; regim
   { action: 'SELL', confidence: 0.8, regime: 'TRENDING_DOWN' },
 ];
 
-const FullPaperTradingDashboard: React.FC = () => {
+interface FullPaperTradingDashboardProps {
+  accessToken?: string;
+}
+
+interface Envelope<T> {
+  success: boolean;
+  data: T;
+}
+
+const FullPaperTradingDashboard: React.FC<FullPaperTradingDashboardProps> = ({ accessToken = '' }) => {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [report, setReport] = useState<Report | null>(null);
   const [backtest, setBacktest] = useState<BacktestResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [signalIndex, setSignalIndex] = useState(0);
   const [selectedModel, setSelectedModel] = useState<'PPO' | 'TCN'>('PPO');
   const [selectedSymbol, setSelectedSymbol] = useState(SYMBOLS[0]);
@@ -72,27 +84,22 @@ const FullPaperTradingDashboard: React.FC = () => {
   });
 
   const fetchMetrics = useCallback(async () => {
-    try {
-      const res = await fetch('/api/paper-trading/p2/metrics');
-      const data = await res.json();
-      setMetrics(data.data);
-    } catch (e) {
-      console.error('Failed to fetch metrics');
-    }
-  }, []);
+    const response = await apiJson<Envelope<Metrics>>('/api/paper-trading/p2/metrics', accessToken);
+    setMetrics(response.data);
+  }, [accessToken]);
 
   const fetchTrades = useCallback(async () => {
-    try {
-      const res = await fetch('/api/paper-trading/trades');
-      const data = await res.json();
-      setTrades(data.data.trades || []);
-    } catch (e) {
-      console.error('Failed to fetch trades');
-    }
-  }, []);
+    const response = await apiJson<Envelope<{ trades: Trade[] }>>('/api/paper-trading/trades', accessToken);
+    setTrades(response.data.trades || []);
+  }, [accessToken]);
 
   const refresh = useCallback(async () => {
-    await Promise.all([fetchMetrics(), fetchTrades()]);
+    try {
+      await Promise.all([fetchMetrics(), fetchTrades()]);
+      setError(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to refresh paper-trading data');
+    }
   }, [fetchMetrics, fetchTrades]);
 
   // Execute a deterministic ML signal
@@ -101,9 +108,10 @@ const FullPaperTradingDashboard: React.FC = () => {
     try {
       const signal = DETERMINISTIC_SIGNALS[signalIndex % DETERMINISTIC_SIGNALS.length];
       setSignalIndex((i) => i + 1);
-      await fetch('/api/paper-trading/p2/execute-ml', {
+      setError(null);
+      setSuccessMessage(null);
+      await apiJson<Envelope<unknown>>('/api/paper-trading/p2/execute-ml', accessToken, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           signal,
           symbol: selectedSymbol,
@@ -112,6 +120,9 @@ const FullPaperTradingDashboard: React.FC = () => {
         }),
       });
       await refresh();
+      setSuccessMessage('Deterministic research signal executed in the paper simulator.');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Signal execution failed');
     } finally {
       setLoading(false);
     }
@@ -120,24 +131,34 @@ const FullPaperTradingDashboard: React.FC = () => {
   const generateReport = async (period: 'daily' | 'weekly' | 'monthly') => {
     setLoading(true);
     try {
-      const res = await fetch('/api/paper-trading/p2/report', {
+      setError(null);
+      const response = await apiJson<Envelope<Report>>('/api/paper-trading/p2/report', accessToken, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ period }),
       });
-      const data = await res.json();
-      setReport(data.data);
+      setReport(response.data);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Report generation failed');
     } finally {
       setLoading(false);
     }
   };
 
   const updateStrategy = async () => {
-    await fetch('/api/paper-trading/p2/strategy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: selectedModel, ...strategyParams }),
-    });
+    setLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      await apiJson<Envelope<unknown>>('/api/paper-trading/p2/strategy', accessToken, {
+        method: 'POST',
+        body: JSON.stringify({ model: selectedModel, ...strategyParams }),
+      });
+      setSuccessMessage('Paper strategy configuration saved.');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Strategy update failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Build a deterministic synthetic candle series + signals for the backtest.
@@ -160,13 +181,14 @@ const FullPaperTradingDashboard: React.FC = () => {
         const sig = DETERMINISTIC_SIGNALS[i % DETERMINISTIC_SIGNALS.length];
         return { action: sig.action, confidence: sig.confidence, regime: sig.regime, qty: strategyParams.size };
       });
-      const res = await fetch('/api/paper-trading/p2/backtest', {
+      setError(null);
+      const response = await apiJson<Envelope<BacktestResult>>('/api/paper-trading/p2/backtest', accessToken, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ candles, signals }),
       });
-      const data = await res.json();
-      setBacktest(data.data);
+      setBacktest(response.data);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Backtest failed');
     } finally {
       setLoading(false);
     }
@@ -184,7 +206,9 @@ const FullPaperTradingDashboard: React.FC = () => {
 
   useEffect(() => {
     void refresh();
-    const interval = setInterval(() => { void fetchMetrics(); }, 15000);
+    const interval = setInterval(() => {
+      void fetchMetrics().catch(caught => setError(caught instanceof Error ? caught.message : 'Metrics refresh failed'));
+    }, 15000);
     return () => clearInterval(interval);
   }, [refresh, fetchMetrics]);
 
@@ -201,11 +225,25 @@ const FullPaperTradingDashboard: React.FC = () => {
   return (
     <div className="p-6 bg-[#05070B] text-white min-h-screen">
       <div className="max-w-7xl mx-auto">
+        {error && (
+          <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-300">
+            <span>{error}</span>
+            <button onClick={() => void refresh()} className="rounded-lg border border-rose-400/30 px-3 py-1 text-xs font-bold">Retry</button>
+          </div>
+        )}
+        {successMessage && (
+          <div role="status" className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
+            {successMessage}
+          </div>
+        )}
+        <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-200">
+          Research simulation only: generated signals, paper fills, and reports are not broker orders or verified live performance.
+        </div>
         <div className="flex flex-wrap justify-between items-center gap-3 mb-8">
           <div>
-            <h1 className="text-3xl font-bold">P2 Paper Trading Engine — Full Stack</h1>
+            <h1 className="text-3xl font-bold">P2 Paper Trading Research Simulator</h1>
             <p className="text-sm text-gray-400 mt-1">
-              Deterministic execution, fees, order-book simulator, and PostgreSQL trade persistence.
+              Deterministic scenario execution, fees, order-book simulation, and optional PostgreSQL persistence.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -221,7 +259,7 @@ const FullPaperTradingDashboard: React.FC = () => {
               disabled={loading}
               className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-50"
             >
-              {loading ? 'Executing...' : 'Execute ML Signal'}
+              {loading ? 'Executing…' : 'Run Scenario Signal'}
             </button>
             <button onClick={() => generateReport('daily')} className="px-4 py-2 bg-blue-600 rounded-lg">Daily</button>
             <button onClick={() => generateReport('weekly')} className="px-4 py-2 bg-blue-600 rounded-lg">Weekly</button>
@@ -324,7 +362,9 @@ const FullPaperTradingDashboard: React.FC = () => {
               <label className="block text-sm mb-1">ML Model</label>
               <select
                 value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value as any)}
+                onChange={(e) => {
+                  if (e.target.value === 'PPO' || e.target.value === 'TCN') setSelectedModel(e.target.value);
+                }}
                 className="w-full bg-[#0B0F17] border border-white/20 rounded p-2"
               >
                 <option value="PPO">PPO</option>

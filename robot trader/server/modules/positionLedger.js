@@ -1,91 +1,77 @@
-import { createSeededRng } from '../utils/deterministic.js';
-import { generateHistoricalData } from '../dataFactory.js';
-
 /**
- * Position Ledger - Real data source replacing mock/random positions
- * In Phase 1: deterministic positions based on historical data + trade logs
+ * In-memory paper-position ledger.
+ *
+ * This boundary intentionally returns only positions explicitly recorded by an
+ * execution workflow.  It never invents sample positions when the ledger is
+ * empty.  Production deployments should replace this process-local adapter
+ * with a durable, transactional repository before enabling multi-replica
+ * paper trading.
  */
-
 class PositionLedger {
   constructor() {
-    this.positions = new Map(); // symbol -> positions
-    this.tradeLogs = []; // internal trade ledger
+    this.positions = new Map();
   }
 
-  // Deterministic position generation from real market data
   getPositions(symbolId = 'SAF1403') {
-    const now = Date.now();
-    const rng = createSeededRng(`positions-${symbolId}-${Math.floor(now / 60000)}`);
-    const history = generateHistoricalData(symbolId, 1);
-    const lastPrice = history[history.length - 1]?.close || 1000000;
-
-    // Generate deterministic positions based on trade logs if available, else create sample positions from real history
-    if (this.tradeLogs.length === 0) {
-      // Create 2-4 deterministic positions from recent price action
-      const count = 2 + Math.floor(rng() * 2);
-      const positions = [];
-      for (let i = 0; i < count; i++) {
-        const entryOffset = (rng() - 0.5) * 0.05; // ±2.5% from last price
-        const entryPrice = Math.floor(lastPrice * (1 + entryOffset));
-        const qty = 5 + Math.floor(rng() * 20);
-        const side = rng() > 0.5 ? 'BUY' : 'SELL';
-        const pnl = side === 'BUY' ? (lastPrice - entryPrice) * qty : (entryPrice - lastPrice) * qty;
-        const pnlPct = ((pnl / (entryPrice * qty)) * 100);
-        positions.push({
-          id: `pos-${symbolId}-${i}-${Math.floor(now/1000)}`,
-          symbol: symbolId,
-          side,
-          quantity: qty,
-          entryPrice,
-          currentPrice: lastPrice,
-          pnl,
-          pnlPercent: Number(pnlPct.toFixed(2)),
-          timestamp: now - Math.floor(rng() * 86400000),
-          status: 'OPEN',
-          regime: 'TRENDING_UP',
-          rsi: 45 + rng() * 20,
-        });
-      }
-      return positions;
-    }
-
-    // From trade logs, create positions
-    return this.tradeLogs
-      .filter(log => log.symbol.includes(symbolId) || symbolId.includes(log.symbol) || true)
-      .slice(0, 10)
-      .map(log => {
-        const currentPrice = lastPrice + (Math.sin(log.timestamp) * 1000);
-        const pnl = log.action === 'BUY' ? (currentPrice - log.price) * 10 : (log.price - currentPrice) * 10;
-        return {
-          id: log.id,
-          symbol: log.symbol,
-          side: log.action,
-          quantity: 10,
-          entryPrice: log.price,
-          currentPrice,
-          pnl,
-          pnlPercent: Number(((pnl / (log.price * 10)) * 100).toFixed(2)),
-          timestamp: log.timestamp,
-          status: 'OPEN',
-          regime: log.metricsAtTrade?.regime || 'RANGING',
-          rsi: log.metricsAtTrade?.rsi || 50,
-        };
-      });
-  }
-
-  addTradeLog(log) {
-    this.tradeLogs.unshift(log);
-    if (this.tradeLogs.length > 1000) this.tradeLogs = this.tradeLogs.slice(0, 1000);
+    return [...this.positions.values()]
+      .filter(position => position.symbol === symbolId && position.status === 'OPEN')
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .map(position => ({ ...position }));
   }
 
   getAllPositions() {
-    // Return aggregated positions across symbols without randomness
-    const symbols = ['SAF1403', 'GOLD1403', 'SAFSPOT'];
-    const all = [];
-    for (const sym of symbols) {
-      all.push(...this.getPositions(sym));
+    return [...this.positions.values()]
+      .filter(position => position.status === 'OPEN')
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .map(position => ({ ...position }));
+  }
+
+  upsertPosition(position) {
+    if (!position || typeof position.id !== 'string' || !position.id) {
+      throw new TypeError('position requires a non-empty id');
     }
-    return all;
+    if (typeof position.symbol !== 'string' || !/^[A-Z0-9-]{1,64}$/.test(position.symbol)) {
+      throw new TypeError('position requires a valid symbol');
+    }
+    if (!['BUY', 'SELL'].includes(position.side)) {
+      throw new TypeError('position side must be BUY or SELL');
+    }
+    for (const field of ['quantity', 'entryPrice', 'currentPrice']) {
+      if (!Number.isFinite(position[field]) || position[field] <= 0) {
+        throw new TypeError(`position ${field} must be a positive finite number`);
+      }
+    }
+    const normalized = {
+      ...position,
+      timestamp: Number.isFinite(position.timestamp) ? position.timestamp : Date.now(),
+      status: position.status || 'OPEN',
+    };
+    this.positions.set(normalized.id, normalized);
+    return { ...normalized };
+  }
+
+  closePosition(id, currentPrice) {
+    const position = this.positions.get(id);
+    if (!position) return null;
+    if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
+      throw new TypeError('currentPrice must be a positive finite number');
+    }
+    const direction = position.side === 'BUY' ? 1 : -1;
+    const pnl = direction * (currentPrice - position.entryPrice) * position.quantity;
+    const closed = {
+      ...position,
+      currentPrice,
+      pnl,
+      pnlPercent: (pnl / (position.entryPrice * position.quantity)) * 100,
+      status: 'CLOSED',
+      closedAt: Date.now(),
+    };
+    this.positions.set(id, closed);
+    return { ...closed };
+  }
+
+  clear() {
+    this.positions.clear();
   }
 }
 

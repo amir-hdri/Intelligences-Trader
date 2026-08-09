@@ -75,7 +75,8 @@ export const DEFAULT_RISK_LIMITS: RiskLimits = {
   stopAllTrading: false,
 };
 
-const MOCK_CORRELATION: CorrelationMetrics = {
+const INITIAL_SIMULATED_CORRELATION: CorrelationMetrics = {
+  simulated: true,
   usdFree: 650000,
   usdNima: 420000,
   globalGold: 2350,
@@ -84,7 +85,8 @@ const MOCK_CORRELATION: CorrelationMetrics = {
   correlations: { 'USD_IME': 0.88, 'GOLD_IME': 0.92 }
 };
 
-const MOCK_SENTIMENT: SentimentData = {
+const INITIAL_SIMULATED_SENTIMENT: SentimentData = {
+  simulated: true,
   politicalRiskIndex: 50,
   score: 0.45,
   label: 'GREED',
@@ -100,7 +102,7 @@ export const INITIAL_METRICS: SystemMetrics = {
   maxDrawdown: 0,
   winRate: 0.5,
   status: 'OPERATIONAL',
-  marketCorrelation: MOCK_CORRELATION,
-  sentiment: MOCK_SENTIMENT,
+  marketCorrelation: INITIAL_SIMULATED_CORRELATION,
+  sentiment: INITIAL_SIMULATED_SENTIMENT,
   balance: 1000000
 };

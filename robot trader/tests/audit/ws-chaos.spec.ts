@@ -1,36 +1,25 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('WebSocket Chaos Testing', () => {
-  test('Should handle sudden WS disconnects with exponential backoff and no duplicate signals', async ({ page }) => {
-    // 1. Navigate to application (assuming dev server port 5173)
-    // await page.goto('http://localhost:5173');
+test.describe('WebSocket resilience', () => {
+  test('disconnects cleanly, reconnects, and does not duplicate paper outcomes', async ({ page, context }) => {
+    await page.goto('/');
+    await expect(page.getByText(/STREAM|CONNECTED/).first()).toBeVisible({ timeout: 20_000 });
 
-    // 2. Wait for initial WS Connection
-    // await expect(page.locator('text=CONNECTED').first()).toBeVisible({ timeout: 10000 });
-
-    // 3. Simulate sudden disconnect
-    /*
-    await page.evaluate(() => {
-      if (window.wsRef && window.wsRef.current) {
-        window.wsRef.current.close();
-      }
+    const logsBefore = await page.evaluate(() => {
+      const raw = localStorage.getItem('tradeLogs');
+      return raw ? JSON.parse(raw).length : 0;
     });
-    */
 
-    // 4. Verify the state changes
-    // await expect(page.locator('text=RECONNECTING').first()).toBeVisible();
+    await context.setOffline(true);
+    await expect(page.getByText(/DISCONNECTED|RECONNECTING/).first()).toBeVisible({ timeout: 10_000 });
 
-    // 5. Verify successful reconnection after exponential backoff
-    // await expect(page.locator('text=CONNECTED').first()).toBeVisible({ timeout: 10000 });
+    await context.setOffline(false);
+    await expect(page.getByText(/STREAM|CONNECTED/).first()).toBeVisible({ timeout: 35_000 });
 
-    // 6. Verify no duplicate trade signals
-    /*
-    const logs = await page.evaluate(() => window.tradeLogs || []);
-    const uniqueIds = new Set(logs.map((l: any) => l.id));
-    expect(logs.length).toBe(uniqueIds.size);
-    */
-
-    // Test implementation placeholder for CI evaluation
-    expect(true).toBeTruthy();
+    const logsAfter = await page.evaluate(() => {
+      const raw = localStorage.getItem('tradeLogs');
+      return raw ? JSON.parse(raw).length : 0;
+    });
+    expect(logsAfter).toBe(logsBefore);
   });
 });

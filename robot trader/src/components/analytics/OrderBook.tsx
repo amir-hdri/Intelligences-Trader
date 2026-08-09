@@ -64,6 +64,11 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
           <h3 className="text-slate-300 font-black text-xs uppercase tracking-widest flex items-center gap-1.5">
             Order Book & L2 Depth
           </h3>
+          {data.simulated && (
+            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-300">
+              Simulated depth
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -98,6 +103,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
           </div>
 
           <button
+            aria-label="Expand order book"
             onClick={() => setShowFullModal(true)}
             title="Expand Full Modal"
             className="p-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-[#94A3B8] hover:text-white min-h-[32px] min-w-[32px] grid place-items-center"
@@ -277,12 +283,13 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
       {/* FULLSCREEN MODAL FOR L2 DEPTH */}
       {showFullModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-2xl max-h-[85vh] rounded-3xl bg-[#0B0F19] border border-white/10 p-6 shadow-2xl overflow-y-auto space-y-4">
+          <div role="dialog" aria-modal="true" aria-label="Expanded order book" className="relative w-full max-w-2xl max-h-[85vh] rounded-3xl bg-[#0B0F19] border border-white/10 p-6 shadow-2xl overflow-y-auto space-y-4">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <h3 className="text-sm font-black uppercase tracking-widest text-violet-300">
                 Full Depth Order Book — 20 Levels
               </h3>
               <button
+                aria-label="Close expanded order book"
                 onClick={() => setShowFullModal(false)}
                 className="p-1.5 rounded-xl hover:bg-white/10 text-[#64748B] hover:text-white"
               >

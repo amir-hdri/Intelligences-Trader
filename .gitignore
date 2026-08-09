@@ -5,6 +5,7 @@ node_modules/
 .env
 .env.local
 *.env.*
+!.env.example
 
 # Logs and temp files
 *.log
@@ -29,3 +30,6 @@ robot trader/test-out/
 robot trader/dist/
 robot trader/test-results/
 robot trader/playwright-report/
+
+# TypeScript incremental metadata
+*.tsbuildinfo

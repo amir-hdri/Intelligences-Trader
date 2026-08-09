@@ -46,12 +46,22 @@ export class MLSignalBridge {
       return { success: false, reason: `Unknown ML signal action: ${signal.action}` };
     }
 
+    if (typeof symbol !== 'string' || !/^[A-Z0-9/_:-]{1,64}$/.test(symbol)) {
+      return { success: false, reason: 'Invalid paper-trading symbol' };
+    }
+    if (!Number.isFinite(marketPrice) || marketPrice <= 0) {
+      return { success: false, reason: 'marketPrice must be positive and finite' };
+    }
+
     const confidence = Number.isFinite(signal.confidence) ? signal.confidence : 0;
     if (confidence < 0 || confidence > 1) {
       return { success: false, reason: 'Confidence must be between 0 and 1' };
     }
 
     const threshold = opts.confidenceThreshold ?? this.defaultConfidenceThreshold;
+    if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
+      return { success: false, reason: 'confidenceThreshold must be between 0 and 1' };
+    }
     if (confidence < threshold) {
       return {
         success: false,
@@ -76,6 +86,15 @@ export class MLSignalBridge {
     }
 
     const type = signal.type || 'MARKET';
+    if (!['MARKET', 'LIMIT', 'STOP_LOSS'].includes(type)) {
+      return { success: false, reason: 'Unsupported paper order type' };
+    }
+    if (type === 'LIMIT' && (!Number.isFinite(signal.price) || signal.price <= 0)) {
+      return { success: false, reason: 'LIMIT signal requires a positive price' };
+    }
+    if (type === 'STOP_LOSS' && (!Number.isFinite(signal.stopPrice) || signal.stopPrice <= 0)) {
+      return { success: false, reason: 'STOP_LOSS signal requires a positive stopPrice' };
+    }
     const order = {
       symbol,
       action,

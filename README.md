@@ -38,9 +38,13 @@ npm ci
 npm run typecheck
 npm test --workspaces --if-present
 npm run build
+npm run test:e2e:install --workspace app
+npm run test:e2e --workspace app
 ```
 
-Run the three processes in separate shells:
+The browser suite starts all three services automatically and checks desktop,
+mobile, API navigation, and WebSocket reconnect behavior. Run the three
+processes manually in separate shells when developing: in separate shells:
 
 ```bash
 npm start --workspace tse-proxy-server
@@ -80,23 +84,34 @@ uv run python train.py
 ## Docker Compose
 
 ```bash
+cp .env.example .env
+# Keep NODE_ENV=development for a local-only research instance.
 docker compose up --build
 ```
 
-The frontend is exposed on port 5173 and reverse-proxies the internal services. Set `PUBLIC_ORIGIN` when the browser origin is not `http://localhost:5173`.
+Only the frontend is exposed on port 5173; it reverse-proxies the internal
+analysis, market, Redis, and PostgreSQL services. Set `PUBLIC_ORIGIN` when the
+browser origin differs from `http://localhost:5173`.
 
-Authentication for expensive/mutating analysis routes is opt-in:
+Authentication protects every `/api` route except `/api/status`, login, and
+refresh when enabled. It defaults to enabled whenever `NODE_ENV=production` and
+`AUTH_REQUIRED` is left unset. Shared/staging/production deployments must use
+secret-manager values rather than `.env`:
 
 ```bash
+NODE_ENV=production \
 AUTH_REQUIRED=true \
-JWT_SECRET='a-long-random-secret' \
-REFRESH_SECRET='another-long-random-secret' \
+JWT_SECRET='at-least-32-random-characters' \
+REFRESH_SECRET='another-32-character-random-value' \
 ADMIN_USERNAME='admin' \
 ADMIN_PASSWORD='use-a-secret-manager' \
 docker compose up --build
 ```
 
-Never commit these values. Experimental simulated ensemble/federated/HPO endpoints return HTTP 501 unless `ENABLE_EXPERIMENTAL_SIMULATIONS=true` is explicitly set.
+The terminal's API Configuration screen can obtain a short-lived access token
+from `/api/auth/login`; both access and refresh tokens stay in session storage and are not persisted to local storage. Never commit
+credentials. Experimental ensemble/federated/HPO simulations return HTTP 501
+unless `ENABLE_EXPERIMENTAL_SIMULATIONS=true` is explicitly set.
 
 ## Validation and safety improvements
 
@@ -107,8 +122,12 @@ Never commit these values. Experimental simulated ensemble/federated/HPO endpoin
 - Causal TCN convolutions and consistent PPO direction encoding (`0=short`, `1=hold`, `2=long`).
 - HMM short-history fallback, finite-value checks, authenticated AES-256-GCM secret encryption, rate limits, CORS allowlists, and request-size limits.
 - Reproducible root lockfile, zero npm audit findings, verified Python test commands, and deterministic Docker workspace builds.
+- Empty ledgers stay empty; generated market/order-book/news values and all paper outcomes carry explicit simulation provenance.
+- Global optional API authentication, strict Bearer parsing, login throttling, timing-safe credential comparison, security headers, CSP, and non-root containers.
+- Real browser E2E specifications no longer swallow failures or use placeholder assertions.
 
-See [`AUDIT_REPORT.md`](./AUDIT_REPORT.md) for the detailed audit, fixes, and remaining limitations.
+See [`FULL_STACK_AUDIT_REPORT.md`](./FULL_STACK_AUDIT_REPORT.md) for the current
+principal-engineering audit and [`AUDIT_REPORT.md`](./AUDIT_REPORT.md) for the detailed audit, fixes, and remaining limitations.
 
 ## API highlights
 
