@@ -10,7 +10,7 @@ from backtesting_engine import BacktestingEngine
 from data_loader import DataLoader
 from ppo_onnx_strategy import PPOONNXStrategy
 from run_backtests import DEFAULT_DATA_DIR, DEFAULT_MODEL_PATH, run_suite, seed_loader_from_snapshots
-from strategy_engine import simulate_orders
+from strategy_engine import MLBasedStrategy, simulate_orders
 
 
 def _sample_loader(rows: int = 260) -> DataLoader:
@@ -130,6 +130,56 @@ def test_pretrained_ppo_tcn_predictions_are_causal():
     )
     assert strategy.last_inference_summary["sequence_length"] == 30
     assert strategy.last_inference_summary["inference_bars"] == len(data) - 29
+
+
+def test_ml_strategy_name_accepts_sequence_aware_onnx_adapter():
+    loader, _ = seed_loader_from_snapshots(DEFAULT_DATA_DIR)
+    engine = BacktestingEngine(loader)
+    model = PPOONNXStrategy(DEFAULT_MODEL_PATH)
+
+    metrics, _ = engine.run_backtest(
+        "BTC/USDT",
+        "2023-10-27",
+        "2024-03-01",
+        "1d",
+        "ML_Based",
+        model=model,
+    )
+
+    assert metrics["total_return"] == pytest.approx(0.0)
+    assert engine.last_result is not None
+    assert engine.last_result["execution"]["final_position"] == pytest.approx(0.0)
+    assert model.last_inference_summary["inference_bars"] > 0
+
+
+def test_generic_ml_adapter_maps_ppo_classes_and_is_causal():
+    class DirectionClassModel:
+        def __init__(self):
+            self.last_features = None
+
+        def predict(self, features):
+            self.last_features = features.copy()
+            return np.resize(np.array([0, 1, 2]), len(features))
+
+    dates = pd.date_range("2024-01-01", periods=9, freq="D")
+    data = pd.DataFrame(
+        {
+            "open": np.linspace(100.0, 108.0, 9),
+            "close": np.linspace(101.0, 109.0, 9),
+        },
+        index=dates,
+    )
+    model = DirectionClassModel()
+    adapter = MLBasedStrategy(model)
+    prefix = adapter.generate_signal(data.iloc[:6])
+    prefix_features = model.last_features.copy()
+    extended = data.copy()
+    extended.loc[dates[6]:, "close"] *= 100.0
+    full = adapter.generate_signal(extended)
+
+    assert prefix["signal"].tolist() == [-1, 0, 1, -1, 0, 1]
+    assert full.iloc[:6]["signal"].tolist() == prefix["signal"].tolist()
+    np.testing.assert_allclose(prefix_features, model.last_features[:6])
 
 
 def test_reproducible_suite_writes_nine_rows_and_eighteen_charts(tmp_path):

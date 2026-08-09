@@ -151,25 +151,44 @@ class MLBasedStrategy:
         data = _validate_dataframe(data, "data")
         close = pd.to_numeric(data["close"], errors="coerce").astype(float)
         if self.model is not None:
-            # استخراج ویژگی‌های ساده: قیمت نرمال‌شده و بازده‌ی لحظه‌ای
+            # ویژگی‌ها باید causal باشند. نرمال‌سازی نسبت به آخرین قیمت کل
+            # مجموعه، اطلاعات آینده را به سطرهای قبلی نشت می‌داد؛ میانگین
+            # expanding فقط داده‌های موجود تا همان کندل را می‌بیند.
             ret = close.pct_change().fillna(0.0)
-            feat = pd.DataFrame({
-                "close_norm": close / close.iloc[-1] if close.iloc[-1] != 0 else close,
-                "ret": ret,
-            }, index=data.index)
-            feat = feat.fillna(0.0)
-            X = feat.values
+            expanding_mean = close.expanding(min_periods=1).mean()
+            feat = pd.DataFrame(
+                {
+                    "close_norm": close / expanding_mean,
+                    "ret": ret,
+                },
+                index=data.index,
+            ).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+            X = feat.to_numpy(dtype=np.float64)
             try:
                 preds_raw = self.model.predict(X)
             except Exception as exc:
                 raise ValueError(f"خطا در پیش‌بینی مدل: {exc}")
             preds = np.asarray(preds_raw).reshape(-1)
-            # تطبیق خروجی
-            if preds.dtype.kind in "iuf":
-                # عدد صحیح یا شناور
-                signal = np.where(preds > 0.5, 1, np.where(preds < -0.5, -1, 0)).astype(int)
+            if len(preds) != len(data):
+                raise ValueError("تعداد پیش‌بینی‌های مدل باید با تعداد کندل‌ها برابر باشد.")
+            if preds.dtype.kind not in "iuf" or not np.isfinite(preds.astype(float)).all():
+                raise ValueError("خروجی مدل باید شامل مقادیر عددی محدود باشد.")
+
+            numeric_predictions = preds.astype(float)
+            rounded = np.rint(numeric_predictions)
+            # قرارداد PPO/TCN: 0=short، 1=hold، 2=long. برای مدل‌های
+            # پیوسته‌ی معمولی، آستانه‌های ±0.5 حفظ می‌شوند.
+            is_direction_class = np.allclose(numeric_predictions, rounded) and set(
+                rounded.astype(int)
+            ).issubset({0, 1, 2})
+            if is_direction_class:
+                signal = np.choose(rounded.astype(int), [-1, 0, 1]).astype(int)
             else:
-                signal = np.zeros(len(preds), dtype=int)
+                signal = np.where(
+                    numeric_predictions > 0.5,
+                    1,
+                    np.where(numeric_predictions < -0.5, -1, 0),
+                ).astype(int)
             signal = pd.Series(signal, index=data.index, dtype=int)
         else:
             # در صورت نبود مدل، همه را نگه‌دار
@@ -613,7 +632,14 @@ class StrategyEngine:
                     num_std=parameters.get("num_std", 2),
                 )
             elif key in ("ml_based", "ml_based_strategy", "ml"):
-                strat_obj = MLBasedStrategy(model=parameters.get("model", None))
+                model = parameters.get("model", None)
+                # آداپتورهای sequence-aware مانند PPOONNXStrategy کل DataFrame
+                # را در generate_signal مصرف می‌کنند و نباید به رابط predict(X)
+                # دوویژگیِ MLBasedStrategy محدود شوند.
+                if model is not None and callable(getattr(model, "generate_signal", None)):
+                    strat_obj = model
+                else:
+                    strat_obj = MLBasedStrategy(model=model)
             else:
                 raise ValueError(f"استراتژی ناشناخته: {strategy}")
         # تولید سیگنال
@@ -650,7 +676,11 @@ class StrategyEngine:
                     num_std=parameters.get("num_std", 2),
                 )
             elif key in ("ml_based", "ml_based_strategy", "ml"):
-                strat_obj = MLBasedStrategy(model=parameters.get("model", None))
+                model = parameters.get("model", None)
+                if model is not None and callable(getattr(model, "generate_signal", None)):
+                    strat_obj = model
+                else:
+                    strat_obj = MLBasedStrategy(model=model)
             else:
                 raise ValueError(f"استراتژی ناشناخته: {strategy}")
         return generate_signals(strat_obj, self.data)

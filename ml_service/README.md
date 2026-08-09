@@ -112,6 +112,19 @@ uv run python run_backtests.py
 به‌طور کامل در دفتر معاملات ثبت شوند. مدل ONNX با قرارداد `[batch, 30, 5]`
 اجرا می‌شود؛ در نبود داده‌ی L2، ویژگی OBI صریحاً صفر خنثی است. مدل موجود روی
 داده‌ی مصنوعی آموزش دیده، بنابراین خروجی ML فقط آزمون یکپارچگی پژوهشی است.
+نام رشته‌ای `ML_Based` نیز مستقیماً آداپتورهای sequence-aware را می‌پذیرد:
+
+```python
+from backtesting_engine import BacktestingEngine
+from ppo_onnx_strategy import PPOONNXStrategy
+
+engine = BacktestingEngine(data_loader)
+policy = PPOONNXStrategy("market_model.onnx")
+metrics, equity = engine.run_backtest(
+    "BTC/USDT", "2023-10-27", "2024-11-29", "1d",
+    "ML_Based", model=policy,
+)
+```
 
 برای نصب وابستگی‌ها و اجرای کل تست‌های Python:
 
