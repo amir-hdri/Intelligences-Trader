@@ -25,17 +25,17 @@ export const MarketCorrelation: React.FC<MarketCorrelationProps> = ({ data, clas
     <div className={cn('glass-panel flex flex-col justify-between rounded-2xl p-4 lg:p-5', className)}>
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Globe className="h-4 w-4 text-violet-400" />
-          <h3 className="text-xs font-black uppercase tracking-widest text-slate-300">Cross-Asset Inputs</h3>
+          <Globe className="h-4 w-4 text-blue-400" />
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-300">Cross-Asset Inputs</h3>
           {data.simulated && (
-            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-black uppercase text-amber-300">
+            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-black uppercase text-amber-300">
               Simulated macro data
             </span>
           )}
         </div>
         <button
           onClick={() => setShowDetails(true)}
-          className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-bold text-violet-300 hover:bg-white/[0.08]"
+          className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-bold text-blue-300 hover:bg-white/[0.08]"
         >
           <Maximize2 className="h-3 w-3" /> Details
         </button>
@@ -47,21 +47,21 @@ export const MarketCorrelation: React.FC<MarketCorrelationProps> = ({ data, clas
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="font-black text-white">{item.symbol}</div>
-                <div className="font-vazir text-[10px] text-[#64748B]">{item.name}</div>
+                <div className="font-vazir text-[11px] text-[#64748B]">{item.name}</div>
               </div>
               <div className="text-right">
                 <div className="mono font-bold text-slate-200">{Number.isFinite(item.value) ? item.value.toLocaleString() : 'N/A'}</div>
-                <div className="text-[9px] text-[#64748B]">{item.suffix}</div>
+                <div className="text-[11px] text-[#64748B]">{item.suffix}</div>
               </div>
             </div>
             <div className="mt-2 flex items-center gap-2">
               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-800/80">
                 <div
-                  className="h-full rounded-full bg-violet-500"
+                  className="h-full rounded-full bg-blue-500"
                   style={{ width: `${Number.isFinite(item.correlation) ? Math.min(100, Math.abs(item.correlation) * 100) : 0}%` }}
                 />
               </div>
-              <span className="w-12 text-right font-mono text-[10px] text-violet-300">
+              <span className="w-12 text-right font-mono text-[11px] text-blue-300">
                 {Number.isFinite(item.correlation) ? item.correlation.toFixed(2) : 'N/A'}
               </span>
             </div>
@@ -73,7 +73,7 @@ export const MarketCorrelation: React.FC<MarketCorrelationProps> = ({ data, clas
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
           <div role="dialog" aria-modal="true" aria-label="Correlation inputs" className="w-full max-w-lg space-y-4 rounded-3xl border border-white/10 bg-[#0B0F19] p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="text-sm font-black uppercase tracking-widest text-violet-300">Available correlation inputs</h3>
+              <h3 className="text-sm font-black uppercase tracking-wider text-blue-300">Available correlation inputs</h3>
               <button aria-label="Close correlation inputs" onClick={() => setShowDetails(false)} className="grid min-h-[40px] min-w-[40px] place-items-center rounded-xl text-[#94A3B8] hover:bg-white/10 hover:text-white">
                 <X className="h-5 w-5" />
               </button>
@@ -87,7 +87,7 @@ export const MarketCorrelation: React.FC<MarketCorrelationProps> = ({ data, clas
             ) : (
               <p className="py-8 text-center text-sm text-[#64748B]">No measured correlation coefficients are available.</p>
             )}
-            <p className="text-[10px] text-[#64748B]">No unobserved matrix cells are inferred or fabricated.</p>
+            <p className="text-[11px] text-[#64748B]">No unobserved matrix cells are inferred or fabricated.</p>
           </div>
         </div>
       )}

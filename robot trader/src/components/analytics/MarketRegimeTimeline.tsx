@@ -93,15 +93,15 @@ export const MarketRegimeTimeline: React.FC<MarketRegimeTimelineProps> = ({
     <div className={cn("glass-panel rounded-2xl p-4 lg:p-5 space-y-4", className)}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Activity className="w-4 h-4 text-violet-400" />
-          <h3 className="text-xs font-black tracking-widest uppercase text-violet-300">
+          <Activity className="w-4 h-4 text-blue-400" />
+          <h3 className="text-xs font-black tracking-wider uppercase text-blue-300">
             Market Regime Timeline - Real Detection
           </h3>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-[10px] text-[#64748B] uppercase font-bold tracking-wider">Current:</span>
+          <span className="text-[11px] text-[#64748B] uppercase font-bold tracking-wider">Current:</span>
           <span className={cn(
-            "px-2 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider",
+            "px-2 py-0.5 rounded-full text-[11px] font-black border uppercase tracking-wider",
             currentRegime === 'TRENDING_UP' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
             currentRegime === 'TRENDING_DOWN' ? "bg-rose-500/10 text-red-400 border-rose-500/20" :
             currentRegime === 'HIGH_VOLATILITY' ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
@@ -127,10 +127,10 @@ export const MarketRegimeTimeline: React.FC<MarketRegimeTimelineProps> = ({
                 className={cn(
                   "h-full rounded-lg transition-all cursor-pointer flex items-center justify-center px-2 min-w-[70px] relative group",
                   seg.color,
-                  isCurrent ? "opacity-95 ring-2 ring-violet-400 shadow-lg" : "opacity-60 hover:opacity-90"
+                  isCurrent ? "opacity-95 ring-2 ring-blue-400 shadow-lg" : "opacity-60 hover:opacity-90"
                 )}
               >
-                <span className="text-[10px] font-black text-black tracking-tight truncate uppercase">
+                <span className="text-[11px] font-black text-black tracking-tight truncate uppercase">
                   {seg.regime}
                 </span>
                 {isCurrent && (
@@ -148,13 +148,13 @@ export const MarketRegimeTimeline: React.FC<MarketRegimeTimelineProps> = ({
               <span className="text-[11px] text-[#94A3B8]">({activeTooltip.time})</span>
             </div>
             <div className="flex items-center gap-4 mono text-[11px]">
-              <span>Conf: <strong className="text-violet-300">{activeTooltip.conf}%</strong></span>
+              <span>Conf: <strong className="text-blue-300">{activeTooltip.conf}%</strong></span>
               <span>Duration: <strong className="text-white">{activeTooltip.duration}</strong></span>
               <span>Vol: <strong className="text-sky-300">{activeTooltip.vol}</strong></span>
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-between text-[10px] mono text-[#64748B] px-1">
+          <div className="flex items-center justify-between text-[11px] mono text-[#64748B] px-1">
             <span>Past {totalDurationHours.toFixed(1)} Hours - Real HMM Analysis</span>
             <span className="flex items-center gap-1"><Clock className="w-3 h-3"/> Tap / hover segment for metrics</span>
             <span>Live Detection</span>
@@ -165,7 +165,7 @@ export const MarketRegimeTimeline: React.FC<MarketRegimeTimelineProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
         {segments.map((seg, i) => (
           <div key={i} className="elevated rounded-xl p-2.5">
-            <div className="text-[9px] uppercase tracking-wider text-[#64748B] font-bold">{seg.regime} Trend</div>
+            <div className="text-[11px] uppercase tracking-wider text-[#64748B] font-bold">{seg.regime} Trend</div>
             <div className={cn("font-black mono text-sm mt-0.5",
               seg.regime === 'BULLISH' ? "text-emerald-400" :
               seg.regime === 'BEARISH' ? "text-rose-400" :

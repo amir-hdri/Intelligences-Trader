@@ -118,8 +118,8 @@ export const PerformanceAnalytics: React.FC<PerformanceAnalyticsProps> = ({
     <div className={cn('glass-panel p-4 lg:p-6 rounded-3xl space-y-6', className)}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] pb-4">
         <div>
-          <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-violet-300">
-            <TrendingUp className="h-4 w-4 text-violet-400" />
+          <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-blue-300">
+            <TrendingUp className="h-4 w-4 text-blue-400" />
             Realized Paper-Ledger Analytics
           </h2>
           <p className="mt-0.5 text-xs text-[#94A3B8]">
@@ -133,7 +133,7 @@ export const PerformanceAnalytics: React.FC<PerformanceAnalyticsProps> = ({
               onClick={() => setActiveTab(tab)}
               className={cn(
                 'min-h-[40px] whitespace-nowrap rounded-lg px-3 py-1.5 capitalize transition-all',
-                activeTab === tab ? 'bg-violet-600 text-white' : 'text-[#94A3B8] hover:text-white',
+                activeTab === tab ? 'bg-blue-600 text-white' : 'text-[#94A3B8] hover:text-white',
               )}
             >
               {tab === 'equity' ? 'Equity Curve' : tab === 'drawdown' ? 'Drawdown' : tab === 'monthly' ? 'Monthly P&L' : 'P&L Distribution'}
@@ -150,9 +150,9 @@ export const PerformanceAnalytics: React.FC<PerformanceAnalyticsProps> = ({
           ['Final Equity', metrics.finalEquity.toLocaleString(), `${analytics.trades.length} outcomes`],
         ].map(([label, value, detail]) => (
           <div key={label} className="elevated rounded-2xl p-4">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">{label}</div>
+            <div className="text-[11px] font-bold uppercase tracking-wider text-[#64748B]">{label}</div>
             <div className="mono mt-1 text-2xl font-black text-white">{value}</div>
-            <div className="mt-0.5 text-[10px] text-[#94A3B8]">{detail}</div>
+            <div className="mt-0.5 text-[11px] text-[#94A3B8]">{detail}</div>
           </div>
         ))}
       </div>
@@ -164,7 +164,7 @@ export const PerformanceAnalytics: React.FC<PerformanceAnalyticsProps> = ({
       ) : activeTab === 'equity' ? (
         <div className="h-64 rounded-2xl border border-white/[0.05] bg-[#06080E] p-3">
           <svg aria-label="Realized equity curve" width="100%" height="100%" viewBox="0 0 800 240" preserveAspectRatio="none">
-            <path d={chartPath} stroke="#8B5CF6" strokeWidth="2.5" fill="none" />
+            <path d={chartPath} stroke="#3B82F6" strokeWidth="2.5" fill="none" />
           </svg>
         </div>
       ) : activeTab === 'drawdown' ? (
@@ -190,13 +190,13 @@ export const PerformanceAnalytics: React.FC<PerformanceAnalyticsProps> = ({
           {analytics.buckets.map(bucket => (
             <div key={bucket.range} className="space-y-1">
               <div className="flex justify-between text-xs"><span className="text-[#94A3B8]">{bucket.range}</span><span className="font-mono text-white">{bucket.count} ({bucket.pct.toFixed(1)}%)</span></div>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-violet-500" style={{ width: `${bucket.pct}%` }} /></div>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-blue-500" style={{ width: `${bucket.pct}%` }} /></div>
             </div>
           ))}
         </div>
       )}
 
-      <p className="text-[10px] leading-relaxed text-[#64748B]">
+      <p className="text-[11px] leading-relaxed text-[#64748B]">
         Research simulation only. No benchmark, alpha, recovery duration, or monthly return is shown unless it can be derived from the recorded ledger.
       </p>
     </div>

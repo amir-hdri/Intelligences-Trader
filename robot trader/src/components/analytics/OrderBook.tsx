@@ -60,12 +60,12 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
       {/* Header with Mode Switcher & Spoofing Warning */}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
-          <h3 className="text-slate-300 font-black text-xs uppercase tracking-widest flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+          <h3 className="text-slate-300 font-black text-xs uppercase tracking-wider flex items-center gap-1.5">
             Order Book & L2 Depth
           </h3>
           {data.simulated && (
-            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-300">
+            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-amber-300">
               Simulated depth
             </span>
           )}
@@ -74,29 +74,29 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
         <div className="flex items-center gap-1.5">
           {/* Spoofing detection badge */}
           {data.isSpoofingDetected && (
-            <span className="flex items-center gap-1 bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded-full text-[10px] font-black border border-rose-500/30 animate-pulse">
+            <span className="flex items-center gap-1 bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded-full text-[11px] font-black border border-rose-500/30 animate-pulse">
               <AlertCircle className="w-3 h-3" />
               SPOOFING
             </span>
           )}
 
           {/* Mode Switcher */}
-          <div className="flex items-center rounded-xl bg-white/[0.04] p-0.5 border border-white/[0.08] text-[10px] font-black">
+          <div className="flex items-center rounded-xl bg-white/[0.04] p-0.5 border border-white/[0.08] text-[11px] font-black">
             <button
               onClick={() => setViewMode('depth')}
-              className={cn("px-2 py-1 rounded-lg transition-all", viewMode === 'depth' ? "bg-violet-600 text-white" : "text-[#94A3B8]")}
+              className={cn("px-2 py-1 rounded-lg transition-all", viewMode === 'depth' ? "bg-blue-600 text-white" : "text-[#94A3B8]")}
             >
               Bars
             </button>
             <button
               onClick={() => setViewMode('heatmap')}
-              className={cn("px-2 py-1 rounded-lg transition-all", viewMode === 'heatmap' ? "bg-violet-600 text-white" : "text-[#94A3B8]")}
+              className={cn("px-2 py-1 rounded-lg transition-all", viewMode === 'heatmap' ? "bg-blue-600 text-white" : "text-[#94A3B8]")}
             >
               Heatmap
             </button>
             <button
               onClick={() => setViewMode('cumulative')}
-              className={cn("px-2 py-1 rounded-lg transition-all", viewMode === 'cumulative' ? "bg-violet-600 text-white" : "text-[#94A3B8]")}
+              className={cn("px-2 py-1 rounded-lg transition-all", viewMode === 'cumulative' ? "bg-blue-600 text-white" : "text-[#94A3B8]")}
             >
               Cumul.
             </button>
@@ -118,14 +118,14 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
         {/* Key Metrics Quick Card */}
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="elevated rounded-xl p-3">
-            <div className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold">Best Bid</div>
+            <div className="text-[11px] text-[#64748B] uppercase tracking-wider font-bold">Best Bid</div>
             <div className="text-emerald-400 font-black text-sm mt-0.5">{bestBid.toLocaleString()}</div>
-            <div className="text-[10px] text-[#94A3B8] mt-1">{bids[0]?.quantity || 0} units</div>
+            <div className="text-[11px] text-[#94A3B8] mt-1">{bids[0]?.quantity || 0} units</div>
           </div>
           <div className="elevated rounded-xl p-3">
-            <div className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold">Best Ask</div>
+            <div className="text-[11px] text-[#64748B] uppercase tracking-wider font-bold">Best Ask</div>
             <div className="text-red-400 font-black text-sm mt-0.5">{bestAsk.toLocaleString()}</div>
-            <div className="text-[10px] text-[#94A3B8] mt-1">{asks[0]?.quantity || 0} units</div>
+            <div className="text-[11px] text-[#94A3B8] mt-1">{asks[0]?.quantity || 0} units</div>
           </div>
         </div>
 
@@ -141,7 +141,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
             <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${bidRatio * 100}%` }} />
             <div className="bg-red-500 h-full transition-all duration-300" style={{ width: `${askRatio * 100}%` }} />
           </div>
-          <div className="flex justify-between text-[10px] text-[#64748B]">
+          <div className="flex justify-between text-[11px] text-[#64748B]">
             <span>Bids: {totalBidQty.toLocaleString()}</span>
             <span>Asks: {totalAskQty.toLocaleString()}</span>
           </div>
@@ -161,7 +161,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
           <div className="grid grid-cols-2 gap-2 pt-2 animate-in fade-in duration-200">
             {/* Asks (Sells) */}
             <div className="space-y-1">
-              <div className="text-[9px] font-black uppercase text-red-400 border-b border-red-500/20 pb-1">Asks / Sells</div>
+              <div className="text-[11px] font-black uppercase text-red-400 border-b border-red-500/20 pb-1">Asks / Sells</div>
               {asks.slice(0, 7).map((ask, i) => (
                 <div key={i} className="relative flex justify-between px-1.5 py-1 text-[11px] rounded bg-white/[0.02]">
                   <div
@@ -176,7 +176,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
 
             {/* Bids (Buys) */}
             <div className="space-y-1">
-              <div className="text-[9px] font-black uppercase text-emerald-400 border-b border-emerald-500/20 pb-1">Bids / Buys</div>
+              <div className="text-[11px] font-black uppercase text-emerald-400 border-b border-emerald-500/20 pb-1">Bids / Buys</div>
               {bids.slice(0, 7).map((bid, i) => (
                 <div key={i} className="relative flex justify-between px-1.5 py-1 text-[11px] rounded bg-white/[0.02]">
                   <div
@@ -197,13 +197,13 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
         {/* Spread Summary Banner */}
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] mb-3 text-xs">
           <div className="flex items-center gap-3">
-            <span className="text-[#64748B] text-[10px] uppercase tracking-wider">Spread</span>
+            <span className="text-[#64748B] text-[11px] uppercase tracking-wider">Spread</span>
             <span className="text-white font-black">{spread.toLocaleString()}</span>
             <span className="text-[#64748B] text-[11px]">({spreadPct.toFixed(3)}%)</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-[#64748B] uppercase">Imbalance</span>
-            <span className={cn("px-2 py-0.5 rounded text-[10px] font-black", imbalance >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400")}>
+            <span className="text-[11px] text-[#64748B] uppercase">Imbalance</span>
+            <span className={cn("px-2 py-0.5 rounded text-[11px] font-black", imbalance >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400")}>
               {imbalance >= 0 ? '+' : ''}{imbalance.toFixed(1)}%
             </span>
           </div>
@@ -213,7 +213,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
         <div className="grid grid-cols-2 gap-4">
           {/* Asks (Sells) Column - Reversed so closest to market is at bottom */}
           <div className="flex flex-col-reverse space-y-0.5 space-y-reverse">
-            <div className="flex justify-between text-[9px] font-black text-[#64748B] uppercase tracking-widest border-b border-slate-800 pb-1 mb-1">
+            <div className="flex justify-between text-[11px] font-black text-[#64748B] uppercase tracking-wider border-b border-slate-800 pb-1 mb-1">
               <span>Price (IRR)</span>
               <span>Size</span>
               <span>Orders</span>
@@ -232,7 +232,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
                   />
                   <span className="text-red-400 font-bold z-10">{ask.price.toLocaleString()}</span>
                   <span className="text-slate-200 z-10">{ask.quantity.toLocaleString()}</span>
-                  <span className="text-slate-500 text-[10px] z-10">{ask.count || 1}</span>
+                  <span className="text-slate-500 text-[11px] z-10">{ask.count || 1}</span>
                 </div>
               );
             })}
@@ -240,7 +240,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
 
           {/* Bids (Buys) Column */}
           <div className="flex flex-col space-y-0.5">
-            <div className="flex justify-between text-[9px] font-black text-[#64748B] uppercase tracking-widest border-b border-slate-800 pb-1 mb-1">
+            <div className="flex justify-between text-[11px] font-black text-[#64748B] uppercase tracking-wider border-b border-slate-800 pb-1 mb-1">
               <span>Orders</span>
               <span>Size</span>
               <span className="text-right">Price (IRR)</span>
@@ -257,7 +257,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
                     className="absolute left-0 top-0 bottom-0 bg-emerald-500 rounded-sm transition-all duration-300"
                     style={{ width: `${pct}%`, opacity: heatOpacity }}
                   />
-                  <span className="text-slate-500 text-[10px] z-10">{bid.count || 1}</span>
+                  <span className="text-slate-500 text-[11px] z-10">{bid.count || 1}</span>
                   <span className="text-slate-200 z-10">{bid.quantity.toLocaleString()}</span>
                   <span className="text-emerald-400 font-bold z-10 text-right">{bid.price.toLocaleString()}</span>
                 </div>
@@ -272,7 +272,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
             <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${bidRatio * 100}%` }} />
             <div className="bg-red-500 h-full transition-all duration-500" style={{ width: `${askRatio * 100}%` }} />
           </div>
-          <div className="flex justify-between items-center text-[10px] text-[#64748B] mt-1.5 font-sans">
+          <div className="flex justify-between items-center text-[11px] text-[#64748B] mt-1.5 font-sans">
             <span>Bids: {totalBidQty.toLocaleString()} ({(bidRatio * 100).toFixed(0)}%)</span>
             <span className="font-bold text-white uppercase">Queue Herding {data.queueDynamics?.isHerdingDetected ? 'Active' : 'Balanced'}</span>
             <span>Asks: {totalAskQty.toLocaleString()} ({(askRatio * 100).toFixed(0)}%)</span>
@@ -285,7 +285,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ data, className }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
           <div role="dialog" aria-modal="true" aria-label="Expanded order book" className="relative w-full max-w-2xl max-h-[85vh] rounded-3xl bg-[#0B0F19] border border-white/10 p-6 shadow-2xl overflow-y-auto space-y-4">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="text-sm font-black uppercase tracking-widest text-violet-300">
+              <h3 className="text-sm font-black uppercase tracking-wider text-blue-300">
                 Full Depth Order Book — 20 Levels
               </h3>
               <button

@@ -388,7 +388,7 @@ const FullPaperTradingDashboard: React.FC<FullPaperTradingDashboardProps> = ({ a
               ))}
             </div>
           </div>
-          <button onClick={updateStrategy} className="mt-4 px-5 py-2 bg-violet-600 rounded-lg">Save Strategy</button>
+          <button onClick={updateStrategy} className="mt-4 px-5 py-2 bg-blue-600 rounded-lg">Save Strategy</button>
         </div>
 
         {/* Trade History */}

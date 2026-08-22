@@ -32,10 +32,10 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
   return (
     <div className="space-y-6 lg:space-y-8 animate-in fade-in duration-500">
       {/* Banner */}
-      <div className="bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-transparent border border-indigo-900/30 rounded-3xl p-5 lg:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="bg-gradient-to-r from-blue-950/40 via-blue-950/20 to-transparent border border-blue-900/30 rounded-3xl p-5 lg:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-lg lg:text-2xl font-black text-indigo-400 uppercase tracking-widest flex items-center gap-3">
-            <ShieldAlert className="w-7 h-7 text-indigo-500" />
+          <h2 className="text-lg lg:text-2xl font-black text-blue-400 uppercase tracking-wider flex items-center gap-3">
+            <ShieldAlert className="w-7 h-7 text-blue-500" />
             Risk & Margin Console
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
@@ -53,7 +53,7 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
               "w-2.5 h-2.5 rounded-full",
               riskStatus.isKillSwitchActive ? 'bg-rose-500 animate-ping' : 'bg-emerald-500'
             )} />
-            <span className="text-xs font-black tracking-widest uppercase">
+            <span className="text-xs font-black tracking-wider uppercase">
               {riskStatus.isKillSwitchActive ? 'KILL SWITCH ACTIVE' : 'LIMITS SECURE'}
             </span>
           </div>
@@ -63,9 +63,9 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
       {/* 1. PROFESSIONAL RISK GAUGE: SAFE ───── WARNING ───── CRITICAL */}
       <div className="glass-panel p-5 lg:p-6 rounded-3xl space-y-3">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-[10px] font-black uppercase tracking-widest text-[#64748B]">Real-Time Risk Gauge</span>
+          <span className="text-[11px] font-black uppercase tracking-wider text-[#64748B]">Real-Time Risk Gauge</span>
           <span className={cn(
-            "px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border",
+            "px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase border",
             riskGaugeLevel === 'SAFE' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" :
             riskGaugeLevel === 'WARNING' ? "bg-amber-500/10 text-amber-300 border-amber-500/30" :
             "bg-rose-500/10 text-rose-400 border-rose-500/30"
@@ -87,14 +87,14 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
             className="absolute top-1 transform -translate-x-1/2 flex flex-col items-center transition-all duration-500"
             style={{ left: `${Math.min(95, Math.max(5, riskRatio * 100))}%` }}
           >
-            <div className="w-3.5 h-3.5 rounded-full bg-white border-2 border-violet-600 shadow-xl" />
-            <span className="text-[9px] font-black mono text-white mt-1 bg-[#101620] px-1 rounded border border-white/10">
+            <div className="w-3.5 h-3.5 rounded-full bg-white border-2 border-blue-600 shadow-xl" />
+            <span className="text-[11px] font-black mono text-white mt-1 bg-[#101620] px-1 rounded border border-white/10">
               CURRENT
             </span>
           </div>
         </div>
 
-        <div className="flex justify-between text-[10px] mono font-bold uppercase text-[#64748B] pt-1">
+        <div className="flex justify-between text-[11px] mono font-bold uppercase text-[#64748B] pt-1">
           <span className="text-emerald-400">SAFE (0–40%)</span>
           <span className="text-amber-400">WARNING (40–75%)</span>
           <span className="text-rose-400">CRITICAL (75%+)</span>
@@ -104,37 +104,37 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
       {/* 2. THREE KEY METRIC CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-6">
         <div className="glass-panel p-5 rounded-3xl relative overflow-hidden group">
-          <div className="text-[10px] text-slate-400 uppercase font-black mb-2 tracking-[0.2em] flex items-center gap-1.5">
-            <Percent className="w-3.5 h-3.5 text-indigo-400" /> Daily Drawdown
+          <div className="text-[11px] text-slate-400 uppercase font-black mb-2 tracking-[0.06em] flex items-center gap-1.5">
+            <Percent className="w-3.5 h-3.5 text-blue-400" /> Daily Drawdown
           </div>
           <div className="text-3xl font-black text-white font-mono">
             {(riskStatus.currentDailyDrawdown * 100).toFixed(2)}%
           </div>
-          <div className="text-[10px] text-slate-400 mt-2 uppercase font-bold">
+          <div className="text-[11px] text-slate-400 mt-2 uppercase font-bold">
             Limit: {(riskLimits.maxDailyDrawdown * 100).toFixed(1)}%
           </div>
         </div>
 
         <div className="glass-panel p-5 rounded-3xl relative overflow-hidden group">
-          <div className="text-[10px] text-slate-400 uppercase font-black mb-2 tracking-[0.2em] flex items-center gap-1.5">
+          <div className="text-[11px] text-slate-400 uppercase font-black mb-2 tracking-[0.06em] flex items-center gap-1.5">
             <Flame className="w-3.5 h-3.5 text-rose-400" /> Total Drawdown
           </div>
           <div className="text-3xl font-black text-white font-mono">
             {(riskStatus.currentTotalDrawdown * 100).toFixed(2)}%
           </div>
-          <div className="text-[10px] text-slate-400 mt-2 uppercase font-bold">
+          <div className="text-[11px] text-slate-400 mt-2 uppercase font-bold">
             Limit: {(riskLimits.maxTotalDrawdown * 100).toFixed(1)}%
           </div>
         </div>
 
         <div className="glass-panel p-5 rounded-3xl relative overflow-hidden group">
-          <div className="text-[10px] text-slate-400 uppercase font-black mb-2 tracking-[0.2em] flex items-center gap-1.5">
+          <div className="text-[11px] text-slate-400 uppercase font-black mb-2 tracking-[0.06em] flex items-center gap-1.5">
             <Scale className="w-3.5 h-3.5 text-emerald-400" /> Margin Level
           </div>
           <div className={cn("text-3xl font-black font-mono", riskStatus.margin.isCallRisk ? 'text-rose-400' : 'text-emerald-400')}>
             {riskStatus.margin.marginLevel.toFixed(1)}%
           </div>
-          <div className="text-[10px] text-slate-400 mt-2 uppercase font-bold">
+          <div className="text-[11px] text-slate-400 mt-2 uppercase font-bold">
             {riskStatus.margin.isCallRisk ? 'CALL RISK DETECTED' : 'MARGIN HEALTHY'}
           </div>
         </div>
@@ -144,7 +144,7 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
         {/* Risk Configuration Form */}
         <form onSubmit={handleSubmit} className="lg:col-span-2 glass-panel p-5 lg:p-8 rounded-3xl space-y-6">
-          <h3 className="text-base lg:text-lg font-black uppercase tracking-widest text-indigo-400">
+          <h3 className="text-base lg:text-lg font-black uppercase tracking-wider text-blue-400">
             Configure Risk Limits & Circuit Breakers
           </h3>
 
@@ -160,7 +160,7 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
                 max="100"
                 value={formData.maxDailyDrawdown * 100}
                 onChange={(e) => setFormData({ ...formData, maxDailyDrawdown: parseFloat(e.target.value) / 100 })}
-                className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-indigo-500 outline-none min-h-[44px]"
+                className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-blue-500 outline-none min-h-[44px]"
                 required
               />
             </div>
@@ -176,7 +176,7 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
                 max="100"
                 value={formData.maxTotalDrawdown * 100}
                 onChange={(e) => setFormData({ ...formData, maxTotalDrawdown: parseFloat(e.target.value) / 100 })}
-                className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-indigo-500 outline-none min-h-[44px]"
+                className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-blue-500 outline-none min-h-[44px]"
                 required
               />
             </div>
@@ -191,7 +191,7 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
                 min="1000"
                 value={formData.maxPositionSize}
                 onChange={(e) => setFormData({ ...formData, maxPositionSize: parseInt(e.target.value) })}
-                className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-indigo-500 outline-none min-h-[44px]"
+                className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-blue-500 outline-none min-h-[44px]"
                 required
               />
             </div>
@@ -206,7 +206,7 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
                 min="1"
                 value={formData.maxOpenTrades}
                 onChange={(e) => setFormData({ ...formData, maxOpenTrades: parseInt(e.target.value) })}
-                className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-indigo-500 outline-none min-h-[44px]"
+                className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-blue-500 outline-none min-h-[44px]"
                 required
               />
             </div>
@@ -227,13 +227,13 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
               </button>
               <div>
                 <span className="block text-xs font-black uppercase tracking-wider text-white">Emergency Stop</span>
-                <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Instantly Halt All Executions</span>
+                <span className="text-[11px] text-slate-500 uppercase tracking-wider font-bold">Instantly Halt All Executions</span>
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest text-xs px-6 py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 min-h-[44px]"
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-wider text-xs px-6 py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 min-h-[44px]"
             >
               {saveSuccess ? (
                 <>
@@ -249,27 +249,27 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
         {/* Margin Ledger & Active Violations */}
         <div className="space-y-6">
           <div className="glass-panel p-5 lg:p-6 rounded-3xl space-y-4">
-            <h3 className="text-xs font-black uppercase tracking-widest text-indigo-400 border-b border-slate-800/50 pb-2.5">
+            <h3 className="text-xs font-black uppercase tracking-wider text-blue-400 border-b border-slate-800/50 pb-2.5">
               Margin Ledger (IRR)
             </h3>
             <div className="space-y-3">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-bold uppercase tracking-widest">Used Margin</span>
+                <span className="text-slate-400 font-bold uppercase tracking-wider">Used Margin</span>
                 <span className="font-mono text-white font-bold">{riskStatus.margin.usedMargin.toLocaleString()} IRR</span>
               </div>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-bold uppercase tracking-widest">Free Margin</span>
+                <span className="text-slate-400 font-bold uppercase tracking-wider">Free Margin</span>
                 <span className="font-mono text-emerald-400 font-bold">{riskStatus.margin.freeMargin.toLocaleString()} IRR</span>
               </div>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-bold uppercase tracking-widest">Maintenance Req.</span>
+                <span className="text-slate-400 font-bold uppercase tracking-wider">Maintenance Req.</span>
                 <span className="font-mono text-white font-bold">{riskStatus.margin.maintenanceRequirement.toLocaleString()} IRR</span>
               </div>
             </div>
           </div>
 
           <div className="glass-panel p-5 lg:p-6 rounded-3xl space-y-4">
-            <h3 className="text-xs font-black uppercase tracking-widest text-indigo-400 border-b border-slate-800/50 pb-2.5">
+            <h3 className="text-xs font-black uppercase tracking-wider text-blue-400 border-b border-slate-800/50 pb-2.5">
               Active Risk Violations
             </h3>
             {riskStatus.violations.length === 0 ? (

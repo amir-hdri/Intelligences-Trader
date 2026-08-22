@@ -22,10 +22,10 @@ export const SystemHealthMonitor: React.FC<SystemHealthMonitorProps> = ({
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Banner */}
-      <div className="bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-transparent border border-indigo-900/30 rounded-3xl p-6 lg:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="bg-gradient-to-r from-blue-950/40 via-blue-950/20 to-transparent border border-blue-900/30 rounded-3xl p-6 lg:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-xl lg:text-2xl font-black text-indigo-400 uppercase tracking-widest flex items-center gap-3">
-            <Activity className="w-8 h-8 text-indigo-500" />
+          <h2 className="text-xl lg:text-2xl font-black text-blue-400 uppercase tracking-wider flex items-center gap-3">
+            <Activity className="w-8 h-8 text-blue-500" />
             System Health Monitor
           </h2>
           <p className="text-sm text-slate-400 mt-2 max-w-xl">
@@ -41,7 +41,7 @@ export const SystemHealthMonitor: React.FC<SystemHealthMonitorProps> = ({
                 : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
           }`}>
             <Wifi className="w-4 h-4" />
-            <span className="text-xs font-black tracking-widest uppercase">
+            <span className="text-xs font-black tracking-wider uppercase">
               {connectionState}
             </span>
           </div>
@@ -51,44 +51,44 @@ export const SystemHealthMonitor: React.FC<SystemHealthMonitorProps> = ({
       {/* Health Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
-          <div className="text-[10px] text-slate-500 uppercase font-black mb-3 tracking-[0.2em] flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-indigo-400" /> API Uptime
+          <div className="text-[11px] text-slate-500 uppercase font-black mb-3 tracking-[0.06em] flex items-center gap-1.5">
+            <Cpu className="w-3.5 h-3.5 text-blue-400" /> API Uptime
           </div>
           <div className="text-3xl font-black text-white font-mono">{metrics.uptime}</div>
-          <div className="text-[10px] text-slate-400 mt-2 uppercase font-bold">Continuous runtime</div>
+          <div className="text-[11px] text-slate-400 mt-2 uppercase font-bold">Continuous runtime</div>
         </div>
 
         <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
-          <div className="text-[10px] text-slate-500 uppercase font-black mb-3 tracking-[0.2em] flex items-center gap-1.5">
+          <div className="text-[11px] text-slate-500 uppercase font-black mb-3 tracking-[0.06em] flex items-center gap-1.5">
             <HardDrive className="w-3.5 h-3.5 text-sky-400" /> Node Latency
           </div>
           <div className="text-3xl font-black text-white font-mono">{metrics.latency} ms</div>
-          <div className="text-[10px] text-slate-400 mt-2 uppercase font-bold">Network roundtrip</div>
+          <div className="text-[11px] text-slate-400 mt-2 uppercase font-bold">Network roundtrip</div>
         </div>
 
         <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
-          <div className="text-[10px] text-slate-500 uppercase font-black mb-3 tracking-[0.2em] flex items-center gap-1.5">
-            <Database className="w-3.5 h-3.5 text-purple-400" /> Worker Thread Pool
+          <div className="text-[11px] text-slate-500 uppercase font-black mb-3 tracking-[0.06em] flex items-center gap-1.5">
+            <Database className="w-3.5 h-3.5 text-blue-400" /> Worker Thread Pool
           </div>
           <div className="text-3xl font-black text-white font-mono">{configuredWorkers} Max</div>
-          <div className="text-[10px] text-slate-400 mt-2 uppercase font-bold">Configured browser worker cap</div>
+          <div className="text-[11px] text-slate-400 mt-2 uppercase font-bold">Configured browser worker cap</div>
         </div>
 
         <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
-          <div className="text-[10px] text-slate-500 uppercase font-black mb-3 tracking-[0.2em] flex items-center gap-1.5">
+          <div className="text-[11px] text-slate-500 uppercase font-black mb-3 tracking-[0.06em] flex items-center gap-1.5">
             <Shield className="w-3.5 h-3.5 text-emerald-400" /> Validation Accuracy
           </div>
           <div className="text-3xl font-black text-emerald-400 font-mono">
             {metrics.accuracy > 0 ? `${(metrics.accuracy * 100).toFixed(1)}%` : 'N/A'}
           </div>
-          <div className="text-[10px] text-slate-400 mt-2 uppercase font-bold">Inference calibration</div>
+          <div className="text-[11px] text-slate-400 mt-2 uppercase font-bold">Inference calibration</div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
         {/* Memory Pools & CPU Load */}
         <div className="lg:col-span-2 glass-panel p-6 lg:p-8 rounded-3xl space-y-6">
-          <h3 className="text-sm font-black uppercase tracking-widest text-indigo-400 border-b border-slate-800/50 pb-3">Resources Allocation</h3>
+          <h3 className="text-sm font-black uppercase tracking-wider text-blue-400 border-b border-slate-800/50 pb-3">Resources Allocation</h3>
           
           <div className="space-y-4 text-sm text-slate-400 leading-relaxed">
             <p>
@@ -103,14 +103,14 @@ export const SystemHealthMonitor: React.FC<SystemHealthMonitorProps> = ({
 
         {/* Distributed Tracer Log */}
         <div className="glass-panel p-6 rounded-3xl space-y-4 flex flex-col h-[280px]">
-          <h3 className="text-sm font-black uppercase tracking-widest text-indigo-400 border-b border-slate-800/50 pb-3 flex-shrink-0">
+          <h3 className="text-sm font-black uppercase tracking-wider text-blue-400 border-b border-slate-800/50 pb-3 flex-shrink-0">
             System Event Log
           </h3>
-          <div className="flex-1 overflow-y-auto font-mono text-[10px] space-y-2.5 scrollbar-thin">
+          <div className="flex-1 overflow-y-auto font-mono text-[11px] space-y-2.5 scrollbar-thin">
             {logs.map((log, i) => (
               <div key={i} className="flex gap-2 hover:bg-white/[0.02] p-1.5 rounded transition-colors">
                 <span className="text-slate-500">{log.time}</span>
-                <span className="text-indigo-400 font-bold uppercase tracking-wide">[{log.service}]</span>
+                <span className="text-blue-400 font-bold uppercase tracking-wide">[{log.service}]</span>
                 <span className="text-slate-300 font-sans">{log.msg}</span>
               </div>
             ))}

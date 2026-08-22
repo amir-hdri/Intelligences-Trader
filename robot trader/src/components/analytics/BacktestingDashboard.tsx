@@ -207,7 +207,7 @@ export const BacktestingDashboard: React.FC<Props> = ({ symbolId, timeframe, can
       <section className="glass-panel rounded-3xl p-5 lg:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-400">Phase 3 • Point-in-time replay</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.06em] text-cyan-400">Phase 3 • Point-in-time replay</div>
             <h1 className="mt-1 text-xl font-black text-white">Backtesting Engine</h1>
             <p className="mt-1 max-w-3xl text-xs text-[#94A3B8]">
               Immutable dataset snapshots, next-bar execution, actual fill-based PnL, costs, risk limits, deterministic scenarios, and auditable result hashes.
@@ -266,7 +266,7 @@ export const BacktestingDashboard: React.FC<Props> = ({ symbolId, timeframe, can
           <button onClick={() => void runBacktest()} disabled={loading || validCandles.length < 30 || fastPeriod >= slowPeriod} className="rounded-xl bg-cyan-600 px-5 py-2.5 text-xs font-black text-white hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-40">
             {loading ? 'Validating & replaying…' : 'Run deterministic backtest'}
           </button>
-          <span className="text-[10px] text-[#64748B]">Signals at close execute no earlier than the next bar.</span>
+          <span className="text-[11px] text-[#64748B]">Signals at close execute no earlier than the next bar.</span>
         </div>
         {error && <div role="alert" className="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-300">{error}</div>}
       </section>
@@ -283,7 +283,7 @@ export const BacktestingDashboard: React.FC<Props> = ({ symbolId, timeframe, can
             ['Profit Factor', metricText(metrics.profitFactor)],
             ['Closed Trades', String(metrics.totalTrades)],
           ].map(([label, value]) => <div key={label} className="glass-card rounded-2xl p-4">
-            <div className="text-[9px] font-black uppercase tracking-wider text-[#64748B]">{label}</div>
+            <div className="text-[11px] font-black uppercase tracking-wider text-[#64748B]">{label}</div>
             <div className="mt-1 break-all font-mono text-lg font-black text-white">{value}</div>
           </div>)}
         </section>

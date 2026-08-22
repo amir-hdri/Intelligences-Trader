@@ -18,15 +18,15 @@ export const SentimentMonitor: React.FC<SentimentMonitorProps> = ({ data, classN
     <div className={cn("glass-panel p-4 lg:p-5 rounded-3xl space-y-4", className)}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <MessageSquare className="w-4 h-4 text-violet-400" />
-          <h3 className="text-slate-300 font-black text-xs uppercase tracking-widest">
+          <MessageSquare className="w-4 h-4 text-blue-400" />
+          <h3 className="text-slate-300 font-black text-xs uppercase tracking-wider">
             NLP Sentiment & Political Risk
           </h3>
-          {data.simulated && <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-black uppercase text-amber-300">Simulated news</span>}
+          {data.simulated && <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-black uppercase text-amber-300">Simulated news</span>}
         </div>
 
         <span className={cn(
-          "text-[9px] font-black px-2.5 py-0.5 rounded-full border",
+          "text-[11px] font-black px-2.5 py-0.5 rounded-full border",
           politicalRisk > 60
             ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
             : politicalRisk < 40
@@ -70,7 +70,7 @@ export const SentimentMonitor: React.FC<SentimentMonitorProps> = ({ data, classN
             <span className="text-sm font-black text-white leading-none">
               {score > 0 ? '+' : ''}{(score * 100).toFixed(0)}
             </span>
-            <span className="text-[7px] font-black text-slate-400 uppercase mt-0.5">Score</span>
+            <span className="text-[11px] font-black text-slate-400 uppercase mt-0.5">Score</span>
           </div>
         </div>
 
@@ -95,12 +95,12 @@ export const SentimentMonitor: React.FC<SentimentMonitorProps> = ({ data, classN
         {data?.news && data.news.length > 0 ? (
           data.news.map((n) => (
             <div key={n.id} className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.04] transition-all">
-              <div className="flex justify-between items-start mb-1 text-[10px]">
+              <div className="flex justify-between items-start mb-1 text-[11px]">
                 <span className={cn(
-                  "font-black px-1.5 py-0.5 rounded uppercase tracking-wider text-[9px]",
+                  "font-black px-1.5 py-0.5 rounded uppercase tracking-wider text-[11px]",
                   n.impactEffect === 'DOLLAR_BULLISH'
                     ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                    : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                    : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                 )}>
                   {n.impactEffect?.replace('_', ' ')}
                 </span>

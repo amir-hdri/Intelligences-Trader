@@ -9,15 +9,11 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  Eye,
-  Layers,
   Activity,
-  Crosshair as CrosshairIcon,
   ChevronDown,
   Sparkles,
   BarChart2,
   LineChart as LineChartIcon,
-  HelpCircle,
   X,
   Check
 } from 'lucide-react';
@@ -68,8 +64,6 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
   const [panelLayout, setPanelLayout] = useState<PanelLayout>('layout_a');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showIndicatorsModal, setShowIndicatorsModal] = useState(false);
-  const [showDrawingsModal, setShowDrawingsModal] = useState(false);
-  const [activeDrawTool, setActiveDrawTool] = useState<'none' | 'fib' | 'trend' | 'hLine'>('none');
 
   // Indicators toggle state
   const [indicators, setIndicators] = useState<IndicatorConfig>({
@@ -691,7 +685,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
                 className={cn(
                   'px-2.5 py-1 rounded-lg text-[11px] font-black transition-all touch-target',
                   timeframe === tf || (tf === '1h' && timeframe === '1h')
-                    ? 'bg-violet-600 text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-[#94A3B8] hover:text-white hover:bg-white/[0.06]'
                 )}
               >
@@ -709,7 +703,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
               onClick={() => setChartType('candlestick')}
               className={cn(
                 'px-2 py-1 rounded-lg text-xs font-bold transition-all min-h-[32px] min-w-[32px] grid place-items-center',
-                chartType === 'candlestick' ? 'bg-violet-600 text-white' : 'text-[#94A3B8] hover:text-white'
+                chartType === 'candlestick' ? 'bg-blue-600 text-white' : 'text-[#94A3B8] hover:text-white'
               )}
             >
               <BarChart2 className="w-3.5 h-3.5" />
@@ -719,7 +713,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
               onClick={() => setChartType('ohlc')}
               className={cn(
                 'px-2 py-1 rounded-lg text-xs font-bold transition-all min-h-[32px] min-w-[32px] grid place-items-center',
-                chartType === 'ohlc' ? 'bg-violet-600 text-white' : 'text-[#94A3B8] hover:text-white'
+                chartType === 'ohlc' ? 'bg-blue-600 text-white' : 'text-[#94A3B8] hover:text-white'
               )}
             >
               <Activity className="w-3.5 h-3.5" />
@@ -729,7 +723,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
               onClick={() => setChartType('area')}
               className={cn(
                 'px-2 py-1 rounded-lg text-xs font-bold transition-all min-h-[32px] min-w-[32px] grid place-items-center',
-                chartType === 'area' ? 'bg-violet-600 text-white' : 'text-[#94A3B8] hover:text-white'
+                chartType === 'area' ? 'bg-blue-600 text-white' : 'text-[#94A3B8] hover:text-white'
               )}
             >
               <LineChartIcon className="w-3.5 h-3.5" />
@@ -760,7 +754,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
           {/* Indicators Button */}
           <button
             onClick={() => setShowIndicatorsModal(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] text-violet-300 font-bold text-xs min-h-[36px]"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] text-blue-300 font-bold text-xs min-h-[36px]"
           >
             <Sliders className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Indicators</span>
@@ -771,21 +765,21 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
             <button
               title="Layout A: Price + Volume + RSI"
               onClick={() => setPanelLayout('layout_a')}
-              className={cn('px-2 py-1 rounded-lg text-[10px] font-black', panelLayout === 'layout_a' ? 'bg-violet-600 text-white' : 'text-[#94A3B8]')}
+              className={cn('px-2 py-1 rounded-lg text-[11px] font-black', panelLayout === 'layout_a' ? 'bg-blue-600 text-white' : 'text-[#94A3B8]')}
             >
               A
             </button>
             <button
               title="Layout B: Price + Order Book Depth"
               onClick={() => setPanelLayout('layout_b')}
-              className={cn('px-2 py-1 rounded-lg text-[10px] font-black', panelLayout === 'layout_b' ? 'bg-violet-600 text-white' : 'text-[#94A3B8]')}
+              className={cn('px-2 py-1 rounded-lg text-[11px] font-black', panelLayout === 'layout_b' ? 'bg-blue-600 text-white' : 'text-[#94A3B8]')}
             >
               B
             </button>
             <button
               title="Layout C: Price + AI Forecast + MACD"
               onClick={() => setPanelLayout('layout_c')}
-              className={cn('px-2 py-1 rounded-lg text-[10px] font-black', panelLayout === 'layout_c' ? 'bg-violet-600 text-white' : 'text-[#94A3B8]')}
+              className={cn('px-2 py-1 rounded-lg text-[11px] font-black', panelLayout === 'layout_c' ? 'bg-blue-600 text-white' : 'text-[#94A3B8]')}
             >
               C
             </button>
@@ -811,7 +805,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
               <button
                 title="Reset View"
                 onClick={handleResetZoom}
-                className="p-1.5 rounded-lg text-violet-400 hover:bg-white/[0.06] min-h-[32px] min-w-[32px] grid place-items-center"
+                className="p-1.5 rounded-lg text-blue-400 hover:bg-white/[0.06] min-h-[32px] min-w-[32px] grid place-items-center"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
@@ -853,12 +847,12 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
             <span className="text-amber-300">SMA20: {formatPrice(hoveredCandle.sma20)}</span>
           )}
           {indicators.rsi && hoveredCandle.rsi !== null && (
-            <span className="text-purple-300">RSI: {hoveredCandle.rsi.toFixed(1)}</span>
+            <span className="text-blue-300">RSI: {hoveredCandle.rsi.toFixed(1)}</span>
           )}
 
           {forecast && indicators.aiForecast && (
-            <span className="ml-auto hidden sm:inline-flex items-center gap-1.5 text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/30 text-violet-300">
-              <Sparkles className="w-3 h-3 text-violet-400" />
+            <span className="ml-auto hidden sm:inline-flex items-center gap-1.5 text-[11px] font-black px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-300">
+              <Sparkles className="w-3 h-3 text-blue-400" />
               AI Conf: {(forecast.confidence * 100).toFixed(0)}% • {forecast.action}
             </span>
           )}
@@ -872,7 +866,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
           width="100%"
           height={dimensions.height}
           viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
-          preserveAspectRatio="none"
+          preserveAspectRatio="xMidYMid meet"
           className="w-full h-full block"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -882,14 +876,14 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
           <defs>
             {/* Price Area Gradient */}
             <linearGradient id="chartAreaGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.3" />
-              <stop offset="90%" stopColor="#8B5CF6" stopOpacity="0.0" />
+              <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.3" />
+              <stop offset="90%" stopColor="#3B82F6" stopOpacity="0.0" />
             </linearGradient>
 
             {/* AI Confidence Cone Gradient */}
             <linearGradient id="aiConfidenceGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.35" />
-              <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.05" />
+              <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.05" />
             </linearGradient>
 
             {/* Volume Up Gradient */}
@@ -1123,7 +1117,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
                 y1={aiProjectionPath.lastY}
                 x2={aiProjectionPath.futureXEnd}
                 y2={priceScale.getY(forecast.action === 'BUY' ? forecast.targetPrice * 1.015 : forecast.entryPrice * 1.01)}
-                stroke="#8B5CF6"
+                stroke="#3B82F6"
                 strokeWidth="1"
                 strokeDasharray="3 3"
                 opacity="0.6"
@@ -1135,7 +1129,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
                 y1={aiProjectionPath.lastY}
                 x2={aiProjectionPath.futureXEnd}
                 y2={priceScale.getY(forecast.action === 'BUY' ? forecast.stopLoss * 0.985 : forecast.targetPrice * 0.985)}
-                stroke="#8B5CF6"
+                stroke="#3B82F6"
                 strokeWidth="1"
                 strokeDasharray="3 3"
                 opacity="0.6"
@@ -1145,7 +1139,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
               <path
                 d={aiProjectionPath.centerPath}
                 fill="none"
-                stroke="#A78BFA"
+                stroke="#93C5FD"
                 strokeWidth="2.5"
                 strokeDasharray="5 3"
               />
@@ -1262,7 +1256,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
               />
               <path
                 d={visibleData.map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${priceScale.getY(d.close)}`).join(' ')}
-                stroke="#8B5CF6"
+                stroke="#3B82F6"
                 strokeWidth="2"
                 fill="none"
               />
@@ -1392,7 +1386,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
               <text
                 x={panels.padding.left + 4}
                 y={panels.sub.y + 12}
-                fill="#A78BFA"
+                fill="#93C5FD"
                 fontSize="9"
                 fontFamily="JetBrains Mono, monospace"
                 fontWeight="bold"
@@ -1449,7 +1443,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
                   })
                   .filter(Boolean)
                   .join(' ')}
-                stroke="#C084FC"
+                stroke="#93C5FD"
                 strokeWidth="1.5"
                 fill="none"
               />
@@ -1615,7 +1609,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
                     height={18}
                     rx={4}
                     fill="#1E1B4B"
-                    stroke="#8B5CF6"
+                    stroke="#3B82F6"
                     strokeWidth="1"
                   />
                   <text
@@ -1645,7 +1639,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
                     height={16}
                     rx={4}
                     fill="#1E1B4B"
-                    stroke="#8B5CF6"
+                    stroke="#3B82F6"
                     strokeWidth="1"
                   />
                   <text
@@ -1672,8 +1666,8 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
           <div className="relative w-full max-w-md rounded-2xl bg-[#0B0F19] border border-white/10 p-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2">
-                <Sliders className="w-5 h-5 text-violet-400" />
-                <h3 className="text-sm font-black uppercase tracking-widest text-white">Technical Indicators</h3>
+                <Sliders className="w-5 h-5 text-blue-400" />
+                <h3 className="text-sm font-black uppercase tracking-wider text-white">Technical Indicators</h3>
               </div>
               <button
                 onClick={() => setShowIndicatorsModal(false)}
@@ -1709,15 +1703,15 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
                     className={cn(
                       'flex items-start justify-between p-3 rounded-xl border text-left transition-all min-h-[56px]',
                       active
-                        ? 'bg-violet-600/15 border-violet-500/30 text-white'
+                        ? 'bg-blue-600/15 border-blue-500/30 text-white'
                         : 'bg-white/[0.02] border-white/5 text-[#94A3B8] hover:bg-white/5'
                     )}
                   >
                     <div>
                       <div className="font-bold text-xs">{item.label}</div>
-                      <div className="text-[10px] text-[#64748B] mt-0.5">{item.desc}</div>
+                      <div className="text-[11px] text-[#64748B] mt-0.5">{item.desc}</div>
                     </div>
-                    {active && <Check className="w-4 h-4 text-violet-400 shrink-0 ml-1" />}
+                    {active && <Check className="w-4 h-4 text-blue-400 shrink-0 ml-1" />}
                   </button>
                 );
               })}
@@ -1726,7 +1720,7 @@ export const ProfessionalChart: React.FC<ProfessionalChartProps> = ({
             <div className="flex gap-2 pt-2 border-t border-white/10">
               <button
                 onClick={() => setShowIndicatorsModal(false)}
-                className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-black text-xs transition-all"
+                className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs transition-all"
               >
                 Apply Indicators
               </button>

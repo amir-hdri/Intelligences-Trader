@@ -92,12 +92,12 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/[0.07] pb-3">
         <div className="flex items-center gap-2">
-          <Target className="w-4 h-4 text-violet-400" />
-          <h3 className="text-xs font-black uppercase tracking-widest text-slate-200">
+          <Target className="w-4 h-4 text-blue-400" />
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-200">
             Professional Trade Ticket
           </h3>
         </div>
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 font-mono">
+        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 font-mono">
           LEVERAGE {leverage}×
         </span>
       </div>
@@ -134,7 +134,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
         {/* Quantity & Entry Inputs */}
         <div className="grid grid-cols-2 gap-3">
           <label className="block space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#64748B]">Quantity (Units)</span>
+            <span className="text-[11px] font-black uppercase tracking-wider text-[#64748B]">Quantity (Units)</span>
             <input
               type="number"
               min="1"
@@ -146,7 +146,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
           </label>
 
           <label className="block space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#64748B]">Entry Price</span>
+            <span className="text-[11px] font-black uppercase tracking-wider text-[#64748B]">Entry Price</span>
             <input
               type="number"
               value={entryPrice}
@@ -159,7 +159,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
         {/* Stop Loss & Take Profit */}
         <div className="grid grid-cols-2 gap-3">
           <label className="block space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-wider text-red-400">Stop Loss</span>
+            <span className="text-[11px] font-black uppercase tracking-wider text-red-400">Stop Loss</span>
             <input
               type="number"
               value={stopLoss}
@@ -169,7 +169,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
           </label>
 
           <label className="block space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Take Profit</span>
+            <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400">Take Profit</span>
             <input
               type="number"
               value={takeProfit}
@@ -181,7 +181,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
 
         {/* Leverage Slider */}
         <div className="space-y-1 pt-1">
-          <div className="flex justify-between text-[10px] font-black uppercase text-[#64748B]">
+          <div className="flex justify-between text-[11px] font-black uppercase text-[#64748B]">
             <span>Leverage Multiplier</span>
             <span className="text-white mono">{leverage}×</span>
           </div>
@@ -192,23 +192,23 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
             step="1"
             value={leverage}
             onChange={(e) => setLeverage(parseInt(e.target.value))}
-            className="w-full accent-violet-500 h-2 bg-slate-800 rounded-lg cursor-pointer min-h-[32px]"
+            className="w-full accent-blue-500 h-2 bg-slate-800 rounded-lg cursor-pointer min-h-[32px]"
           />
         </div>
 
         {/* Risk / Reward Metrics Breakdown */}
         <div className="grid grid-cols-3 gap-2 pt-1 text-center mono">
           <div className="elevated rounded-xl p-2.5">
-            <div className="text-[9px] uppercase tracking-wider text-[#64748B]">Risk ($)</div>
+            <div className="text-[11px] uppercase tracking-wider text-[#64748B]">Risk ($)</div>
             <div className="font-black text-rose-400 text-xs mt-0.5">${riskAmount.toLocaleString()}</div>
           </div>
           <div className="elevated rounded-xl p-2.5">
-            <div className="text-[9px] uppercase tracking-wider text-[#64748B]">Reward ($)</div>
+            <div className="text-[11px] uppercase tracking-wider text-[#64748B]">Reward ($)</div>
             <div className="font-black text-emerald-400 text-xs mt-0.5">${rewardAmount.toLocaleString()}</div>
           </div>
           <div className="elevated rounded-xl p-2.5">
-            <div className="text-[9px] uppercase tracking-wider text-[#64748B]">R / R Ratio</div>
-            <div className="font-black text-violet-300 text-xs mt-0.5">1 : {riskRewardRatio}</div>
+            <div className="text-[11px] uppercase tracking-wider text-[#64748B]">R / R Ratio</div>
+            <div className="font-black text-blue-300 text-xs mt-0.5">1 : {riskRewardRatio}</div>
           </div>
         </div>
 
@@ -217,7 +217,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
           type="submit"
           disabled={riskStatus.isKillSwitchActive}
           className={cn(
-            "w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-widest text-white shadow-xl transition-all flex items-center justify-center gap-2 trade-target",
+            "w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-wider text-white shadow-xl transition-all flex items-center justify-center gap-2 trade-target",
             riskStatus.isKillSwitchActive
               ? "bg-slate-800 text-slate-500 cursor-not-allowed"
               : side === 'BUY'
@@ -235,7 +235,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
           <div className="relative w-full max-w-md rounded-3xl bg-[#0B0F19] border border-white/10 p-6 shadow-2xl space-y-5">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <span className="text-xs font-black uppercase tracking-widest text-violet-300">
+              <span className="text-xs font-black uppercase tracking-wider text-blue-300">
                 Confirm Execution — Paper Trading
               </span>
               <button
@@ -255,20 +255,20 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
 
             <div className="grid grid-cols-2 gap-3 text-xs mono">
               <div className="elevated rounded-xl p-3">
-                <div className="text-[#64748B] text-[10px] uppercase">Qty × Entry</div>
+                <div className="text-[#64748B] text-[11px] uppercase">Qty × Entry</div>
                 <div className="font-black text-white text-sm mt-0.5">{quantity} × {entryPrice.toLocaleString()}</div>
               </div>
               <div className="elevated rounded-xl p-3">
-                <div className="text-[#64748B] text-[10px] uppercase">Max Risk</div>
+                <div className="text-[#64748B] text-[11px] uppercase">Max Risk</div>
                 <div className="font-black text-rose-400 text-sm mt-0.5">${riskAmount.toLocaleString()}</div>
               </div>
               <div className="elevated rounded-xl p-3">
-                <div className="text-[#64748B] text-[10px] uppercase">Expected Reward</div>
+                <div className="text-[#64748B] text-[11px] uppercase">Expected Reward</div>
                 <div className="font-black text-emerald-400 text-sm mt-0.5">${rewardAmount.toLocaleString()}</div>
               </div>
               <div className="elevated rounded-xl p-3">
-                <div className="text-[#64748B] text-[10px] uppercase">Risk / Reward</div>
-                <div className="font-black text-violet-300 text-sm mt-0.5">1 : {riskRewardRatio}</div>
+                <div className="text-[#64748B] text-[11px] uppercase">Risk / Reward</div>
+                <div className="font-black text-blue-300 text-sm mt-0.5">1 : {riskRewardRatio}</div>
               </div>
             </div>
 

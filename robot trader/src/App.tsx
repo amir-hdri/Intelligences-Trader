@@ -442,12 +442,12 @@ export default function App() {
           <div className="h-10 flex items-center justify-between gap-3 px-3 lg:px-6 border-b border-white/[0.06] bg-[#080B12] text-xs">
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1">
               <span className="font-black tracking-wider text-slate-200 font-vazir whitespace-nowrap">{selectedSymbol.name}</span>
-              <span className="text-[10px] font-mono text-[#64748B]">{selectedSymbol.id}</span>
+              <span className="text-[11px] font-mono text-[#64748B]">{selectedSymbol.id}</span>
               <span
                 className={cn(
-                  "px-1.5 py-0.5 rounded text-[9px] font-black border",
+                  "px-1.5 py-0.5 rounded text-[11px] font-black border",
                   selectedSymbol.type === 'FUTURES'
-                    ? "bg-violet-500/10 text-violet-300 border-violet-500/20"
+                    ? "bg-blue-500/10 text-blue-300 border-blue-500/20"
                     : "bg-white/5 text-[#94A3B8] border-white/10"
                 )}
               >
@@ -456,7 +456,7 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-3 shrink-0">
-              <div className="hidden md:flex items-center gap-2 text-[10px] text-[#64748B] mono">
+              <div className="hidden md:flex items-center gap-2 text-[11px] text-[#64748B] mono">
                 <span>Limit Up: {selectedSymbol.priceLimit.up.toLocaleString()}</span>
                 <span>•</span>
                 <span>Limit Down: {selectedSymbol.priceLimit.down.toLocaleString()}</span>
@@ -472,7 +472,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setActiveTab('trade')}
-                  className="inline-flex items-center px-3 py-1 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-black min-h-[32px]"
+                  className="inline-flex items-center px-3 py-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black min-h-[32px]"
                 >
                   Trade
                 </button>
@@ -505,7 +505,7 @@ export default function App() {
                     value={sentiment ? sentiment.politicalRiskIndex.toFixed(0) : '—'}
                     icon={AlertTriangle}
                     delta={sentiment ? { v: sentiment.politicalRiskIndex - 50, pos: sentiment.politicalRiskIndex > 50 } : undefined}
-                    accent="text-violet-400"
+                    accent="text-blue-400"
                     sub={sentiment?.label || 'NEUTRAL'}
                     tooltip="NLP news sentiment risk capacity"
                   />
@@ -542,7 +542,7 @@ export default function App() {
                     title="Risk Buffer"
                     value={`${(metrics.balance > 0 ? (riskStatus.margin.freeMargin / metrics.balance) * 100 : 0).toFixed(1)}%`}
                     icon={ShieldCheck}
-                    accent="text-indigo-400"
+                    accent="text-blue-400"
                     sub={`Free ${riskStatus.margin.freeMargin.toLocaleString()}`}
                     tooltip="Available margin risk capacity"
                   />
@@ -579,26 +579,26 @@ export default function App() {
 
                   <div className="order-4 lg:order-none lg:col-start-3 xl:col-start-4">
                     <div className="glass-card rounded-2xl p-5 space-y-3">
-                      <div className="text-[10px] tracking-[0.16em] font-black text-[#64748B] uppercase flex items-center justify-between">
+                      <div className="text-[11px] tracking-[0.06em] font-black text-[#64748B] uppercase flex items-center justify-between">
                         <span>Risk Summary Guard</span>
                         <ShieldAlert className="w-4 h-4 text-[#64748B]" />
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className="elevated rounded-xl p-3">
-                          <div className="text-[#64748B] text-[9px] uppercase">Exposure</div>
+                          <div className="text-[#64748B] text-[11px] uppercase">Exposure</div>
                           <div className="mono font-black text-sm text-white mt-0.5">
                             {((1 - riskStatus.margin.freeMargin / Math.max(1, metrics.balance)) * 100).toFixed(1)}%
                           </div>
                         </div>
                         <div className="elevated rounded-xl p-3">
-                          <div className="text-[#64748B] text-[9px] uppercase">Margin Level</div>
+                          <div className="text-[#64748B] text-[11px] uppercase">Margin Level</div>
                           <div className={cn("mono font-black text-sm mt-0.5", riskStatus.margin.isCallRisk ? "text-rose-400" : "text-emerald-400")}>
                             {riskStatus.margin.marginLevel.toFixed(1)}%
                           </div>
                         </div>
                       </div>
                       <div className={cn(
-                        "inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black border w-full justify-center",
+                        "inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-black border w-full justify-center",
                         riskStatus.isKillSwitchActive
                           ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
                           : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
@@ -612,12 +612,12 @@ export default function App() {
                   <div className="order-5 lg:order-none lg:col-span-2 xl:col-span-3">
                     <div className="glass-panel p-4 lg:p-5 rounded-2xl">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-black uppercase tracking-widest text-violet-300">
+                        <span className="text-xs font-black uppercase tracking-wider text-blue-300">
                           Latest Resolved Paper Outcome
                         </span>
                         <button
                           onClick={() => setActiveTab('positions')}
-                          className="text-[11px] font-bold text-violet-400 hover:text-violet-300"
+                          className="text-[11px] font-bold text-blue-400 hover:text-blue-300"
                         >
                           View All ({tradeLogs.length}) →
                         </button>
@@ -626,7 +626,7 @@ export default function App() {
                         <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] flex justify-between items-center text-xs">
                           <div>
                             <div className="font-bold text-white font-vazir">{tradeLogs[0].symbol}</div>
-                            <div className="text-[10px] text-[#64748B] font-mono">{tradeLogs[0].action} • {tradeLogs[0].price.toLocaleString()} IRR</div>
+                            <div className="text-[11px] text-[#64748B] font-mono">{tradeLogs[0].action} • {tradeLogs[0].price.toLocaleString()} IRR</div>
                           </div>
                           <span className={cn("font-mono font-black", tradeLogs[0].isWin ? "text-emerald-400" : "text-rose-400")}>
                             {(tradeLogs[0].pnl ?? 0) > 0 ? '+' : ''}{(tradeLogs[0].pnl ?? 0).toFixed(0)} IRR
@@ -698,24 +698,24 @@ export default function App() {
                     onExecuteTrade={executeTradeFromTicket}
                   />
                   <div className="glass-panel p-5 rounded-3xl">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-violet-300 mb-3">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-blue-300 mb-3">
                       Execution Risk Controls
                     </h3>
                     <div className="grid sm:grid-cols-3 gap-3 text-xs mono">
                       <div className="elevated rounded-xl p-3">
-                        <div className="text-[#64748B] text-[9px] uppercase">Daily VaR 95%</div>
+                        <div className="text-[#64748B] text-[11px] uppercase">Daily VaR 95%</div>
                         <div className="font-black text-white text-sm mt-0.5">
                           ${(forecast?.backendRisk?.valueAtRisk95 ?? (riskStatus.margin.usedMargin * 0.05)).toLocaleString()}
                         </div>
                       </div>
                       <div className="elevated rounded-xl p-3">
-                        <div className="text-[#64748B] text-[9px] uppercase">Kelly Criterion Sizing</div>
-                        <div className="font-black text-violet-300 text-sm mt-0.5">
+                        <div className="text-[#64748B] text-[11px] uppercase">Kelly Criterion Sizing</div>
+                        <div className="font-black text-blue-300 text-sm mt-0.5">
                           {forecast ? `${(riskEngine.calculateKellySize(forecast.entryPrice, forecast.indicators.atr, forecast.backendRisk?.suggestedRiskCapital) * 100).toFixed(1)}%` : '—'}
                         </div>
                       </div>
                       <div className="elevated rounded-xl p-3">
-                        <div className="text-[#64748B] text-[9px] uppercase">Margin Utilization</div>
+                        <div className="text-[#64748B] text-[11px] uppercase">Margin Utilization</div>
                         <div className="font-black text-emerald-400 text-sm mt-0.5">
                           {((riskStatus.margin.usedMargin / Math.max(1, metrics.balance)) * 100).toFixed(1)}%
                         </div>
@@ -733,7 +733,7 @@ export default function App() {
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 <div className="glass-panel rounded-3xl p-6">
-                  <h3 className="text-sm font-black uppercase tracking-widest text-violet-300 mb-4">
+                  <h3 className="text-sm font-black uppercase tracking-wider text-blue-300 mb-4">
                     Iranian Mercantile Exchange (IME) Instruments
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -749,7 +749,7 @@ export default function App() {
                           className={cn(
                             "rounded-2xl p-5 text-left border text-sm transition min-h-[110px] flex flex-col justify-between",
                             active
-                              ? "bg-violet-600/15 border-violet-500/40 ring-1 ring-violet-500/30"
+                              ? "bg-blue-600/15 border-blue-500/40 ring-1 ring-blue-500/30"
                               : "glass-card hover:border-white/10"
                           )}
                         >
@@ -760,7 +760,7 @@ export default function App() {
                             </div>
                             <span
                               className={cn(
-                                "text-[10px] font-black px-2 py-0.5 rounded-full border",
+                                "text-[11px] font-black px-2 py-0.5 rounded-full border",
                                 s.type === 'FUTURES'
                                   ? "bg-amber-500/10 text-amber-300 border-amber-500/20"
                                   : "bg-white/5 border-white/10 text-slate-300"
@@ -791,7 +791,7 @@ export default function App() {
               <div className="glass-panel rounded-3xl overflow-hidden space-y-4">
                 <div className="p-4 sm:p-6 border-b border-white/5 flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-xs font-black uppercase tracking-widest text-violet-300">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-blue-300">
                       {activeTab === 'positions' ? 'Active Portfolio Positions' : activeTab === 'orders' ? 'Order Management Ledger' : 'Historical Trade Execution Journal'}
                     </h3>
                     <p className="text-xs text-[#94A3B8] mt-0.5">
@@ -816,7 +816,7 @@ export default function App() {
 
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="text-[10px] tracking-widest font-black text-[#64748B] uppercase bg-white/[0.02] border-b border-white/5">
+                    <thead className="text-[11px] tracking-wider font-black text-[#64748B] uppercase bg-white/[0.02] border-b border-white/5">
                       <tr>
                         <th className="px-6 py-4">Timestamp</th>
                         <th className="px-6 py-4">Symbol</th>
@@ -837,7 +837,7 @@ export default function App() {
                           <td className="px-6 py-4">
                             <span
                               className={cn(
-                                "px-2 py-0.5 rounded-full text-[10px] font-black",
+                                "px-2 py-0.5 rounded-full text-[11px] font-black",
                                 l.action === 'BUY' ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
                               )}
                             >
@@ -852,7 +852,7 @@ export default function App() {
                           <td className="px-6 py-4 text-right">
                             <button
                               onClick={() => pushToast(l.reason || `${l.symbol} ${l.status}`)}
-                              className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-sans font-bold"
+                              className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-sans font-bold"
                             >
                               Details
                             </button>
@@ -879,7 +879,7 @@ export default function App() {
                         <div className="flex justify-between items-start">
                           <div>
                             <span className="font-black text-sm text-white font-vazir">{l.symbol}</span>
-                            <div className="text-[10px] text-[#64748B] font-mono mt-0.5">
+                            <div className="text-[11px] text-[#64748B] font-mono mt-0.5">
                               {l.action} • {l.price.toLocaleString()} IRR
                             </div>
                           </div>
@@ -903,13 +903,13 @@ export default function App() {
                           </div>
                           <div className="flex justify-between text-[#94A3B8]">
                             <span>Regime:</span>
-                            <span className="text-violet-300 font-bold">{l.regime || '—'}</span>
+                            <span className="text-blue-300 font-bold">{l.regime || '—'}</span>
                           </div>
                         </div>
 
                         <button
                           onClick={() => setExpandedRowId(isExpanded ? null : l.id)}
-                          className="w-full pt-1.5 flex items-center justify-between text-[11px] font-bold text-violet-400 hover:text-violet-300"
+                          className="w-full pt-1.5 flex items-center justify-between text-[11px] font-bold text-blue-400 hover:text-blue-300"
                         >
                           <span>{isExpanded ? 'Hide Details' : '▼ Details'}</span>
                           {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -968,7 +968,7 @@ export default function App() {
                   <div className="space-y-6">
                     <AISignal forecast={forecast} />
                     <div className="glass-panel p-5 rounded-3xl space-y-3">
-                      <div className="text-xs font-black uppercase tracking-widest text-violet-300">
+                      <div className="text-xs font-black uppercase tracking-wider text-blue-300">
                         ONNX Model Status - Real Backend Data
                       </div>
                       <div className="space-y-2 text-xs">
@@ -980,7 +980,7 @@ export default function App() {
                       <button
                         onClick={() => trainModel()}
                         disabled={isTraining}
-                        className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-black min-h-[44px] mt-2"
+                        className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black min-h-[44px] mt-2"
                       >
                         {isTraining ? `Training ${trainingProgress}%` : 'Recalibrate Weights'}
                       </button>
@@ -994,7 +994,7 @@ export default function App() {
             {activeTab === 'api' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="glass-panel rounded-3xl p-6 space-y-4">
-                  <div className="text-xs font-black uppercase tracking-widest text-violet-300">
+                  <div className="text-xs font-black uppercase tracking-wider text-blue-300">
                     API Proxy & Integration
                   </div>
                   <label className="block space-y-1 text-sm">
@@ -1063,14 +1063,14 @@ export default function App() {
                       type="checkbox"
                       checked={apiConfig.useDigitalTwin}
                       onChange={(e) => setApiConfig({ ...apiConfig, useDigitalTwin: e.target.checked })}
-                      className="min-h-[20px] min-w-[20px] accent-violet-600 rounded"
+                      className="min-h-[20px] min-w-[20px] accent-blue-600 rounded"
                     />
                     <span>Use Digital Twin (Adaptive Simulation fallback)</span>
                   </label>
                   <button
                     onClick={() => void testApiConnection()}
                     disabled={apiTestState === 'testing'}
-                    className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:cursor-wait disabled:opacity-60 text-white font-black text-xs min-h-[44px]"
+                    className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:cursor-wait disabled:opacity-60 text-white font-black text-xs min-h-[44px]"
                   >
                     {apiTestState === 'testing' ? 'Testing Connection…' : apiTestState === 'ok' ? 'Connection Verified ✓' : apiTestState === 'error' ? 'Retry Connection Test' : 'Save & Test Connection'}
                   </button>
@@ -1088,7 +1088,7 @@ export default function App() {
             {activeTab === 'settings' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="glass-panel rounded-3xl p-6 space-y-5">
-                  <div className="text-xs font-black uppercase tracking-widest text-violet-300">
+                  <div className="text-xs font-black uppercase tracking-wider text-blue-300">
                     Application Settings
                   </div>
                   <div className="flex items-center justify-between">
@@ -1154,7 +1154,7 @@ export default function App() {
                 placeholder="Search navigation…"
                 className="flex-1 bg-transparent outline-none text-xs text-white"
               />
-              <button onClick={() => setCmdOpen(false)} className="text-[10px] text-[#64748B] border border-white/10 rounded-lg px-2 py-1">
+              <button onClick={() => setCmdOpen(false)} className="text-[11px] text-[#64748B] border border-white/10 rounded-lg px-2 py-1">
                 ESC
               </button>
             </div>
@@ -1173,7 +1173,7 @@ export default function App() {
                 >
                   <it.icon className="w-4 h-4 text-[#94A3B8]" />
                   <span className="text-white font-bold">{it.label}</span>
-                  <span className="ml-auto text-[10px] text-[#64748B]">↵</span>
+                  <span className="ml-auto text-[11px] text-[#64748B]">↵</span>
                 </button>
               ))}
             </div>
@@ -1186,7 +1186,7 @@ export default function App() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setNotifOpen(false)} />
           <div role="dialog" aria-modal="true" aria-label="Notifications" className="absolute right-4 top-[60px] w-full max-w-[360px] rounded-3xl bg-[#0B0F17] border border-white/10 shadow-2xl overflow-hidden">
             <div className="p-4 border-b border-white/10 flex justify-between items-center">
-              <span className="text-xs font-black uppercase tracking-widest text-violet-300">Live System Alerts</span>
+              <span className="text-xs font-black uppercase tracking-wider text-blue-300">Live System Alerts</span>
               <button aria-label="Close notifications" onClick={() => setNotifOpen(false)} className="p-1 rounded-lg hover:bg-white/10">
                 <X className="w-4 h-4 text-white" />
               </button>
@@ -1194,8 +1194,8 @@ export default function App() {
             <div className="divide-y divide-white/5 max-h-[400px] overflow-y-auto">
               {notifications.map((n, i) => (
                 <div key={i} className="p-3.5 hover:bg-white/[0.02] space-y-1">
-                  <div className="flex justify-between items-center text-[10px]">
-                    <span className="font-black px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-300 border border-violet-500/20">
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="font-black px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20">
                       {n.cat}
                     </span>
                     <span className="text-[#64748B]">{n.time}</span>
@@ -1212,7 +1212,7 @@ export default function App() {
       <div aria-live="polite" className="fixed bottom-16 sm:bottom-6 right-4 z-50 space-y-2 max-w-[360px]">
         {toasts.map((t) => (
           <div key={t.id} className="px-4 py-3 rounded-2xl bg-[#101620] border border-white/15 shadow-2xl text-xs flex items-center gap-2.5 animate-in slide-in-from-bottom-2 duration-200">
-            <span className="w-2 h-2 rounded-full bg-violet-500 animate-pulse shrink-0" />
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
             <span className="text-slate-200 font-medium">{t.msg}</span>
           </div>
         ))}
