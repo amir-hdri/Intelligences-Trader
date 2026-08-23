@@ -1,0 +1,8 @@
+# Build context exclusions for the ML backend image
+node_modules/
+data/
+*.log
+.git/
+.env
+.env.*
+!.env.example

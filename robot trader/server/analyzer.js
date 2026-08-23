@@ -5,6 +5,7 @@
 export const INDICATOR_PARAMS = {
     EMA_SHORT: 12,
     EMA_LONG: 26,
+    SIGNAL_PERIOD: 9,
 };
 
 export const calculateRSI = (prices, period = 14) => {
@@ -37,14 +38,30 @@ export const calculateEMA = (prices, period) => {
 };
 
 export const calculateMACD = (prices) => {
-  const ema12 = calculateEMA(prices, INDICATOR_PARAMS.EMA_SHORT);
-  const ema26 = calculateEMA(prices, INDICATOR_PARAMS.EMA_LONG);
-  const macdValue = ema12 - ema26;
-  const signal = macdValue * 0.9;
+  if (!prices || prices.length === 0) return { value: 0, signal: 0, histogram: 0 };
+  // EMA series helper (correct per-period smoothing)
+  const emaSeries = (series, period) => {
+    const k = 2 / (period + 1);
+    const out = new Array(series.length);
+    out[0] = series[0];
+    for (let i = 1; i < series.length; i++) {
+      out[i] = series[i] * k + out[i - 1] * (1 - k);
+    }
+    return out;
+  };
+
+  const ema12 = emaSeries(prices, INDICATOR_PARAMS.EMA_SHORT);
+  const ema26 = emaSeries(prices, INDICATOR_PARAMS.EMA_LONG);
+  const macdSeries = ema12.map((v, i) => v - ema26[i]);
+  // Signal line = EMA-9 of the MACD line (not a heuristic multiplier)
+  const signalSeries = emaSeries(macdSeries, INDICATOR_PARAMS.SIGNAL_PERIOD);
+
+  const value = macdSeries[macdSeries.length - 1];
+  const signal = signalSeries[signalSeries.length - 1];
   return {
-    value: macdValue,
-    signal: signal,
-    histogram: macdValue - signal,
+    value,
+    signal,
+    histogram: value - signal,
   };
 };
 

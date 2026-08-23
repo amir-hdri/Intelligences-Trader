@@ -1,0 +1,7 @@
+# Build context exclusions for the proxy backend image
+node_modules/
+*.log
+.git/
+.env
+.env.*
+!.env.example
