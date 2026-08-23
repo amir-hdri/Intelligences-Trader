@@ -43,8 +43,10 @@ services:
       ENABLE_EXPERIMENTAL_SIMULATIONS: ${ENABLE_EXPERIMENTAL_SIMULATIONS:-false}
       MODEL_VERSION: ${MODEL_VERSION:-1.0.0}
       MODEL_PATH: ${MODEL_PATH:-}
+      DB_PATH: /app/robot trader/server/data/trader.db
     volumes:
       - "./robot trader/server/models:/app/robot trader/server/models:ro"
+      - trader-data:/app/robot trader/server/data
     depends_on:
       redis:
         condition: service_healthy
@@ -107,3 +109,4 @@ services:
 
 volumes:
   paper-trading-db:
+  trader-data:

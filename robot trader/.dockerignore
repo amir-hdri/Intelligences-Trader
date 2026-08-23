@@ -1,0 +1,9 @@
+# Build context exclusions for the frontend image
+node_modules/
+dist/
+test-out/
+*.log
+.git/
+.env
+.env.*
+!.env.example

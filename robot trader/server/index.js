@@ -18,6 +18,24 @@ const hpoEngine = new HPOEngine();
 
 import logger from './logger.js';
 
+// --- Database & authentication layer (node:sqlite, zero native deps) ---
+import { createDatabase } from './db/database.js';
+import { createUser, findUserByUsername, recordAudit } from './auth/authService.js';
+import {
+  insertPrediction, listPredictions, updatePredictionStatus,
+  insertTrade, closeTrade, listTrades,
+  listAuditEvents,
+} from './db/repositories.js';
+
+// Initialize the database (graceful degradation if node:sqlite is unavailable).
+let db = null;
+try {
+  ({ db } = createDatabase());
+  logger.info(`Database ready (${process.env.DB_PATH || './data/trader.db'})`);
+} catch (dbErr) {
+  logger.error('Database unavailable — auth/persistence endpoints will return 503.', dbErr.message);
+}
+
 const requestMetrics = { total: 0, errors: 0, durationMs: 0 };
 const apiMetrics = () => (req, res, next) => {
   const startedAt = performance.now();
@@ -194,9 +212,22 @@ const authenticateToken = (req, res, next) => {
     if (error || !user || typeof user.name !== 'string') {
       return res.status(403).json({ error: 'Access token is invalid or expired' });
     }
-    req.user = { name: user.name };
+    req.user = { name: user.name, role: user.role };
     next();
   });
+};
+
+const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+};
+
+// Guard: if the database is unavailable, stateful endpoints cannot serve.
+const requireDb = (req, res, next) => {
+  if (!db) return res.status(503).json({ error: 'Database unavailable (requires Node 22.13+ with node:sqlite)' });
+  next();
 };
 
 const secureCredentialMatch = (supplied, expected) => {
@@ -221,12 +252,41 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
-  const user = { name: username };
+  const user = { name: username, role: 'admin' };
   const accessToken = jwt.sign(user, JWT_SECRET, { algorithm: 'HS256', expiresIn: '15m' });
   const refreshToken = jwt.sign(user, REFRESH_SECRET, { algorithm: 'HS256', expiresIn: '1h' });
   auditLogger.log('LOGIN_SUCCESS', req.ip, username);
   res.setHeader('Cache-Control', 'no-store');
   return res.json({ accessToken, refreshToken, tokenType: 'Bearer', expiresIn: 900 });
+});
+
+app.post('/api/auth/register', requireDb, (req, res) => {
+  const { username, password, role } = req.body || {};
+  if (typeof username !== 'string' || !/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) {
+    return res.status(400).json({ error: 'Username must be 3-32 chars (letters, digits, . _ -)' });
+  }
+  if (typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+  if (findUserByUsername(db, username)) {
+    return res.status(409).json({ error: 'Username already exists' });
+  }
+  // Only an authenticated admin may create an admin; otherwise default to trader.
+  const requestedRole = role === 'admin' ? 'admin' : 'trader';
+  let finalRole = 'trader';
+  if (requestedRole === 'admin') {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.status(403).json({ error: 'Admin creation requires authentication' });
+    let isAdmin = false;
+    try { isAdmin = jwt.verify(token, JWT_SECRET).role === 'admin'; } catch { isAdmin = false; }
+    if (!isAdmin) return res.status(403).json({ error: 'Only an admin can create an admin account' });
+    finalRole = 'admin';
+  }
+
+  const created = createUser(db, { username, password, role: finalRole });
+  recordAudit(db, { eventType: 'REGISTER', username, ip: req.ip, correlationId: req.correlationId });
+  res.status(201).json({ id: created.id, username: created.username, role: created.role });
 });
 
 app.post('/api/auth/refresh', (req, res) => {
@@ -241,13 +301,17 @@ app.post('/api/auth/refresh', (req, res) => {
       return res.status(403).json({ error: 'Refresh token is invalid or expired' });
     }
     const accessToken = jwt.sign(
-      { name: user.name },
+      { name: user.name, role: user.role },
       JWT_SECRET,
       { algorithm: 'HS256', expiresIn: '15m' },
     );
     res.setHeader('Cache-Control', 'no-store');
     return res.json({ accessToken, tokenType: 'Bearer', expiresIn: 900 });
   });
+});
+
+app.get('/api/auth/me', authenticateToken, (req, res) => {
+  res.json({ user: req.user });
 });
 
 // In secured deployments every API route is protected except health and the
@@ -956,6 +1020,108 @@ app.post('/api/advanced/hpo/optimize', async (req, res) => {
 });
 
 // ==========================================
+// Persistence endpoints (auth required)
+// ==========================================
+
+const validAction = (a) => ['BUY', 'SELL', 'HOLD'].includes(a);
+const validSymbol = (s) => typeof s === 'string' && /^[A-Z0-9-]{1,32}$/.test(s);
+
+// Predictions
+app.get('/api/predictions', authenticateToken, requireDb, (req, res) => {
+  const { symbol, status } = req.query;
+  const rows = listPredictions(db, {
+    symbol: validSymbol(symbol) ? symbol : null,
+    status: ['PENDING', 'WIN', 'LOSS', 'CANCELLED'].includes(status) ? status : null,
+    limit: 1000,
+  });
+  res.json({ predictions: rows });
+});
+
+app.post('/api/predictions', authenticateToken, requireDb, (req, res) => {
+  const { symbol, action, entryPrice, targetPrice, stopLoss, confidence, indicators, reason, weights } = req.body || {};
+  if (!validSymbol(symbol) || !validAction(action)) {
+    return res.status(400).json({ error: 'Invalid symbol or action' });
+  }
+  for (const v of [entryPrice, targetPrice, stopLoss]) {
+    if (typeof v !== 'number' || !Number.isFinite(v)) {
+      return res.status(400).json({ error: 'entryPrice/targetPrice/stopLoss must be finite numbers' });
+    }
+  }
+  const id = insertPrediction(db, {
+    symbol, action,
+    entryPrice, targetPrice, stopLoss,
+    confidence: typeof confidence === 'number' ? confidence : 0.5,
+    indicators, reason, weights,
+  });
+  res.status(201).json({ id });
+});
+
+app.post('/api/predictions/evaluate', authenticateToken, requireDb, (req, res) => {
+  const { symbol, currentPrice } = req.body || {};
+  if (!validSymbol(symbol) || typeof currentPrice !== 'number') {
+    return res.status(400).json({ error: 'symbol and numeric currentPrice are required' });
+  }
+  const pending = listPredictions(db, { symbol, status: 'PENDING', limit: 1000 });
+  let settled = 0;
+  for (const p of pending) {
+    if (p.action === 'BUY' && currentPrice >= p.targetPrice) {
+      updatePredictionStatus(db, p.id, 'WIN', currentPrice); settled++;
+    } else if (p.action === 'BUY' && currentPrice <= p.stopLoss) {
+      updatePredictionStatus(db, p.id, 'LOSS', currentPrice); settled++;
+    } else if (p.action === 'SELL' && currentPrice <= p.targetPrice) {
+      updatePredictionStatus(db, p.id, 'WIN', currentPrice); settled++;
+    } else if (p.action === 'SELL' && currentPrice >= p.stopLoss) {
+      updatePredictionStatus(db, p.id, 'LOSS', currentPrice); settled++;
+    }
+  }
+  res.json({ settled });
+});
+
+app.delete('/api/predictions', authenticateToken, requireDb, (req, res) => {
+  db.prepare('DELETE FROM predictions').run();
+  res.json({ cleared: true });
+});
+
+// Trades
+app.get('/api/trades', authenticateToken, requireDb, (req, res) => {
+  const { symbol } = req.query;
+  res.json({ trades: listTrades(db, { symbol: validSymbol(symbol) ? symbol : null, limit: 1000 }) });
+});
+
+app.post('/api/trades', authenticateToken, requireDb, (req, res) => {
+  const { symbol, side, quantity, entryPrice, strategy } = req.body || {};
+  if (!validSymbol(symbol) || !['BUY', 'SELL'].includes(side)) {
+    return res.status(400).json({ error: 'Invalid symbol or side' });
+  }
+  if (typeof entryPrice !== 'number' || !Number.isFinite(entryPrice)) {
+    return res.status(400).json({ error: 'entryPrice must be a finite number' });
+  }
+  const id = insertTrade(db, {
+    symbol, side,
+    quantity: typeof quantity === 'number' ? quantity : 0,
+    entryPrice, strategy,
+  });
+  recordAudit(db, { eventType: 'TRADE_OPEN', username: req.user?.name, ip: req.ip, correlationId: req.correlationId, details: { id, symbol, side } });
+  res.status(201).json({ id });
+});
+
+app.post('/api/trades/:id/close', authenticateToken, requireDb, (req, res) => {
+  const id = Number(req.params.id);
+  const { exitPrice, status } = req.body || {};
+  if (!Number.isInteger(id) || typeof exitPrice !== 'number' || !Number.isFinite(exitPrice)) {
+    return res.status(400).json({ error: 'valid id and numeric exitPrice are required' });
+  }
+  const closed = closeTrade(db, id, { exitPrice, status: status || 'CLOSED' });
+  if (!closed) return res.status(404).json({ error: 'Trade not found' });
+  res.json({ trade: closed });
+});
+
+// Audit events (admin only)
+app.get('/api/audit', authenticateToken, requireAdmin, requireDb, (req, res) => {
+  res.json({ events: listAuditEvents(db, { limit: 500 }) });
+});
+
+// ==========================================
 // Phase 1 - Real Data Endpoints replacing mocks
 // ==========================================
 import { positionLedger } from './modules/positionLedger.js';
@@ -1466,6 +1632,7 @@ app.get('/api/status', (req, res) => {
     accuracy: registryMetrics.accuracy,
     precision: registryMetrics.precision,
     memoryMB: registryMetrics.memoryMB,
+    database: db ? 'connected' : 'unavailable',
   });
 });
 

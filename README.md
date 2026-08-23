@@ -31,7 +31,7 @@ The frontend uses relative `/api` and `/ws` URLs. Vite proxies these routes duri
 
 ### Node services and terminal
 
-Requirements: Node.js 22 and npm 10+.
+Requirements: Node.js 22.13+ (uses the built-in `node:sqlite` module) and npm 10+.
 
 ```bash
 npm ci
@@ -177,6 +177,23 @@ The engine requires immutable dataset snapshots, uses next-bar point-in-time exe
 - Persistence: `POST /api/paper-trading/p2/trades/save`, `GET /api/paper-trading/p2/trades`
 
 See [`PHASE2_CHANGES.md`](./PHASE2_CHANGES.md) for the Phase 2 build-out details.
+
+### Database & Authentication
+
+The backend ships a zero-native-dependency SQLite persistence layer
+(`node:sqlite`, Node 22.13+) under `robot trader/server/db/` with
+`robot trader/server/auth/authService.js` for scrypt password hashing + JWT.
+
+- Auth: `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/refresh`, `GET /api/auth/me`
+- Predictions: `GET|POST|DELETE /api/predictions`, `POST /api/predictions/evaluate`
+- Trades: `GET|POST /api/trades`, `POST /api/trades/:id/close`
+- Audit (admin): `GET /api/audit`
+
+Stateful endpoints require a Bearer token; market data stays public. The
+SQLite file lives at `DB_PATH` (default `robot trader/server/data/trader.db`)
+and is mounted as the `trader-data` named volume in Docker Compose. Set
+`ADMIN_USERNAME` / `ADMIN_PASSWORD` (or let the server seed a random admin) and
+a 32+ char `JWT_SECRET` / `REFRESH_SECRET` for any shared deployment.
 
 ## Backtesting architecture
 
