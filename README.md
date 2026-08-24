@@ -121,15 +121,16 @@ unless `ENABLE_EXPERIMENTAL_SIMULATIONS=true` is explicitly set.
 
 ## Troubleshooting
 
-**macOS: `Cannot find module '@rollup/rollup-darwin-arm64'` / `@esbuild/darwin-arm64` /
-`lightningcss-darwin-arm64` / `@tailwindcss/oxide-darwin-arm64` during `vite build`.**
-npm bug [#4828](https://github.com/npm/cli/issues/4828): lockfiles resolved on
-one platform omit other platforms' optional binaries. One-off local fix:
+**`Cannot find module '@rollup/rollup-<platform>'` / `@esbuild/<platform>` /
+`lightningcss-<platform>` / `@tailwindcss/oxide-<platform>` during `vite build`.**
+npm bug [#4828](https://github.com/npm/cli/issues/4828): a lockfile resolved on
+one platform may omit other platforms' optional binaries. The committed lockfile
+was regenerated to include every platform's entries, so `npm ci` alone should
+work everywhere. If you ever see the error again after dependency changes,
+regenerate rather than patch:
 
 ```bash
-npm install --no-save \
-  @rollup/rollup-darwin-arm64 @esbuild/darwin-arm64 \
-  lightningcss-darwin-arm64 @tailwindcss/oxide-darwin-arm64
+rm -rf node_modules package-lock.json && npm install
 ```
 
 ## Validation and safety improvements

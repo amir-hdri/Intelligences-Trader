@@ -158,3 +158,36 @@ runs, strict typecheck, and production build verification.
 - **npm optional-dependency bug (#4828)**: lockfiles generated on Linux omit
   darwin platform binaries; macOS contributors need one extra install (see
   README troubleshooting).
+
+## Addendum — same-day follow-ups
+
+### Divergent local history resolved
+
+A parallel local commit (`ca5b02c`, "SQLite persistence + real auth") had
+diverged from origin. Resolution:
+
+- origin/main kept as canonical: its PostgreSQL-with-fallback repositories,
+  env-admin JWT auth, and audit logging cover the same problem space with a
+  different architecture, and its security audit supersedes the local fixes.
+- The local line was preserved on branch **`archive/local-sqlite-auth`**
+  (previously `backup/local-sqlite-auth`). Nothing was ported: the SQLite
+  layer conflicts with the chosen persistence architecture, and multi-user
+  scrypt registration would need a real product decision before integration.
+- Salvage candidates if multi-user auth is ever productised:
+  `robot trader/server/auth/authService.js` (scrypt verification),
+  `robot trader/server/db/` (node:sqlite migrations/repositories),
+  `robot trader/server/integration.test.js`.
+
+### CI/CD brought green (2026-08-24)
+
+1. Trivy action pin corrected to the valid `v0.36.0` tag (merged Dependabot
+   PR #215 after my initial `0.28.0` pin referenced a non-existent tag).
+2. Frontend image failed to build: shell-form `COPY --from` cannot quote
+   space-containing paths → JSON-array form.
+3. Root cause of every platform-specific module failure (macOS vite build,
+   alpine container build): the committed lockfile contained **zero**
+   cross-platform optional-binary entries (npm bug #4828). Regenerated;
+   all three images now build and serve `/api/status` in local Docker
+   smoke runs, with fail-closed auth verified in production mode.
+
+Status: CI ✓, CodeQL ✓, CD pending re-run after `4dd81fc`.
