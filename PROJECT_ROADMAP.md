@@ -23,6 +23,7 @@ Not implemented:
 
 1. Replace placeholder instrument mappings with a versioned instrument master.
 2. Add licensed feed adapters with source timestamps, sequence numbers, stale-data alarms, and quality checks.
+   - Foundation implemented (`robot trader/server/modules/paperTradingEngine/p2/data/LicensedFeedAdapter.js`): vendor-neutral ingestion with sequence-gap/duplicate/out-of-order detection, staleness budget against the SOURCE clock, bounded alarm history, per-reason rejection counters, and a quality report. Covered by 10 unit tests. A concrete vendor SDK mapping plugs into `ingest()`.
 3. Define versioned candle/order-book/feature schemas and preserve raw immutable events.
 4. Add PostgreSQL for users, portfolio state, model versions, orders, fills, and audit events.
 
@@ -41,9 +42,9 @@ Implemented (`robot trader/server/modules/paperTradingEngine/p2/`):
 7. **Persistence & analytics** — `TradeRepository` (PostgreSQL with in-memory fallback), `PerformanceAnalytics` (Sharpe, Sortino, drawdown, win rate, profit factor, accuracy), `ReportGenerator` (daily/weekly/monthly).
 8. **API + UI** — full P2 REST endpoints wired into the analysis service, plus a `FullPaperTradingDashboard` reachable from the "Paper Trading (P2)" nav tab.
 
-All P2 modules are covered by tests (`robot trader/server/tests/p2.test.js`, 30 tests). The order/OMS does **not** connect to a live broker — it is a simulation-only paper-trading boundary, which is the intended scope for this phase.
+All P2 modules are covered by tests (`robot trader/server/tests/p2.test.js`, plus `tests/p2.chaos.test.js` with 21 fault-injection/recovery scenarios: dependency loss, malformed input floods, liquidity exhaustion, state-machine misuse, capacity exhaustion, engine failure mid-trade).
 
-Remaining for full Phase-2 exit criterion (fault-injection/recovery chaos tests and a licensed broker sandbox) is intentionally deferred; see AUDIT_REPORT.md.
+Remaining for the full Phase-2 exit criterion is a licensed broker sandbox; see AUDIT_REPORT.md.
 
 ## Phase 3 — deterministic backtesting engine
 

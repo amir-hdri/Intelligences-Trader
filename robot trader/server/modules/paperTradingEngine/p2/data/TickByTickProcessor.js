@@ -7,10 +7,14 @@ export class TickByTickProcessor {
   }
 
   addTick(tick) {
+    // Fault tolerance: reject malformed ticks outright — a single NaN price or
+    // negative volume would poison every downstream VWAP computation.
+    if (!tick || !Number.isFinite(tick.price) || tick.price <= 0) return;
+    const volume = Number.isFinite(tick.volume) && tick.volume >= 0 ? tick.volume : 0;
     this.ticks.push({
-      ts: tick.timestamp || Date.now(),
+      ts: Number.isFinite(tick.timestamp) ? tick.timestamp : Date.now(),
       price: tick.price,
-      volume: tick.volume || 0,
+      volume,
       side: tick.side || 'unknown',
     });
     if (this.ticks.length > 10000) this.ticks.shift();
