@@ -11,6 +11,11 @@ WORKDIR "/app/robot trader"
 RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1.29-alpine
+# Patch OS packages (c-ares/curl/openssl CVEs land in alpine point releases).
+# Must run as root; afterwards drop back to the image's unprivileged nginx user.
+USER root
+RUN apk upgrade --no-cache
+USER 101
 ENV ML_BACKEND_HOST=backend-ml \
     ML_BACKEND_PORT=3000 \
     PROXY_BACKEND_HOST=backend-proxy \
