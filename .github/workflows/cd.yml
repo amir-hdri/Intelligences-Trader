@@ -19,27 +19,17 @@ jobs:
         service: [frontend, backend-ml, backend-proxy]
         include:
           - service: frontend
-            context: "robot trader"
             dockerfile: "robot trader/Dockerfile.frontend"
           - service: backend-ml
-            context: "robot trader/server"
             dockerfile: "robot trader/server/Dockerfile.backend-ml"
           - service: backend-proxy
-            context: "server"
             dockerfile: "server/Dockerfile.backend-proxy"
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22'
-
-    - name: Regenerate lock files
+    - name: Compute lowercase image repository
       run: |
-        cd "robot trader/server"
-        rm -f package-lock.json
-        npm install --no-audit --no-fund
+        echo "IMAGE_REPOSITORY=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -51,27 +41,30 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
+    # All Dockerfiles expect the repository root as build context so they can
+    # COPY the npm workspace manifests; builds run `npm ci` against the
+    # committed root package-lock.json for reproducible images.
     - name: Build and Push Image
       id: build-and-push
       uses: docker/build-push-action@v5
       with:
-        context: ${{ matrix.context }}
+        context: .
         file: ${{ matrix.dockerfile }}
         push: true
-        tags: ${{ env.REGISTRY }}/${{ github.repository | lower }}/${{ matrix.service }}:${{ github.sha }}
+        tags: ${{ env.IMAGE_REPOSITORY }}/${{ matrix.service }}:${{ github.sha }}
         cache-to: type=gha,mode=max
-    
+
     - name: Generate SBOM (Syft)
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ env.REGISTRY }}/${{ github.repository | lower }}/${{ matrix.service }}:${{ github.sha }}
+        image: ${{ env.IMAGE_REPOSITORY }}/${{ matrix.service }}:${{ github.sha }}
         format: spdx-json
         output-file: ${{ matrix.service }}-sbom.spdx.json
 
     - name: Vulnerability Scan (Trivy)
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@0.28.0
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ github.repository | lower }}/${{ matrix.service }}:${{ github.sha }}
+        image-ref: ${{ env.IMAGE_REPOSITORY }}/${{ matrix.service }}:${{ github.sha }}
         format: 'table'
         exit-code: '1' # Fail pipeline on CRITICAL
         severity: 'CRITICAL,HIGH'
@@ -80,4 +73,4 @@ jobs:
       uses: sigstore/cosign-installer@v3
 
     - name: Sign Image
-      run: cosign sign --yes ${{ env.REGISTRY }}/${{ github.repository | lower }}/${{ matrix.service }}@${{ steps.build-and-push.outputs.digest }}
+      run: cosign sign --yes ${{ env.IMAGE_REPOSITORY }}/${{ matrix.service }}@${{ steps.build-and-push.outputs.digest }}

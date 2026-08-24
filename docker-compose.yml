@@ -41,6 +41,8 @@ services:
       BACKTEST_MAX_QUEUED: ${BACKTEST_MAX_QUEUED:-100}
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
       ENABLE_EXPERIMENTAL_SIMULATIONS: ${ENABLE_EXPERIMENTAL_SIMULATIONS:-false}
+      MODEL_VERSION: ${MODEL_VERSION:-1.0.0}
+      MODEL_PATH: ${MODEL_PATH:-}
     volumes:
       - "./robot trader/server/models:/app/robot trader/server/models:ro"
     depends_on:

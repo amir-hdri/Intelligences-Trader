@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { IME_SYMBOLS, DEFAULT_API_CONFIG, INITIAL_METRICS, DEFAULT_RISK_LIMITS } from './constants';
 import type { SystemMetrics, TradeLogEntry, RiskLimits, RiskStatus, TimeFrame } from './types';
-import { DEFAULT_WEIGHTS, calculateStrategyMetrics } from './dataUtils';
+import { DEFAULT_WEIGHTS } from './dataUtils';
 import { RiskEngine } from './riskEngine';
 import { useMarketData } from './hooks/useMarketData';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -68,7 +68,6 @@ export default function App() {
     version: 'loading...',
     modelReady: false,
   });
-  const [performanceApi, setPerformanceApi] = useState<{ sharpe: number; sortino: number; cagr: number } | null>(null);
   const [backendPositions, setBackendPositions] = useState<BackendPosition[]>([]);
   const [backendOrders, setBackendOrders] = useState<BackendOrder[]>([]);
   const [apiTestState, setApiTestState] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
@@ -195,58 +194,43 @@ export default function App() {
 
   // Fetch real model status from backend - no hard-coded values
   useEffect(() => {
+    let cancelled = false;
     const fetchModelStatus = async () => {
       try {
         const data = await backendApi.getModelStatus();
+        if (cancelled) return;
         setModelStatus({
           inferenceLatency: data.inferenceLatency || 0,
           version: data.version || data.modelVersion || 'unknown',
           modelReady: Boolean(data.modelReady),
         });
       } catch {
-        setModelStatus({ inferenceLatency: 0, version: 'unavailable', modelReady: false });
+        if (!cancelled) setModelStatus({ inferenceLatency: 0, version: 'unavailable', modelReady: false });
       }
     };
     void fetchModelStatus();
+    return () => { cancelled = true; };
   }, [backendApi]);
-
-  // Fetch performance metrics from backend or calculate from ledger
-  useEffect(() => {
-    const fetchPerformance = async () => {
-      try {
-        const perf = await backendApi.getPerformance(selectedSymbolId);
-        setPerformanceApi({ sharpe: perf.sharpe, sortino: perf.sortino, cagr: perf.cagr });
-      } catch {
-        // fallback to local calculation
-        const trades = tradeLogs.map((t) => ({ profit: t.pnl ?? 0 }));
-        if (trades.length > 0) {
-          const { winRate, profitFactor } = calculateStrategyMetrics(trades);
-          const finiteProfitFactor = profitFactor ?? 0;
-          const sharpe = (finiteProfitFactor * winRate) / Math.max(0.1, 1 - winRate);
-          setPerformanceApi({ sharpe, sortino: sharpe * 1.26, cagr: winRate * finiteProfitFactor * 12 });
-        }
-      }
-    };
-    void fetchPerformance();
-  }, [selectedSymbolId, tradeLogs, backendApi]);
 
   // Fetch real positions/orders from backend when tab changes
   useEffect(() => {
     if (!['positions', 'orders'].includes(activeTab)) return;
+    let cancelled = false;
     const fetchLedger = async () => {
       try {
         if (activeTab === 'positions') {
           const pos = await backendApi.getPositions(selectedSymbolId);
-          setBackendPositions(pos);
+          if (!cancelled) setBackendPositions(pos);
         } else if (activeTab === 'orders') {
           const ord = await backendApi.getOrders(selectedSymbolId);
-          setBackendOrders(ord);
+          if (!cancelled) setBackendOrders(ord);
         }
       } catch (e) {
         console.warn('Failed to fetch ledger', e);
       }
     };
     void fetchLedger();
+    return () => { cancelled = true; };
   }, [activeTab, selectedSymbolId, backendApi]);
 
   const loginToApi = useCallback(async () => {
@@ -711,7 +695,7 @@ export default function App() {
                       <div className="elevated rounded-xl p-3">
                         <div className="text-[#64748B] text-[9px] uppercase">Kelly Criterion Sizing</div>
                         <div className="font-black text-violet-300 text-sm mt-0.5">
-                          {forecast ? `${(riskEngine.calculateKellySize(forecast.entryPrice, forecast.indicators.atr, forecast.backendRisk?.suggestedRiskCapital) * 100).toFixed(1)}%` : '—'}
+                          {forecast ? `${riskEngine.calculateKellySize(forecast.entryPrice, forecast.indicators.atr, forecast.backendRisk?.suggestedRiskCapital).toLocaleString()} units` : '—'}
                         </div>
                       </div>
                       <div className="elevated rounded-xl p-3">

@@ -273,6 +273,7 @@ def simulate_orders(
     slippage: float = 0.001,
     commission: float = 0.001,
     liquidate_at_end: bool = False,
+    periods_per_year: int = 252,
 ) -> Dict[str, Any]:
     """Simulate event signals with next-bar execution and deterministic liquidation.
 
@@ -483,11 +484,30 @@ def simulate_orders(
         "equity_curve": equity_curve,
         "final_cash": float(cash),
         "final_position": float(position),
-        "metrics": _compute_metrics(trades, equity_curve),
+        "metrics": _compute_metrics(trades, equity_curve, periods_per_year),
     }
 
 
-def _compute_metrics(trades: List[Dict[str, Any]], equity_curve: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _infer_periods_per_year(timeframe: str) -> int:
+    """Map a timeframe code to the number of bars in a 252-trading-day year."""
+    mapping = {
+        "1m": 252 * 24 * 60,
+        "5m": 252 * 24 * 12,
+        "15m": 252 * 24 * 4,
+        "30m": 252 * 24 * 2,
+        "1h": 252 * 24,
+        "2h": 252 * 12,
+        "4h": 252 * 6,
+        "1d": 252,
+    }
+    return mapping.get(str(timeframe).strip().lower(), 252)
+
+
+def _compute_metrics(
+    trades: List[Dict[str, Any]],
+    equity_curve: List[Dict[str, Any]],
+    periods_per_year: int = 252,
+) -> Dict[str, Any]:
     """محاسبه معیارهای عملکرد بر اساس معاملات و منحنی سهام."""
     if not equity_curve:
         return {
@@ -510,8 +530,9 @@ def _compute_metrics(trades: List[Dict[str, Any]], equity_curve: List[Dict[str, 
     returns = equity_df["return"].dropna()
     sharpe = None
     if len(returns) > 1 and returns.std() > 1e-12:
-        # سالانه با فرض 252 دوره در سال (قابل تنظیم)
-        sharpe = float((returns.mean() / returns.std()) * np.sqrt(252))
+        # سالانه با تعداد دوره‌های واقعی هر سال (periods_per_year، پیش‌فرض 252)
+        periods = max(1, int(periods_per_year))
+        sharpe = float((returns.mean() / returns.std()) * np.sqrt(periods))
     # حداکثر افت سرمایه (Max Drawdown)
     peak = equity_df["equity"].cummax()
     drawdown = (equity_df["equity"] - peak) / peak

@@ -110,8 +110,27 @@ docker compose up --build
 
 The terminal's API Configuration screen can obtain a short-lived access token
 from `/api/auth/login`; both access and refresh tokens stay in session storage and are not persisted to local storage. Never commit
-credentials. Experimental ensemble/federated/HPO simulations return HTTP 501
+credentials. To generate strong values for every secret in one step:
+
+```bash
+bash scripts/generate-secrets.sh --write   # merges into the gitignored .env
+```
+
+Experimental ensemble/federated/HPO simulations return HTTP 501
 unless `ENABLE_EXPERIMENTAL_SIMULATIONS=true` is explicitly set.
+
+## Troubleshooting
+
+**macOS: `Cannot find module '@rollup/rollup-darwin-arm64'` / `@esbuild/darwin-arm64` /
+`lightningcss-darwin-arm64` / `@tailwindcss/oxide-darwin-arm64` during `vite build`.**
+npm bug [#4828](https://github.com/npm/cli/issues/4828): lockfiles resolved on
+one platform omit other platforms' optional binaries. One-off local fix:
+
+```bash
+npm install --no-save \
+  @rollup/rollup-darwin-arm64 @esbuild/darwin-arm64 \
+  lightningcss-darwin-arm64 @tailwindcss/oxide-darwin-arm64
+```
 
 ## Validation and safety improvements
 
@@ -127,7 +146,8 @@ unless `ENABLE_EXPERIMENTAL_SIMULATIONS=true` is explicitly set.
 - Real browser E2E specifications no longer swallow failures or use placeholder assertions.
 
 See [`FULL_STACK_AUDIT_REPORT.md`](./FULL_STACK_AUDIT_REPORT.md) for the current
-principal-engineering audit and [`AUDIT_REPORT.md`](./AUDIT_REPORT.md) for the detailed audit, fixes, and remaining limitations.
+principal-engineering audit, [`AUDIT_REPORT.md`](./AUDIT_REPORT.md) for the detailed audit, fixes, and remaining limitations,
+and [`GAP_ANALYSIS_2026-08-24.md`](./GAP_ANALYSIS_2026-08-24.md) for the latest full-stack gap review and remediation log.
 
 ## API highlights
 

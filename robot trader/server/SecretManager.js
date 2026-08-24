@@ -42,6 +42,13 @@ export class SecretManager {
   }
 }
 
-// Retained for compatibility with existing callers. Import this module only in
-// a process where the key has already been provisioned.
-export const secretManager = new SecretManager();
+let _secretManager = null;
+/**
+ * Lazily constructed singleton. Importing this module no longer throws at
+ * import time when MASTER_ENCRYPTION_KEY is absent — the error surfaces on
+ * first actual use, where it can be handled.
+ */
+export function getSecretManager() {
+  if (!_secretManager) _secretManager = new SecretManager();
+  return _secretManager;
+}

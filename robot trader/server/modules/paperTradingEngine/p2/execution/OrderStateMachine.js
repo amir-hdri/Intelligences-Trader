@@ -23,6 +23,10 @@ const VALID_TRANSITIONS = {
 };
 
 export class OrderStateMachine {
+  // Terminal orders (FILLED/CANCELLED/REJECTED) older than this many newer
+  // entries are pruned so the map cannot grow without bound.
+  static MAX_ORDERS = 5000;
+
   constructor() {
     this.orders = new Map();
     this._seq = 0;
@@ -56,7 +60,22 @@ export class OrderStateMachine {
       updatedAt: Date.now(),
     };
     this.orders.set(id, fullOrder);
+    this._pruneTerminal();
     return fullOrder;
+  }
+
+  /**
+   * Evict oldest terminal orders once the map exceeds MAX_ORDERS. Open orders
+   * are never evicted — only FILLED/CANCELLED/REJECTED ones are removable.
+   */
+  _pruneTerminal() {
+    if (this.orders.size <= OrderStateMachine.MAX_ORDERS) return;
+    for (const [id, order] of this.orders) {
+      if (this.orders.size <= OrderStateMachine.MAX_ORDERS) break;
+      if ([ORDER_STATES.FILLED, ORDER_STATES.CANCELLED, ORDER_STATES.REJECTED].includes(order.status)) {
+        this.orders.delete(id);
+      }
+    }
   }
 
   /**

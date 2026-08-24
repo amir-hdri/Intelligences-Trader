@@ -3,13 +3,14 @@ import assert from 'node:assert';
 describe('SecretManager', () => {
   const originalEnv = process.env.MASTER_ENCRYPTION_KEY;
   const testKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-  let SecretManager, secretManager;
+  let SecretManager, getSecretManager, secretManager;
 
   before(async () => {
     process.env.MASTER_ENCRYPTION_KEY = testKey;
     const module = await import('./SecretManager.js');
     SecretManager = module.SecretManager;
-    secretManager = module.secretManager;
+    getSecretManager = module.getSecretManager;
+    secretManager = getSecretManager();
   });
   after(() => {
     process.env.MASTER_ENCRYPTION_KEY = originalEnv;
@@ -75,7 +76,7 @@ describe('SecretManager', () => {
     process.env.MASTER_ENCRYPTION_KEY = tempKey;
   });
 
-  test('exported singleton instance works', () => {
+  test('exported lazy singleton instance works', () => {
     const plainText = 'Testing singleton';
     const { iv, encryptedData, authTag } = secretManager.encrypt(plainText);
 

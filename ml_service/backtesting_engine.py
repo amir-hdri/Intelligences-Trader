@@ -11,10 +11,10 @@ import pandas as pd
 
 try:
     from performance_metrics import PerformanceMetrics
-    from strategy_engine import StrategyEngine
+    from strategy_engine import StrategyEngine, _infer_periods_per_year
 except ImportError:  # pragma: no cover - package import path
     from ml_service.performance_metrics import PerformanceMetrics
-    from ml_service.strategy_engine import StrategyEngine
+    from ml_service.strategy_engine import StrategyEngine, _infer_periods_per_year
 
 _PathLike = Union[str, Path]
 
@@ -145,6 +145,9 @@ class BacktestingEngine:
         self.strategy_engine.data = prepared
         execution_parameters = dict(parameters)
         execution_parameters["liquidate_at_end"] = True
+        # Annualize Sharpe with the real bar frequency unless the caller
+        # overrides it; assuming 252 periods overstates intraday results.
+        execution_parameters.setdefault("periods_per_year", _infer_periods_per_year(timeframe))
         execution = self.strategy_engine.execute_strategy(strategy, **execution_parameters)
         trades = execution.get("trades")
         if not isinstance(trades, list):

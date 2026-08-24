@@ -108,10 +108,10 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
             <Percent className="w-3.5 h-3.5 text-indigo-400" /> Daily Drawdown
           </div>
           <div className="text-3xl font-black text-white font-mono">
-            {(riskStatus.currentDailyDrawdown * 100).toFixed(2)}%
+            {riskStatus.currentDailyDrawdown.toFixed(2)}%
           </div>
           <div className="text-[10px] text-slate-400 mt-2 uppercase font-bold">
-            Limit: {(riskLimits.maxDailyDrawdown * 100).toFixed(1)}%
+            Limit: {riskLimits.maxDailyDrawdown.toFixed(1)}%
           </div>
         </div>
 
@@ -120,10 +120,10 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
             <Flame className="w-3.5 h-3.5 text-rose-400" /> Total Drawdown
           </div>
           <div className="text-3xl font-black text-white font-mono">
-            {(riskStatus.currentTotalDrawdown * 100).toFixed(2)}%
+            {riskStatus.currentTotalDrawdown.toFixed(2)}%
           </div>
           <div className="text-[10px] text-slate-400 mt-2 uppercase font-bold">
-            Limit: {(riskLimits.maxTotalDrawdown * 100).toFixed(1)}%
+            Limit: {riskLimits.maxTotalDrawdown.toFixed(1)}%
           </div>
         </div>
 
@@ -158,8 +158,8 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
                 step="0.1"
                 min="0.1"
                 max="100"
-                value={formData.maxDailyDrawdown * 100}
-                onChange={(e) => setFormData({ ...formData, maxDailyDrawdown: parseFloat(e.target.value) / 100 })}
+                value={formData.maxDailyDrawdown}
+                onChange={(e) => setFormData({ ...formData, maxDailyDrawdown: parseFloat(e.target.value) })}
                 className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-indigo-500 outline-none min-h-[44px]"
                 required
               />
@@ -174,8 +174,8 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
                 step="0.1"
                 min="0.1"
                 max="100"
-                value={formData.maxTotalDrawdown * 100}
-                onChange={(e) => setFormData({ ...formData, maxTotalDrawdown: parseFloat(e.target.value) / 100 })}
+                value={formData.maxTotalDrawdown}
+                onChange={(e) => setFormData({ ...formData, maxTotalDrawdown: parseFloat(e.target.value) })}
                 className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-indigo-500 outline-none min-h-[44px]"
                 required
               />
