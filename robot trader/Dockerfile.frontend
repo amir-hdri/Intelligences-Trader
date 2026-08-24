@@ -16,7 +16,8 @@ ENV ML_BACKEND_HOST=backend-ml \
     PROXY_BACKEND_HOST=backend-proxy \
     PROXY_BACKEND_PORT=3001
 COPY ["robot trader/nginx.conf.template", "/etc/nginx/templates/default.conf.template"]
-COPY --from=builder "/app/robot trader/dist" /usr/share/nginx/html
+# JSON-array form: shell-form COPY cannot quote paths containing spaces.
+COPY --from=builder ["/app/robot trader/dist", "/usr/share/nginx/html"]
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD wget -qO- http://127.0.0.1:8080/ >/dev/null || exit 1
 CMD ["nginx", "-g", "daemon off;"]
