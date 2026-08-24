@@ -15,6 +15,9 @@ jobs:
       packages: write
       id-token: write # Required for Cosign keyless signing
     strategy:
+      # Show every service's result instead of cancelling siblings on the
+      # first failure.
+      fail-fast: false
       matrix:
         service: [frontend, backend-ml, backend-proxy]
         include:
