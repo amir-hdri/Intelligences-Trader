@@ -33,3 +33,19 @@ robot trader/playwright-report/
 
 # TypeScript incremental metadata
 *.tsbuildinfo
+
+# Graphify knowledge-graph outputs (regenerable via /graphify)
+graphify-out/
+
+# Personal agent-workspace files (not part of the project)
+AGENTS.md
+SOUL.md
+USER.md
+TOOLS.md
+IDENTITY.md
+HEARTBEAT.md
+MEMORY.md
+.agents/
+.autoclaw/
+.cluster/
+.openclaw/

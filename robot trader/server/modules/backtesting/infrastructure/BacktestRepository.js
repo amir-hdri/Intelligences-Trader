@@ -7,6 +7,11 @@ import { cloneJson } from '../domain/canonical.js';
  * use the same contract backed by process memory.
  */
 export class BacktestRepository {
+  // Caps for the in-memory fallback so long-lived processes cannot grow
+  // without bound (datasets may hold up to 100k candles each).
+  static MAX_MEMORY_DATASETS = 50;
+  static MAX_MEMORY_RUNS = 200;
+
   constructor({ connectionString = process.env.DATABASE_URL, disabled = process.env.DATABASE_DISABLED === 'true' } = {}) {
     this.datasets = new Map();
     this.runs = new Map();
@@ -20,6 +25,11 @@ export class BacktestRepository {
     let pool;
     try {
       pool = new pg.Pool({ connectionString, connectionTimeoutMillis: 1500, max: 5 });
+      // An idle-client backend failure emits 'error' on the Pool itself;
+      // without a listener it crashes the whole process.
+      pool.on('error', (err) => {
+        console.error('[BacktestRepository] PostgreSQL pool error:', err?.message || err);
+      });
       await pool.query(`
         CREATE TABLE IF NOT EXISTS backtest_datasets (
           id TEXT PRIMARY KEY,
@@ -78,8 +88,18 @@ export class BacktestRepository {
     if (existing && existing.contentHash !== copy.contentHash) {
       throw new Error(`Dataset snapshot ${copy.id} is immutable and already has different content`);
     }
-    if (!existing) this.datasets.set(copy.id, copy);
+    if (!existing) {
+      this._insertCapped(this.datasets, copy, BacktestRepository.MAX_MEMORY_DATASETS);
+    }
     return cloneJson(existing || copy);
+  }
+
+  _insertCapped(map, value, cap) {
+    map.set(value.id, value);
+    if (map.size > cap) {
+      const oldest = map.keys().next().value;
+      map.delete(oldest);
+    }
   }
 
   async getDataset(id) {
@@ -108,7 +128,7 @@ export class BacktestRepository {
     } else {
       const existing = this.runs.get(copy.id);
       if (existing?.cancellationRequested) copy.cancellationRequested = true;
-      this.runs.set(copy.id, copy);
+      this._insertCapped(this.runs, copy, BacktestRepository.MAX_MEMORY_RUNS);
     }
     return cloneJson(copy);
   }

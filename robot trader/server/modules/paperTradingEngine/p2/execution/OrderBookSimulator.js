@@ -7,6 +7,10 @@ import { hashString } from '../../../../utils/deterministic.js';
  * cancellation, and top-of-book depth queries. Order ids are deterministic.
  */
 export class OrderBookSimulator {
+  // Caps so long-lived processes cannot grow without bound.
+  static MAX_TRADES = 1000;
+  static MAX_RESTING = 5000;
+
   constructor() {
     this.bids = []; // {price, qty, id}
     this.asks = []; // {price, qty, id}
@@ -80,6 +84,9 @@ export class OrderBookSimulator {
     if (filled > 0) {
       const trade = { side, qty: filled, price: avgPrice, ts: Date.now() };
       this.trades.push(trade);
+      if (this.trades.length > OrderBookSimulator.MAX_TRADES) {
+        this.trades.shift();
+      }
       return { filled, avgPrice, remaining, trade };
     }
     return { filled: 0, avgPrice: 0, remaining: qty };
@@ -92,6 +99,13 @@ export class OrderBookSimulator {
   placeLimitOrder(side, price, qty) {
     const id = this._id('limit');
     const order = { id, side, price, qty, status: 'OPEN' };
+    // Drop oldest terminal resting orders first to stay within the cap.
+    if (this.resting.size >= OrderBookSimulator.MAX_RESTING) {
+      for (const [restId, rest] of this.resting) {
+        if (this.resting.size < OrderBookSimulator.MAX_RESTING) break;
+        if (rest.status !== 'OPEN') this.resting.delete(restId);
+      }
+    }
     this.resting.set(id, order);
     if (side === 'BUY') {
       this.bids.push({ id, price, qty });

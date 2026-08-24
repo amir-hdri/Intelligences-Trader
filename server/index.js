@@ -21,7 +21,11 @@ const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
   .map(origin => origin.trim())
   .filter(Boolean);
 const requestMetrics = { total: 0, errors: 0, durationMs: 0 };
+// TTL cache for upstream market responses. Symbols are client-chosen, so the
+// map is capped (FIFO) to prevent unbounded memory growth; entries expire
+// after CACHE_TTL_MS.
 const marketCache = new Map();
+const MARKET_CACHE_MAX_ENTRIES = 128;
 const CACHE_TTL_MS = 15_000;
 const TSETMC_URL = 'https://cdn.tsetmc.com/api/Instrument/GetInstrumentHistory/';
 const SYMBOL_PATTERN = /^[A-Z0-9-]{1,64}$/;
@@ -88,6 +92,10 @@ const fetchRealMarketData = async symbol => {
       validateStatus: status => status === 200,
     });
     marketCache.set(symbol, { cachedAt: Date.now(), data: response.data });
+    if (marketCache.size > MARKET_CACHE_MAX_ENTRIES) {
+      const oldest = marketCache.keys().next().value;
+      marketCache.delete(oldest);
+    }
     return response.data;
   } catch (error) {
     logger.warn('Real market fetch failed; using explicitly-labelled simulation', {
@@ -210,6 +218,14 @@ export const startServer = (port = configuredPort) => {
   wss = new WebSocketServer({ server, maxPayload: 16 * 1024 });
 
   wss.on('connection', (ws, req) => {
+    // Cross-site WebSocket hijacking guard: browsers always send Origin on
+    // cross-origin upgrades. Reject origins outside the CORS allowlist
+    // (non-browser clients without Origin are still allowed).
+    const origin = req.headers.origin;
+    if (origin && !allowedOrigins.includes('*') && !allowedOrigins.includes(origin)) {
+      ws.close(1008, 'Origin not allowed');
+      return;
+    }
     let requestUrl;
     try {
       requestUrl = new URL(req.url || '/', `ws://${req.headers.host || 'localhost'}`);

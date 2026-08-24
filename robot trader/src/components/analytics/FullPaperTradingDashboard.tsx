@@ -212,13 +212,18 @@ const FullPaperTradingDashboard: React.FC<FullPaperTradingDashboardProps> = ({ a
     return () => clearInterval(interval);
   }, [refresh, fetchMetrics]);
 
+  // Guard every backend field: one null/NaN from the metrics endpoint must not
+  // white-screen the whole app (no error boundary upstream).
+  const formatMetric = (value: number | null | undefined, transform: (v: number) => string): string =>
+    Number.isFinite(value as number) ? transform(value as number) : 'N/A';
+
   const kpis = metrics
     ? [
-        ['Sharpe Ratio', metrics.sharpe.toFixed(2)],
-        ['Max Drawdown', (metrics.maxDrawdown * 100).toFixed(1) + '%'],
-        ['Win Rate', (metrics.winRate * 100).toFixed(1) + '%'],
-        ['Profit Factor', (metrics.profitFactor ?? 0).toFixed(2)],
-        ['Total PnL', metrics.totalPnl.toFixed(2)],
+        ['Sharpe Ratio', formatMetric(metrics.sharpe, v => v.toFixed(2))],
+        ['Max Drawdown', formatMetric(metrics.maxDrawdown, v => (v * 100).toFixed(1) + '%')],
+        ['Win Rate', formatMetric(metrics.winRate, v => (v * 100).toFixed(1) + '%')],
+        ['Profit Factor', formatMetric(metrics.profitFactor ?? null, v => v.toFixed(2))],
+        ['Total PnL', formatMetric(metrics.totalPnl, v => v.toFixed(2))],
       ]
     : [];
 

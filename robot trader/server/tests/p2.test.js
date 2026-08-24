@@ -336,7 +336,7 @@ describe('P2 API integration', () => {
 
   test('order state machine endpoints create, fill, and cancel orders', async () => {
     const create = await request(app).post('/api/paper-trading/p2/orders').send({
-      symbol: 'BTC/USDT', action: 'BUY', qty: 5,
+      symbol: 'BTC-USDT', action: 'BUY', qty: 5,
     });
     assert.strictEqual(create.status, 200);
     const id = create.body.data.id;
@@ -344,6 +344,21 @@ describe('P2 API integration', () => {
     assert.strictEqual(fill.body.data.status, 'FILLED');
     const list = await request(app).get('/api/paper-trading/p2/orders');
     assert.ok(list.body.data.some(o => o.id === id));
+  });
+
+  test('order endpoints reject malformed symbols and non-positive prices', async () => {
+    const badSymbol = await request(app).post('/api/paper-trading/p2/orders').send({
+      symbol: '../etc/passwd', action: 'BUY', qty: 5,
+    });
+    assert.strictEqual(badSymbol.status, 400);
+    const badLimit = await request(app).post('/api/paper-trading/p2/orderbook/order').send({
+      side: 'BUY', qty: 1, type: 'LIMIT', price: -3,
+    });
+    assert.strictEqual(badLimit.status, 400);
+    const badFill = await request(app).post('/api/paper-trading/p2/orders/fill').send({
+      id: 'whatever', filledQty: 1, fillPrice: 0,
+    });
+    assert.strictEqual(badFill.status, 400);
   });
 
   test('trade repository endpoints persist a trade', async () => {

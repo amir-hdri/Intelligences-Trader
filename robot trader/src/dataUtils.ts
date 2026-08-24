@@ -497,7 +497,7 @@ export const detectArbitrageOpportunity = (symbolId: string, lastCandle: MarketC
   const basisPct = lastCandle.basis / lastCandle.close;
   const monthlyInterest = 0.025;
   if (basisPct > monthlyInterest * 2) {
-    return { type: "CASH_AND_CARRY", profitPercentage: (basisPct - monthlyInterest) * 100, details: "Risk-free arbitrage: Buy Spot, Sell Future. Basis exceeds cost of carry." };
+    return { type: "CASH_AND_CARRY", profitPercentage: (basisPct - monthlyInterest) * 100, details: "Cash-and-carry signal: Buy Spot, Sell Future. Basis exceeds cost of carry (simulated data)." };
   }
   if (basisPct < -0.01) {
     return { type: "BASIS", profitPercentage: Math.abs(basisPct) * 100, details: "Backwardation: Spot > Future. Bullish signal or shortage." };
@@ -646,13 +646,16 @@ export const analyzeMarketMTF = (
     politicalRiskIndex = externalMetrics?.sentiment?.politicalRiskIndex || 50;
   }
 
-  const tfMs: Record<TimeFrame, number> = { "1m": 60 * 1000, "15m": 15 * 60 * 1000, "1h": 60 * 60 * 1000, "1d": 24 * 60 * 60 * 1000 };
   const logReturns = [];
   for (let i = 1; i < hPrices.length; i++) {
     if (hPrices[i - 1] > 0) logReturns.push(Math.log(hPrices[i] / hPrices[i - 1]));
   }
   const variance = logReturns.length > 0 ? logReturns.reduce((s, r) => s + r * r, 0) / logReturns.length : 0;
-  const localVix = Math.sqrt(variance * 252 * (tfMs["1h"] / tfMs["1d"])) * 100;
+  // Annualize per-bar variance with the actual hourly bar count per year
+  // (252 trading days x 24 hourly bars). The previous 252 * (1h/1d) scaling
+  // understated volatility by ~24x and made the VIX threshold unreachable.
+  const BARS_PER_YEAR_HOURLY = 252 * 24;
+  const localVix = Math.sqrt(variance * BARS_PER_YEAR_HOURLY) * 100;
 
   const queueDynamicsRatio = externalMetrics?.orderBook?.queueDynamics?.buyRatio ?? 0.5;
 

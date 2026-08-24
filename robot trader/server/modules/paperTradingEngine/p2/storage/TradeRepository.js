@@ -8,6 +8,10 @@ import pg from 'pg';
  * functional without infrastructure (tests, local dev).
  */
 export class TradeRepository {
+  // Cap for the in-memory fallback so long-lived processes cannot grow
+  // without bound.
+  static MAX_MEMORY_TRADES = 5000;
+
   constructor() {
     this.dbEnabled = false;
     this.pool = null;
@@ -17,11 +21,18 @@ export class TradeRepository {
   }
 
   async _init() {
-    const connectionString = process.env.DATABASE_URL || 'postgres://user:pass@localhost:5432/paper_trading';
-    if (process.env.DATABASE_DISABLED === 'true') return;
+    // No credential-bearing default: without an explicit DATABASE_URL the
+    // repository stays in memory mode instead of dialing a fake localhost DSN.
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString || process.env.DATABASE_DISABLED === 'true') return;
 
     try {
       this.pool = new pg.Pool({ connectionString, connectionTimeoutMillis: 1000 });
+      // An idle-client backend failure emits 'error' on the Pool itself;
+      // without a listener it crashes the whole process.
+      this.pool.on('error', (err) => {
+        console.error('[TradeRepository] PostgreSQL pool error:', err?.message || err);
+      });
       await this.pool.query(`
         CREATE TABLE IF NOT EXISTS paper_trades (
           id TEXT PRIMARY KEY,
@@ -74,6 +85,9 @@ export class TradeRepository {
         isWin: trade.isWin,
         reason: trade.reason,
       });
+      if (this.memory.length > TradeRepository.MAX_MEMORY_TRADES) {
+        this.memory.shift();
+      }
     }
   }
 

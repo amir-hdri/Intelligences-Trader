@@ -18,7 +18,7 @@ jobs:
         node-version: '22'
 
     - name: Install Dependencies
-      run: npm install --no-audit --no-fund
+      run: npm ci --no-audit --no-fund
 
     - name: Run Tests
       run: npm test --workspaces --if-present

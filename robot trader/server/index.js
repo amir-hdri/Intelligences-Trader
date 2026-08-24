@@ -1,7 +1,3 @@
-import util from 'node:util';
-if (!util.isNullOrUndefined) {
-  util.isNullOrUndefined = (val) => val === null || val === undefined;
-}
 import { buildTCN, fractionalDiff, purgedKFold, calculateMaxDrawdown, calculateSharpeRatio, calculateCalibrationError } from './tcnModel.js';
 import * as tf from '@tensorflow/tfjs';
 
@@ -645,92 +641,99 @@ app.post('/api/train', async (req, res) => {
         xTrainFlat[offset + j] = fracDiffClose[idx + j];
       }
     }
-    const xTrain = tf.tensor3d(xTrainFlat, [numTrain, windowSize, 1]);
+    let xTrain, yTrainLabels, yTrain, xVal, preds, model;
+    try {
+      xTrain = tf.tensor3d(xTrainFlat, [numTrain, windowSize, 1]);
 
-    const xValFlat = new Float32Array(numVal * windowSize);
-    for (let i = 0; i < numVal; i++) {
-      const idx = valIndices[i];
-      const offset = i * windowSize;
-      for (let j = 0; j < windowSize; j++) {
-        xValFlat[offset + j] = fracDiffClose[idx + j];
-      }
-    }
-    const xVal = tf.tensor3d(xValFlat, [numVal, windowSize, 1]);
-
-    const yTrainLabels = tf.tensor1d(trainIndices.map(idx => Y[idx]), 'int32');
-    const yTrain = tf.oneHot(yTrainLabels, numClasses);
-    const yVal = valIndices.map(idx => Y[idx]);
-
-    // Build and train TCN
-    const model = buildTCN([windowSize, 1], numClasses);
-
-    await model.fit(xTrain, yTrain, {
-      epochs: 5, // Small number for quick execution
-      batchSize: 32,
-      verbose: 0
-    });
-
-    // Predict on validation set
-    const preds = model.predict(xVal);
-    const predProbs = await preds.array();
-
-    let correct = 0;
-    for (let i = 0; i < predProbs.length; i++) {
-      const probs = predProbs[i];
-      let maxProb = probs[0];
-      let predClass = 0;
-      for (let j = 1; j < probs.length; j++) {
-        if (probs[j] > maxProb) {
-          maxProb = probs[j];
-          predClass = j;
+      const xValFlat = new Float32Array(numVal * windowSize);
+      for (let i = 0; i < numVal; i++) {
+        const idx = valIndices[i];
+        const offset = i * windowSize;
+        for (let j = 0; j < windowSize; j++) {
+          xValFlat[offset + j] = fracDiffClose[idx + j];
         }
       }
-      const trueClass = yVal[i];
+      xVal = tf.tensor3d(xValFlat, [numVal, windowSize, 1]);
 
-      allYTrue.push(trueClass);
-      allYPredProbs.push(predProbs[i]);
+      yTrainLabels = tf.tensor1d(trainIndices.map(idx => Y[idx]), 'int32');
+      yTrain = tf.oneHot(yTrainLabels, numClasses);
+      const yVal = valIndices.map(idx => Y[idx]);
 
-      if (predClass === trueClass) correct++;
+      // Build and train TCN
+      model = buildTCN([windowSize, 1], numClasses);
 
-      // Simulate trading for metrics
-      // Simply: if UP, buy; if DOWN, sell short.
-      const return_pct = (closePrices[fold.valIndices[i] + 1] - closePrices[fold.valIndices[i]]) / closePrices[fold.valIndices[i]];
-      let tradeReturn = 0;
-      if (predClass === 2) tradeReturn = return_pct;
-      else if (predClass === 0) tradeReturn = -return_pct;
+      await model.fit(xTrain, yTrain, {
+        epochs: 5, // Small number for quick execution
+        batchSize: 32,
+        verbose: 0
+      });
 
-      returns.push(tradeReturn);
-      equityCurve.push(equityCurve[equityCurve.length - 1] * (1 + tradeReturn));
-    }
+      // Predict on validation set
+      preds = model.predict(xVal);
+      const predProbs = await preds.array();
 
-    const outOfSampleAccuracy = predProbs.length > 0 ? correct / predProbs.length : 0;
-    const sharpeRatio = calculateSharpeRatio(returns);
-    const maxDrawdown = calculateMaxDrawdown(equityCurve);
-    const calibrationError = calculateCalibrationError(allYTrue, allYPredProbs);
-    modelRegistryInstance.recordEvaluation({
-      accuracy: outOfSampleAccuracy,
-      precision: null,
-      recall: null,
-      f1Score: null,
-      driftScore: calibrationError,
-      timestamp: Date.now(),
-    });
+      let correct = 0;
+      for (let i = 0; i < predProbs.length; i++) {
+        const probs = predProbs[i];
+        let maxProb = probs[0];
+        let predClass = 0;
+        for (let j = 1; j < probs.length; j++) {
+          if (probs[j] > maxProb) {
+            maxProb = probs[j];
+            predClass = j;
+          }
+        }
+        const trueClass = yVal[i];
 
-    tf.dispose([xTrain, yTrainLabels, yTrain, xVal, preds]);
-    model.dispose();
+        allYTrue.push(trueClass);
+        allYPredProbs.push(predProbs[i]);
 
-    res.json({
-      success: true,
-      message: 'Model trained and evaluated on the purged holdout fold.',
-      performance: {
-        winRate: outOfSampleAccuracy,
-        accuracy: outOfSampleAccuracy,
-        sharpeRatio,
-        maxDrawdown,
-        calibrationError,
-        validationSamples: predProbs.length,
+        if (predClass === trueClass) correct++;
+
+        // Simulate trading for metrics
+        // Simply: if UP, buy; if DOWN, sell short.
+        const return_pct = (closePrices[fold.valIndices[i] + 1] - closePrices[fold.valIndices[i]]) / closePrices[fold.valIndices[i]];
+        let tradeReturn = 0;
+        if (predClass === 2) tradeReturn = return_pct;
+        else if (predClass === 0) tradeReturn = -return_pct;
+
+        returns.push(tradeReturn);
+        equityCurve.push(equityCurve[equityCurve.length - 1] * (1 + tradeReturn));
       }
-    });
+
+      const outOfSampleAccuracy = predProbs.length > 0 ? correct / predProbs.length : 0;
+      const sharpeRatio = calculateSharpeRatio(returns);
+      const maxDrawdown = calculateMaxDrawdown(equityCurve);
+      const calibrationError = calculateCalibrationError(allYTrue, allYPredProbs);
+      modelRegistryInstance.recordEvaluation({
+        accuracy: outOfSampleAccuracy,
+        precision: null,
+        recall: null,
+        f1Score: null,
+        driftScore: calibrationError,
+        timestamp: Date.now(),
+      });
+
+      res.json({
+        success: true,
+        message: 'Model trained and evaluated on the purged holdout fold.',
+        performance: {
+          winRate: outOfSampleAccuracy,
+          accuracy: outOfSampleAccuracy,
+          sharpeRatio,
+          maxDrawdown,
+          calibrationError,
+          validationSamples: predProbs.length,
+        }
+      });
+    } finally {
+      // Dispose every created tensor/model even when training fails midway,
+      // otherwise repeated failures accumulate GPU/WASM memory.
+      for (const tensor of [xTrain, yTrainLabels, yTrain, xVal, preds]) {
+        try { tensor?.dispose(); } catch { /* already disposed */ }
+      }
+      try { model?.dispose(); } catch { /* already disposed */ }
+    }
   } catch (error) {
     logger.error("Training error:", error);
     res.status(500).json({ error: 'Internal server error during training' });
@@ -856,9 +859,14 @@ app.post('/api/advanced/ensemble', async (req, res) => {
         const { features } = req.body || {};
         const result = ensembleEngine.predictEnsemble(features || {});
 
-        // Simulate online learning if outcome is provided
+        // Online learning: only feed a finite outcome in [-1, 1]; anything
+        // else would poison every model weight with NaN until restart.
         if (req.body?.actualOutcome !== undefined) {
-            ensembleEngine.updateWeights(req.body.actualOutcome);
+            const outcome = Number(req.body.actualOutcome);
+            if (!Number.isFinite(outcome) || outcome < -1 || outcome > 1) {
+                return res.status(400).json({ error: 'actualOutcome must be a finite number between -1 and 1' });
+            }
+            ensembleEngine.updateWeights(outcome);
         }
 
         res.json({
@@ -929,7 +937,14 @@ app.post('/api/advanced/federated/round', async (req, res) => {
 app.post('/api/advanced/hpo/optimize', async (req, res) => {
     try {
         const { nTrials } = req.body || {};
-        const result = hpoEngine.runOptimization(nTrials || 10);
+        // Clamp hard: each trial evaluates strategies over the full candle
+        // history synchronously, so an unbounded value would block the event loop.
+        const MAX_HPO_TRIALS = 200;
+        const requestedTrials = Number(nTrials);
+        const safeTrials = Number.isFinite(requestedTrials)
+            ? Math.min(MAX_HPO_TRIALS, Math.max(1, Math.floor(requestedTrials)))
+            : 10;
+        const result = hpoEngine.runOptimization(safeTrials);
         res.json({
             success: true,
             data: result
@@ -1218,6 +1233,13 @@ app.post('/api/paper-trading/p2/orderbook', (req, res) => {
     if (!Array.isArray(bids) || !Array.isArray(asks)) {
       return res.status(400).json({ error: 'bids and asks arrays required' });
     }
+    if (bids.length + asks.length > 10_000) {
+      return res.status(400).json({ error: 'order book accepts at most 10,000 combined levels' });
+    }
+    const isValidLevel = (l) => l && Number.isFinite(l.price) && l.price > 0 && Number.isFinite(l.qty) && l.qty > 0;
+    if (!bids.every(isValidLevel) || !asks.every(isValidLevel)) {
+      return res.status(400).json({ error: 'each level requires finite positive price and qty' });
+    }
     paperTradingEngine._ensureP2();
     paperTradingEngine.orderBook.updateBook(bids, asks);
     res.json({ success: true, data: paperTradingEngine.orderBook.depth() });
@@ -1231,6 +1253,10 @@ app.post('/api/paper-trading/p2/orderbook/order', (req, res) => {
     const { side, qty, type = 'MARKET', price, id } = req.body || {};
     if (!['BUY', 'SELL'].includes(side)) return res.status(400).json({ error: 'side must be BUY or SELL' });
     if (!Number.isFinite(qty) || qty <= 0) return res.status(400).json({ error: 'qty must be positive' });
+    if (!['MARKET', 'LIMIT'].includes(type)) return res.status(400).json({ error: 'type must be MARKET or LIMIT' });
+    if (type === 'LIMIT' && (!Number.isFinite(price) || price <= 0)) {
+      return res.status(400).json({ error: 'LIMIT orders require a finite positive price' });
+    }
     paperTradingEngine._ensureP2();
     const result = type === 'LIMIT'
       ? paperTradingEngine.orderBook.placeLimitOrder(side, price, qty)
@@ -1268,6 +1294,16 @@ app.post('/api/paper-trading/p2/orders', (req, res) => {
     const { clientOrderId, symbol, action, qty, type = 'MARKET', price, stopPrice } = req.body || {};
     if (!['BUY', 'SELL'].includes(action)) return res.status(400).json({ error: 'action must be BUY or SELL' });
     if (!Number.isFinite(qty) || qty <= 0) return res.status(400).json({ error: 'qty must be positive' });
+    if (typeof symbol !== 'string' || !/^[A-Z0-9-]{1,64}$/.test(symbol)) {
+      return res.status(400).json({ error: 'Invalid symbol format' });
+    }
+    if (!['MARKET', 'LIMIT', 'STOP'].includes(type)) return res.status(400).json({ error: 'type must be MARKET, LIMIT or STOP' });
+    if (type === 'LIMIT' && (!Number.isFinite(price) || price <= 0)) {
+      return res.status(400).json({ error: 'LIMIT orders require a finite positive price' });
+    }
+    if (type === 'STOP' && (!Number.isFinite(stopPrice) || stopPrice <= 0)) {
+      return res.status(400).json({ error: 'STOP orders require a finite positive stopPrice' });
+    }
     paperTradingEngine._ensureP2();
     const order = paperTradingEngine.orderStateMachine.createOrder({
       clientOrderId, symbol, action, qty, type, price, stopPrice,
@@ -1294,8 +1330,11 @@ app.post('/api/paper-trading/p2/orders/fill', (req, res) => {
   try {
     const { id, filledQty, fillPrice } = req.body || {};
     if (!id) return res.status(400).json({ error: 'id required' });
+    if (!Number.isFinite(filledQty) || filledQty < 0) return res.status(400).json({ error: 'filledQty must be a non-negative finite number' });
+    if (!Number.isFinite(fillPrice) || fillPrice <= 0) return res.status(400).json({ error: 'fillPrice must be a finite positive number' });
     paperTradingEngine._ensureP2();
     const result = paperTradingEngine.orderStateMachine.recordFill(id, filledQty, fillPrice);
+    if (!result) return res.status(404).json({ error: 'Order not found or fill not permitted in current state' });
     res.json({ success: true, data: result });
   } catch (error) {
     res.status(500).json({ error: 'Failed to record fill' });
@@ -1439,6 +1478,10 @@ app.use((err, req, res, next) => {
 
 export let server;
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  if (!AUTH_REQUIRED) {
+    logger.warn('AUTH IS DISABLED: every /api route (training, HPO, order state, persistence) is open. '
+      + 'Set AUTH_REQUIRED=true with JWT/refresh secrets and admin credentials for any shared or non-local deployment.');
+  }
   server = app.listen(port, '0.0.0.0', () => {
     logger.info(`Smart Analysis Backend listening on port ${port}`);
   });

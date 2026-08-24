@@ -37,17 +37,17 @@ export const ArbitragePanel: React.FC<ArbitragePanelProps> = ({ opportunities })
                   <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Expected Yield</div>
                 </div>
               </div>
-              <p className="relative z-10 text-[11px] text-slate-400 leading-relaxed mb-4">{opt.details}</p>
-              <button className="relative z-10 w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black rounded-xl transition-all uppercase tracking-widest shadow-lg shadow-indigo-600/20 active:scale-95 border border-indigo-400/30">
-                Execute Multi-Leg Spread
-              </button>
+              <p className="relative z-10 text-[11px] text-slate-400 leading-relaxed mb-3">{opt.details}</p>
+              <div className="relative z-10 w-full py-2.5 bg-slate-800/60 text-slate-400 text-[10px] font-black rounded-xl uppercase tracking-widest border border-slate-700/50 text-center">
+                Simulated Signal — Execution Disabled
+              </div>
             </div>
           ))}
         </div>
       )}
 
       <div className="mt-5 pt-4 border-t border-slate-800/50 flex justify-between items-center">
-        <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Scanning Spot vs Futures</span>
+        <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Scanning Spot vs Futures (Digital Twin)</span>
         <div className="flex items-center gap-2">
            <span className="relative flex h-2 w-2">
              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>

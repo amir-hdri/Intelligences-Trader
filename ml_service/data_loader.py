@@ -21,7 +21,6 @@ from collections.abc import Sequence
 import datetime
 import os
 import sqlite3
-import time
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
@@ -446,7 +445,14 @@ class DataLoader:
         """
         tf = _normalize_timeframe(timeframe)
         rng = np.random.RandomState(seed)
-        now_ms = int(time.time() * 1000)
+        # Anchor timestamps to a fixed epoch (not wall-clock time) so repeated
+        # runs generate byte-identical candles; date-filtered backtests then
+        # cover the same window on every run. Override via the
+        # SYNTHETIC_DATA_EPOCH_MS environment variable when a different anchor
+        # is needed.
+        epoch_ms = int(
+            os.environ.get("SYNTHETIC_DATA_EPOCH_MS", str(1_735_689_600_000))
+        )  # 2025-01-01T00:00:00Z
 
         step_ms = 86_400_000 if tf == "1d" else 3_600_000
         n_steps = days if tf == "1d" else days * 24
@@ -463,7 +469,7 @@ class DataLoader:
 
         candles = []
         for idx in range(n_steps):
-            ts = now_ms - (n_steps - idx) * step_ms
+            ts = epoch_ms - (n_steps - idx) * step_ms
             o = prices[idx]
             c = prices[idx + 1]
             high_ext = rng.uniform(0.001, 0.01) * max(o, c)
@@ -606,13 +612,16 @@ class DataLoader:
 
         df = self._query_candles(symbol, tf, start_ts, end_ts)
 
-        # If zero rows found, check if lower timeframe candles exist and can be resampled
+        # If zero rows found, check if lower timeframe candles exist and can be resampled.
+        # Only timeframes strictly FINER than the requested one are candidates:
+        # upsampling coarse data (e.g. 1d -> 1h) would collapse to one bar per
+        # day and mislabel daily data as hourly. An unlisted coarse timeframe
+        # (e.g. '1w') can safely resample from any listed (finer) one.
         if df.empty:
             lower_timeframes = ["1d", "4h", "2h", "1h", "30m", "15m", "5m", "1m"]
-            for lower_tf in lower_timeframes:
-                if lower_tf == tf:
-                    continue
-                df_lower = self._query_candles(symbol, lower_tf, start_ts, end_ts)
+            tf_index = lower_timeframes.index(tf) + 1 if tf in lower_timeframes else 0
+            for candidate_tf in lower_timeframes[tf_index:]:
+                df_lower = self._query_candles(symbol, candidate_tf, start_ts, end_ts)
                 if not df_lower.empty:
                     df = self._resample_ohlcv(df_lower, tf)
                     break
@@ -671,8 +680,12 @@ class DataLoader:
         if missing:
             raise ValueError(f"Data is missing required OHLCV columns: {missing}")
 
-        # Clean missing values
-        df[required_cols] = df[required_cols].ffill().bfill()
+        # Clean missing values. Forward-fill only: back-filling would copy
+        # FUTURE prices into past bars, introducing look-ahead bias into every
+        # downstream feature and backtest. Leading NaN rows (missing values
+        # before the first observation) are dropped instead.
+        df[required_cols] = df[required_cols].ffill()
+        df = df.dropna(subset=required_cols)
         validate_ohlcv_dataframe(df)
 
         open_col = df["open"].astype(np.float64)
