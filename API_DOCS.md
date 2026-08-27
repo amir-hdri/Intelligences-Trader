@@ -213,6 +213,46 @@ pnl = riskPerTrade * profitFactor (WIN) or -riskPerTrade (LOSS)
 }
 ```
 
+## P2 Paper Trading Engine (`/api/paper-trading/p2/*`)
+
+| Endpoint | Method | Purpose | Payload / Parameters |
+|---|---|---|---|
+| `/api/paper-trading/p2/execute-ml` | `POST` | Maps ML signals (BUY, SELL, HOLD + confidence) to simulated orders. | `{ "signal": "BUY", "confidence": 0.85, "symbol": "SAF1403", "price": 1000000 }` |
+| `/api/paper-trading/p2/metrics` | `GET` | Computes Sharpe, Sortino, Drawdown, Profit Factor, Win Rate from realized trades. | None |
+| `/api/paper-trading/p2/report` | `POST` | Generates structured daily, weekly, or monthly performance analysis reports. | `{ "period": "daily" }` |
+| `/api/paper-trading/p2/backtest` | `POST` | Executes in-memory bar-by-bar backtest against historical candles. | `{ "candles": [...], "strategy": "PPO" }` |
+| `/api/paper-trading/p2/orderbook` | `GET`/`POST` | Queries or injects 5-level simulated order book depth. | Query: `?symbol=GOLD1403` |
+| `/api/paper-trading/p2/orderbook/order` | `POST` | Submits market or limit orders directly to the order book simulator. | `{ "type": "LIMIT", "side": "BUY", "price": 1000, "qty": 10 }` |
+| `/api/paper-trading/p2/orderbook/cancel`| `POST` | Cancels a resting limit order in the order book. | `{ "orderId": "..." }` |
+| `/api/paper-trading/p2/orders` | `GET`/`POST` | Idempotent order state machine query or creation. | `{ "symbol": "SAF1403", "side": "BUY", "qty": 5, "clientOrderId": "..." }` |
+| `/api/paper-trading/p2/orders/cancel` | `POST` | Transitions `OPEN` or `PARTIAL_FILLED` orders to `CANCELLED`. | `{ "orderId": "..." }` |
+| `/api/paper-trading/p2/orders/fill` | `POST` | Simulates partial or full fill event on an open order. | `{ "orderId": "...", "filledQty": 5, "fillPrice": 1000 }` |
+| `/api/paper-trading/p2/data/ohlcv` | `POST` | Ingests and caches normalized OHLCV time series. | `{ "symbol": "SAF1403", "candles": [...] }` |
+| `/api/paper-trading/p2/data/tick` | `GET`/`POST` | Ingests real-time tick and computes Volume Weighted Average Price (VWAP). | `{ "symbol": "SAF1403", "price": 1000, "volume": 50 }` |
+| `/api/paper-trading/p2/trades/save` | `POST` | Persists executed trades to PostgreSQL (or in-memory fallback). | `{ "trades": [...] }` |
+| `/api/paper-trading/p2/strategy` | `GET`/`POST` | Configures model selection, size, stopLoss, and confidence thresholds. | `{ "symbol": "SAF1403", "confidenceThreshold": 0.70 }` |
+
+## Market Intelligence & Machine Learning (`/api/*`)
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `POST /api/analyze` | `POST` | Synchronous rule-based analysis (<500ms) with asynchronous TCN ONNX shadow mode execution. |
+| `POST /api/predict` | `POST` | Direct ONNX inference with feature tensor input shape `[batch, 30, 10]` and latency tracking. |
+| `GET /api/news` | `GET` | FinBERT NLP sentiment generator with Dollar Risk index and Political Risk score (0-100). |
+| `GET /api/tse/:id` | `GET` | Live TSETMC daily snapshot via `tsetmc-client` anchored to real last price. |
+| `GET /api/tse/history/:symbolId` | `GET` | Multi-timeframe analysis (1m, 15m, 1h, 1d), ATR volatility regime, and 95% Historical VaR. |
+| `GET /api/tse/info/:symbolId` | `GET` | Real-time TSETMC best limits depth with automated symbol resolution. |
+| `POST /api/train` | `POST` | Fractional differentiation ($d=0.5$), 5-fold purged cross-validation, and local TCN model fitting. |
+
+## Proxy Gateway Server (`server/` - Port 3001)
+
+- `GET /api/status` — Service health, CORS verification, and uptime metadata.
+- `GET /api/market/:symbol` — TSETMC instrument history with 15s FIFO memory cache and digital twin fallback.
+- `GET /api/orderbook/:symbol` — 5-level deterministic bid/ask depth with spoofing signals.
+- `GET /metrics` — Prometheus metrics (`http_requests_total`, `http_request_duration_milliseconds`).
+- `WS ws://host:3001/?symbol=GOLD1403` — 100ms real-time tick and order-book streaming with 30s heartbeat ping-pong.
+
+
 ## Phase 3 Backtesting
 
 ### GET /api/backtests/health

@@ -525,46 +525,51 @@ app.get('/api/tse/history/:symbolId', async (req, res) => {
   if (!/^[A-Z0-9-]+$/.test(symbolId)) {
     return res.status(400).json({ error: 'Invalid symbol format' });
   }
-  // This endpoint currently serves generated research data. It is deliberately
-  // labelled so clients cannot mistake it for an exchange history feed.
-  const historyData = generateSimulationData(symbolId);
+  try {
+    // This endpoint currently serves generated research data. It is deliberately
+    // labelled so clients cannot mistake it for an exchange history feed.
+    const historyData = generateSimulationData(symbolId);
 
-  // 1. Analyze Market (Direction & Confidence)
-  const analysis = analyzeMarketMTF({
-      '1m': [],
-      '15m': [],
-      '1h': historyData,
-      '1d': historyData
-  }, 'UNKNOWN');
+    // 1. Analyze Market (Direction & Confidence)
+    const analysis = analyzeMarketMTF({
+        '1m': [],
+        '15m': [],
+        '1h': historyData,
+        '1d': historyData
+    }, 'UNKNOWN');
 
-  // 2. Volatility Analysis (Regime)
-  const atr = calculateATR(historyData);
-  const regime = detectMarketRegime(historyData, atr);
+    // 2. Volatility Analysis (Regime)
+    const atr = calculateATR(historyData);
+    const regime = detectMarketRegime(historyData, atr);
 
-  // 3. Value at Risk (Historical Simulation 95% Confidence)
-  const returns = [];
-  for(let i=1; i<historyData.length; i++){
-      returns.push((historyData[i].close - historyData[i-1].close) / historyData[i-1].close);
-  }
-  returns.sort((a,b) => a-b);
-  const var95 = returns[Math.floor(returns.length * 0.05)] || 0;
+    // 3. Value at Risk (Historical Simulation 95% Confidence)
+    const returns = [];
+    for(let i=1; i<historyData.length; i++){
+        returns.push((historyData[i].close - historyData[i-1].close) / historyData[i-1].close);
+    }
+    returns.sort((a,b) => a-b);
+    const var95 = returns[Math.floor(returns.length * 0.05)] || 0;
 
-  const suggestedRiskCapital = regime === 'HIGH_VOLATILITY' ? 0.02 : 0.05;
-  res.json({
-    source: 'DIGITAL_TWIN',
-    simulated: true,
-    data: historyData,
-    analysis: {
-      prediction: analysis.action,
-      confidence: analysis.confidence,
-      regime,
-      risk: {
-        valueAtRisk95: var95,
-        suggestedRiskCapital,
-        sizingMethod: 'CONSERVATIVE_RULE_BASED',
+    const suggestedRiskCapital = regime === 'HIGH_VOLATILITY' ? 0.02 : 0.05;
+    res.json({
+      source: 'DIGITAL_TWIN',
+      simulated: true,
+      data: historyData,
+      analysis: {
+        prediction: analysis.action,
+        confidence: analysis.confidence,
+        regime,
+        risk: {
+          valueAtRisk95: var95,
+          suggestedRiskCapital,
+          sizingMethod: 'CONSERVATIVE_RULE_BASED',
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    logger.error('Error in /api/tse/history:', error);
+    res.status(500).json({ error: 'Failed to fetch historical analysis' });
+  }
 });
 
 // 4. Real-Time Info (Last Price, Best Limits)

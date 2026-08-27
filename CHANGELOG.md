@@ -5,6 +5,26 @@ All notable changes to the Intelligences-Trader project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-08-27
+
+### Added
+- **Full System Knowledge Graph (`graphify-out/`)**: Extracted complete AST and functional relationship graph with 1,546 nodes, 2,798 edges, and 111 functional communities via Graphify.
+- **Interactive Visual Architecture Artifact (`graphify-out/graph.html`)**: Interactive SVG/canvas graph explorer with community clustering and God-node isolation.
+- **Dual-Verification Architecture Specifications**: Detailed Mermaid workflows and verified state machines across Frontend Terminal, Backend/Gateway, and AI/ML engine.
+
+### Fixed
+- **Python 3.12 / pandas Series bitwise warning cleanup (`ml_service/strategy_engine.py`)**: Fixed 1,200+ deprecation warnings caused by bitwise inversion on boolean Series by using `shift(1, fill_value=False)` and proper boolean negation.
+- **Frontend Risk & Formatting Bug Fixes**:
+  - `RiskControlPanel.tsx`: Fixed maintenance requirement display ratio formatting (e.g. `0.15` $\to$ `15%`).
+  - `TradeTicket.tsx`: Standardized currency presentation to IRR and guarded against `NaN` or zero division.
+  - `FullPaperTradingDashboard.tsx`: Fixed cumulative PnL memoization and timeline calculation ordering.
+  - `riskEngine.ts`: Added finite value guards on drawdown and liquidation distance calculations.
+- **WebSocket Gateway Crash Protection (`server/index.js`)**: Added client-side socket error listeners and safe send callback handling to prevent unhandled EventEmitter crashes during abrupt client disconnects.
+- **Backend Error Handling**: Wrapped `/api/tse/history/:symbolId` and analysis engines with structured try/catch fallbacks.
+
+### Verified
+- **Full-Stack Test Verification**: 221 of 221 automated tests passing with 100% green status (69 Python tests, 152 Node/Gateway tests, 0 TypeScript compiler diagnostics).
+
 ## [2.6.0] - 2026-08-23
 
 ### Added

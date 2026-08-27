@@ -194,15 +194,20 @@ const FullPaperTradingDashboard: React.FC<FullPaperTradingDashboardProps> = ({ a
     }
   };
 
-  // Prepare chart data
-  const chartData = trades.slice(0, 30).reverse().map((t, i) => {
-    const cumulative = trades.slice(0, i + 1).reduce((sum, tr) => sum + (tr.netPnl ?? tr.pnl), 0);
-    return {
-      time: new Date(t.timestamp).toLocaleTimeString(),
-      pnl: t.netPnl ?? t.pnl,
-      cumulative,
-    };
-  });
+  // Prepare chart data chronologically
+  const chartData = React.useMemo(() => {
+    const recentTrades = trades.slice(0, 30).reverse();
+    let cumulative = 0;
+    return recentTrades.map((t) => {
+      const pnl = Number.isFinite(t.netPnl) ? t.netPnl! : Number.isFinite(t.pnl) ? t.pnl : 0;
+      cumulative += pnl;
+      return {
+        time: Number.isFinite(t.timestamp) ? new Date(t.timestamp).toLocaleTimeString() : '—',
+        pnl,
+        cumulative,
+      };
+    });
+  }, [trades]);
 
   useEffect(() => {
     void refresh();
@@ -341,19 +346,19 @@ const FullPaperTradingDashboard: React.FC<FullPaperTradingDashboardProps> = ({ a
             <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
               <div className="elevated rounded-xl p-3 bg-[#0B0F17]">
                 <div className="text-gray-400 text-xs">Final Equity</div>
-                <div className="font-mono font-bold">{backtest.finalEquity.toLocaleString()}</div>
+                <div className="font-mono font-bold">{Number.isFinite(backtest.finalEquity) ? backtest.finalEquity.toLocaleString() : 'N/A'}</div>
               </div>
               <div className="elevated rounded-xl p-3 bg-[#0B0F17]">
                 <div className="text-gray-400 text-xs">Return %</div>
-                <div className="font-mono font-bold">{backtest.totalReturnPct.toFixed(2)}%</div>
+                <div className="font-mono font-bold">{Number.isFinite(backtest.totalReturnPct) ? `${backtest.totalReturnPct.toFixed(2)}%` : 'N/A'}</div>
               </div>
               <div className="elevated rounded-xl p-3 bg-[#0B0F17]">
                 <div className="text-gray-400 text-xs">Sharpe</div>
-                <div className="font-mono font-bold">{backtest.metrics.sharpe.toFixed(2)}</div>
+                <div className="font-mono font-bold">{Number.isFinite(backtest.metrics?.sharpe) ? backtest.metrics.sharpe.toFixed(2) : 'N/A'}</div>
               </div>
               <div className="elevated rounded-xl p-3 bg-[#0B0F17]">
                 <div className="text-gray-400 text-xs">Max Drawdown</div>
-                <div className="font-mono font-bold">{(backtest.metrics.maxDrawdown * 100).toFixed(1)}%</div>
+                <div className="font-mono font-bold">{Number.isFinite(backtest.metrics?.maxDrawdown) ? `${(backtest.metrics.maxDrawdown * 100).toFixed(1)}%` : 'N/A'}</div>
               </div>
             </div>
           )}
@@ -385,7 +390,7 @@ const FullPaperTradingDashboard: React.FC<FullPaperTradingDashboardProps> = ({ a
                     step="0.01"
                     value={strategyParams[key as keyof typeof strategyParams]}
                     onChange={(e) =>
-                      setStrategyParams({ ...strategyParams, [key]: parseFloat(e.target.value) })
+                      setStrategyParams({ ...strategyParams, [key]: parseFloat(e.target.value) || 0 })
                     }
                     className="w-full bg-[#0B0F17] border border-white/20 rounded p-2"
                   />
@@ -415,13 +420,15 @@ const FullPaperTradingDashboard: React.FC<FullPaperTradingDashboardProps> = ({ a
               <tbody>
                 {trades.slice(0, 25).map((t) => (
                   <tr key={t.id} className="border-b border-white/5 hover:bg-white/5">
-                    <td className="py-2 font-mono text-xs">{new Date(t.timestamp).toLocaleString()}</td>
+                    <td className="py-2 font-mono text-xs">
+                      {Number.isFinite(t.timestamp) ? new Date(t.timestamp).toLocaleString() : '—'}
+                    </td>
                     <td>{t.symbol}</td>
                     <td className={t.action === 'BUY' ? 'text-emerald-400' : 'text-red-400'}>{t.action}</td>
-                    <td>{t.entryPrice?.toFixed(2)}</td>
+                    <td>{Number.isFinite(t.entryPrice) ? t.entryPrice!.toFixed(2) : '—'}</td>
                     <td>{(t.fee ?? 0).toFixed(2)}</td>
-                    <td className={(t.netPnl ?? t.pnl) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                      {(t.netPnl ?? t.pnl).toFixed(2)}
+                    <td className={(t.netPnl ?? t.pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                      {(t.netPnl ?? t.pnl ?? 0).toFixed(2)}
                     </td>
                     <td>{t.isWin ? '✓ Win' : '✗ Loss'}</td>
                   </tr>

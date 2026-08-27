@@ -50,28 +50,33 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
 
   // Risk, Reward, and Risk/Reward calculations
   const riskAmount = useMemo(() => {
+    if (!Number.isFinite(entryPrice) || !Number.isFinite(stopLoss) || !Number.isFinite(quantity)) return 0;
     const diff = Math.abs(entryPrice - stopLoss);
     return Math.round(diff * quantity);
   }, [entryPrice, stopLoss, quantity]);
 
   const rewardAmount = useMemo(() => {
+    if (!Number.isFinite(entryPrice) || !Number.isFinite(takeProfit) || !Number.isFinite(quantity)) return 0;
     const diff = Math.abs(takeProfit - entryPrice);
     return Math.round(diff * quantity);
   }, [takeProfit, entryPrice, quantity]);
 
-  const riskRewardRatio = useMemo(() => {
+  const riskRewardRatio = useMemo((): string => {
+    if (!Number.isFinite(entryPrice) || !Number.isFinite(stopLoss) || !Number.isFinite(takeProfit)) return '0.00';
     const risk = Math.abs(entryPrice - stopLoss);
     const reward = Math.abs(takeProfit - entryPrice);
-    if (risk === 0) return 0;
+    if (risk === 0) return '0.00';
     return (reward / risk).toFixed(2);
   }, [entryPrice, stopLoss, takeProfit]);
 
   const estFees = useMemo(() => {
+    if (!Number.isFinite(quantity) || !Number.isFinite(entryPrice)) return 0;
     return Math.round(quantity * entryPrice * 0.0008);
   }, [quantity, entryPrice]);
 
   const handleReviewOrder = (e: React.FormEvent) => {
     e.preventDefault();
+    if (quantity <= 0 || entryPrice <= 0) return;
     setShowReviewModal(true);
   };
 
@@ -115,7 +120,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
                 : "text-slate-400 hover:text-white"
             )}
           >
-            BUY {symbol.name.split(' ')[0]}
+            BUY {(symbol.name || symbol.id).split(' ')[0]}
           </button>
           <button
             type="button"
@@ -127,7 +132,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
                 : "text-slate-400 hover:text-white"
             )}
           >
-            SELL {symbol.name.split(' ')[0]}
+            SELL {(symbol.name || symbol.id).split(' ')[0]}
           </button>
         </div>
 
@@ -140,7 +145,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
               min="1"
               max="1000"
               value={quantity}
-              onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
               className="w-full rounded-xl bg-[#101620] border border-white/10 px-3 py-2 text-sm mono text-white min-h-[44px]"
             />
           </label>
@@ -150,7 +155,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
             <input
               type="number"
               value={entryPrice}
-              onChange={(e) => setEntryPrice(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setEntryPrice(Math.max(0, parseFloat(e.target.value) || 0))}
               className="w-full rounded-xl bg-[#101620] border border-white/10 px-3 py-2 text-sm mono text-white min-h-[44px]"
             />
           </label>
@@ -163,7 +168,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
             <input
               type="number"
               value={stopLoss}
-              onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setStopLoss(Math.max(0, parseFloat(e.target.value) || 0))}
               className="w-full rounded-xl bg-[#101620] border border-red-500/20 px-3 py-2 text-sm mono text-red-300 min-h-[44px]"
             />
           </label>
@@ -173,7 +178,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
             <input
               type="number"
               value={takeProfit}
-              onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setTakeProfit(Math.max(0, parseFloat(e.target.value) || 0))}
               className="w-full rounded-xl bg-[#101620] border border-emerald-500/20 px-3 py-2 text-sm mono text-emerald-300 min-h-[44px]"
             />
           </label>
@@ -191,7 +196,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
             max="10"
             step="1"
             value={leverage}
-            onChange={(e) => setLeverage(parseInt(e.target.value))}
+            onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
             className="w-full accent-violet-500 h-2 bg-slate-800 rounded-lg cursor-pointer min-h-[32px]"
           />
         </div>
@@ -199,12 +204,12 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
         {/* Risk / Reward Metrics Breakdown */}
         <div className="grid grid-cols-3 gap-2 pt-1 text-center mono">
           <div className="elevated rounded-xl p-2.5">
-            <div className="text-[9px] uppercase tracking-wider text-[#64748B]">Risk ($)</div>
-            <div className="font-black text-rose-400 text-xs mt-0.5">${riskAmount.toLocaleString()}</div>
+            <div className="text-[9px] uppercase tracking-wider text-[#64748B]">Risk (IRR)</div>
+            <div className="font-black text-rose-400 text-xs mt-0.5">{riskAmount.toLocaleString()} IRR</div>
           </div>
           <div className="elevated rounded-xl p-2.5">
-            <div className="text-[9px] uppercase tracking-wider text-[#64748B]">Reward ($)</div>
-            <div className="font-black text-emerald-400 text-xs mt-0.5">${rewardAmount.toLocaleString()}</div>
+            <div className="text-[9px] uppercase tracking-wider text-[#64748B]">Reward (IRR)</div>
+            <div className="font-black text-emerald-400 text-xs mt-0.5">{rewardAmount.toLocaleString()} IRR</div>
           </div>
           <div className="elevated rounded-xl p-2.5">
             <div className="text-[9px] uppercase tracking-wider text-[#64748B]">R / R Ratio</div>
@@ -215,10 +220,10 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
         {/* Review Order Action Button (48px height) */}
         <button
           type="submit"
-          disabled={riskStatus.isKillSwitchActive}
+          disabled={riskStatus.isKillSwitchActive || quantity <= 0 || entryPrice <= 0}
           className={cn(
             "w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-widest text-white shadow-xl transition-all flex items-center justify-center gap-2 trade-target",
-            riskStatus.isKillSwitchActive
+            riskStatus.isKillSwitchActive || quantity <= 0 || entryPrice <= 0
               ? "bg-slate-800 text-slate-500 cursor-not-allowed"
               : side === 'BUY'
               ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20"
@@ -256,15 +261,15 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
             <div className="grid grid-cols-2 gap-3 text-xs mono">
               <div className="elevated rounded-xl p-3">
                 <div className="text-[#64748B] text-[10px] uppercase">Qty × Entry</div>
-                <div className="font-black text-white text-sm mt-0.5">{quantity} × {entryPrice.toLocaleString()}</div>
+                <div className="font-black text-white text-sm mt-0.5">{quantity} × {entryPrice.toLocaleString()} IRR</div>
               </div>
               <div className="elevated rounded-xl p-3">
                 <div className="text-[#64748B] text-[10px] uppercase">Max Risk</div>
-                <div className="font-black text-rose-400 text-sm mt-0.5">${riskAmount.toLocaleString()}</div>
+                <div className="font-black text-rose-400 text-sm mt-0.5">{riskAmount.toLocaleString()} IRR</div>
               </div>
               <div className="elevated rounded-xl p-3">
                 <div className="text-[#64748B] text-[10px] uppercase">Expected Reward</div>
-                <div className="font-black text-emerald-400 text-sm mt-0.5">${rewardAmount.toLocaleString()}</div>
+                <div className="font-black text-emerald-400 text-sm mt-0.5">{rewardAmount.toLocaleString()} IRR</div>
               </div>
               <div className="elevated rounded-xl p-3">
                 <div className="text-[#64748B] text-[10px] uppercase">Risk / Reward</div>
@@ -273,7 +278,7 @@ export const TradeTicket: React.FC<TradeTicketProps> = ({
             </div>
 
             <div className="text-xs text-[#94A3B8] bg-white/[0.02] p-3 rounded-xl border border-white/[0.04]">
-              Leverage {leverage}× • Est. exchange fees: ${estFees.toLocaleString()} • Stop Loss is actively monitored.
+              Leverage {leverage}× • Est. exchange fees: {estFees.toLocaleString()} IRR • Stop Loss is actively monitored.
             </div>
 
             {/* Separated Cancel and Confirm Actions */}

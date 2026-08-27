@@ -9,7 +9,7 @@ export const INDICATOR_PARAMS = {
 };
 
 export const calculateRSI = (prices, period = 14) => {
-  if (prices.length < period + 1) return 50;
+  if (!Array.isArray(prices) || prices.length < period + 1) return 50;
   let gains = 0;
   let losses = 0;
 
@@ -66,7 +66,7 @@ export const calculateMACD = (prices) => {
 };
 
 export const calculateATR = (candles, period = 14) => {
-  if (candles.length < 2 || !Number.isInteger(period) || period < 1) return 0;
+  if (!Array.isArray(candles) || candles.length < 2 || !Number.isInteger(period) || period < 1) return 0;
   const start = Math.max(0, candles.length - period);
   const trueRanges = [];
   for (let index = start; index < candles.length; index++) {
@@ -82,6 +82,7 @@ export const calculateATR = (candles, period = 14) => {
 };
 
 export const calculateIchimoku = (candles) => {
+  if (!Array.isArray(candles) || candles.length === 0) return { tenkan: 0, kijun: 0, senkouA: 0, senkouB: 0 };
   const getHighLowMid = (slice) => {
     const highs = slice.map(c => c.high);
     const lows = slice.map(c => c.low);

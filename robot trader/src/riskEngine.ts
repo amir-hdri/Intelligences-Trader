@@ -68,8 +68,12 @@ export class RiskEngine {
     if (!Number.isFinite(usedMargin) || usedMargin < 0) throw new Error('Used margin must be a non-negative finite number');
 
     this.currentEquity = newEquity;
-    this.status.currentTotalDrawdown = Math.max(0, ((this.initialEquity - newEquity) / this.initialEquity) * 100);
-    this.status.currentDailyDrawdown = Math.max(0, ((this.dailyStartingEquity - newEquity) / this.dailyStartingEquity) * 100);
+    this.status.currentTotalDrawdown = this.initialEquity > 0
+      ? Math.max(0, ((this.initialEquity - newEquity) / this.initialEquity) * 100)
+      : 0;
+    this.status.currentDailyDrawdown = this.dailyStartingEquity > 0
+      ? Math.max(0, ((this.dailyStartingEquity - newEquity) / this.dailyStartingEquity) * 100)
+      : 0;
 
     this.status.margin.usedMargin = usedMargin;
     this.status.margin.freeMargin = Math.max(0, newEquity - usedMargin);
