@@ -18,7 +18,7 @@ dependencies = [
 training = [
     "onnx>=1.17,<2",
     "onnxscript>=0.2,<1",
-    "torch>=2.3,<3",
+    "torch>=2.13.0,<3",
 ]
 
 [tool.pytest.ini_options]
