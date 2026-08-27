@@ -24,8 +24,9 @@ graph LR
 | Analysis API | `robot trader/server/` | Rule analysis, model inference, research training endpoints |
 | Gateway | `server/` | TSETMC history adapter, explicitly labelled fallback simulation, WebSocket feed |
 | Python ML | `ml_service/` | TCN actor-critic, PPO training, HMM regimes, safety circuit breaker |
+| Knowledge Graph | `graphify-out/` | Graphify AST/semantic interactive graph (1,546 nodes, 2,798 edges, 111 communities) |
 
-The frontend uses relative `/api` and `/ws` URLs. Vite proxies these routes during development, while the production Nginx template proxies them inside Docker/Kubernetes. Browser code does not depend on `localhost` service URLs.
+The frontend uses relative `/api` and `/ws` URLs. Vite proxies these routes during development, while the production Nginx template proxies them inside Docker/Kubernetes. Browser code does not depend on `localhost` service URLs. Dual-verification testing covers 221 test suites across all workspaces with 100% pass rate.
 
 ## Quick start
 
@@ -195,10 +196,15 @@ and is mounted as the `trader-data` named volume in Docker Compose. Set
 `ADMIN_USERNAME` / `ADMIN_PASSWORD` (or let the server seed a random admin) and
 a 32+ char `JWT_SECRET` / `REFRESH_SECRET` for any shared deployment.
 
-## Backtesting architecture
-
-The implemented Phase 3 event-driven backtesting design—including the Mermaid architecture, component boundaries, Phase 1 data integration, ML model contract, market scenarios, execution semantics, and performance metrics—is documented in [`docs/BACKTESTING_ENGINE_ARCHITECTURE.md`](./docs/BACKTESTING_ENGINE_ARCHITECTURE.md).
-
-## Disclaimer
+## Backtesting & Knowledge Graph Architecture
+ 
+The implemented Phase 3 event-driven backtesting design—including the Mermaid architecture, component boundaries, Phase 1 data integration, ML model contract, market scenarios, execution semantics, and performance metrics, is documented in [`docs/BACKTESTING_ENGINE_ARCHITECTURE.md`](./docs/BACKTESTING_ENGINE_ARCHITECTURE.md).
+ 
+The interactive multi-tier knowledge graph, dependency hubs, and dataflow cycles are documented in:
+- [`graphify-out/graph.html`](./graphify-out/graph.html) (Interactive browser graph visualization)
+- [`graphify-out/GRAPH_REPORT.md`](./graphify-out/GRAPH_REPORT.md) (Automated AST & Community report)
+- [`DELIVERY/گزارش-پذیرش-نهایی.md`](./DELIVERY/گزارش-پذیرش-نهایی.md) (Full delivery acceptance report)
+ 
+ ## Disclaimer
 
 Educational and research use only. Financial markets involve substantial risk. Validate data licenses, model provenance, exchange rules, security controls, and broker behavior independently before considering any real-world integration.

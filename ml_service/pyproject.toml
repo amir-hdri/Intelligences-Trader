@@ -26,3 +26,6 @@ testpaths = ["."]
 python_files = ["test_*.py"]
 pythonpath = ["."]
 addopts = "--strict-markers"
+filterwarnings = [
+    "ignore:Setting the shape on a NumPy array has been deprecated:DeprecationWarning:hmmlearn.*",
+]

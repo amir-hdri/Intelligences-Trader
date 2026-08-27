@@ -82,14 +82,14 @@ class MovingAverageCrossoverStrategy:
         short_ma = close.rolling(window=self.short_window, min_periods=self.short_window).mean()
         long_ma = close.rolling(window=self.long_window, min_periods=self.long_window).mean()
         # تشخیص کراس‌اور با مقایسه‌ی وضعیت فعلی و قبلی
-        above = short_ma > long_ma
-        prev_above = above.shift(1)
+        above = (short_ma > long_ma).fillna(False)
+        prev_above = above.shift(1, fill_value=False)
         signal = pd.Series(0, index=data.index, dtype=int)
         # کراس به بالا
-        cross_up = above & (~prev_above.fillna(False))
+        cross_up = above & (~prev_above)
         signal.loc[cross_up] = 1
         # کراس به پایین
-        cross_down = (~above) & prev_above.fillna(False)
+        cross_down = (~above) & prev_above
         signal.loc[cross_down] = -1
         # ساخت خروجی
         next_open = data["open"].shift(-1) if "open" in data.columns else close

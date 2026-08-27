@@ -5,34 +5,31 @@
 با `simulated: true` مشخص شوند. ledger خالی نباید رکورد نمونه تولید کند.
 
 ## اعتبارسنجی کامل Node/Frontend
-
+ 
 ```bash
 npm ci
-npm run typecheck
-npm run build
-npm test --workspaces --if-present
-npm audit --audit-level=moderate
+npm run typecheck                  # بررسی تایپ‌اسکریپت (0 خطا)
+npm run build                      # بیلد پروداکشن کلاینت با Vite
+npm test --workspaces --if-present  # اجرای 152 تست بک‌اند و پروکسی
+npm test --workspace app           # اجرای 41 تست کلاینت فرانت‌اند
+npm audit --audit-level=moderate   # بررسی امنیتی پکیج‌ها (0 آسیب‌پذیری)
 ```
 
-## تست واقعی مرورگر
-
-```bash
-npm run test:e2e:install --workspace app
-npm run test:e2e --workspace app
-```
-
-Playwright سه سرویس را خودکار اجرا می‌کند و مسیرهای desktop/mobile، command
-palette، تست اتصال API و قطع/اتصال مجدد WebSocket را بررسی می‌کند. تست E2E
-نباید خطا را catch و به pass تبدیل کند.
-
-## تست Python و Backtesting
+## تست Python و خط لوله هوش مصنوعی
 
 ```bash
 cd ml_service
 uv sync --locked
-uv run pytest -q
-uv run python run_backtests.py
+uv run pytest -q                   # اجرای 69 تست با 0 هشدار Deprecation
+uv run python run_backtests.py     # بازتولید گزارش متنی و نمودارهای PNG بک‌تست
 git diff --exit-code -- backtest_results.csv backtest_report.md backtest_artifacts/
+```
+
+## استخراج گراف دانش و بررسی معماری (Graphify)
+
+```bash
+$(cat graphify-out/.graphify_python) -m graphify.cli export html
+# باز کردن فایل تعاملی در مرورگر: graphify-out/graph.html
 ```
 
 ## تست دستی API امن

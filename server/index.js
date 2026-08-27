@@ -240,6 +240,9 @@ export const startServer = (port = configuredPort) => {
     }
 
     ws.isAlive = true;
+    ws.on('error', error => {
+      logger.warn('WebSocket client socket error', { symbol, error: error instanceof Error ? error.message : String(error) });
+    });
     ws.on('pong', heartbeat);
     ws.symbol = symbol;
     ws.currentPrice = symbol.includes('GOLD') ? 35_000_000 : 1_200_000;
@@ -265,12 +268,15 @@ export const startServer = (port = configuredPort) => {
       ws.currentPrice = Math.max(1, ws.currentPrice + change);
       const orderBook = generateOrderBook(ws.currentPrice, `${ws.symbol}-${ws.rng()}`);
       const provenance = { source: 'DIGITAL_TWIN_WEBSOCKET', simulated: true };
-      ws.send(JSON.stringify({ type: 'ORDER_BOOK', data: { ...orderBook, ...provenance } }));
-      ws.send(JSON.stringify({
+      const safeSend = data => ws.send(data, error => {
+        if (error) logger.warn('WebSocket broadcast write failed', { error: error.message });
+      });
+      safeSend(JSON.stringify({ type: 'ORDER_BOOK', data: { ...orderBook, ...provenance } }));
+      safeSend(JSON.stringify({
         type: 'TRADE_TICK',
         data: { price: ws.currentPrice, volume: Math.floor(ws.rng() * 100), timestamp: Date.now(), ...provenance },
       }));
-      ws.send(JSON.stringify({
+      safeSend(JSON.stringify({
         type: 'PRICE_CHANGE',
         data: { price: ws.currentPrice, change, timestamp: Date.now(), ...provenance },
       }));

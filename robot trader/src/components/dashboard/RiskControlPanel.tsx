@@ -183,14 +183,15 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
 
             <div>
               <label className="block text-xs font-black uppercase text-slate-400 mb-2 tracking-wider">
-                Max Position Size (Units)
+                Max Position Size (%)
               </label>
               <input
                 type="number"
-                step="1"
-                min="1000"
+                step="0.1"
+                min="0.1"
+                max="100"
                 value={formData.maxPositionSize}
-                onChange={(e) => setFormData({ ...formData, maxPositionSize: parseInt(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, maxPositionSize: parseFloat(e.target.value) || 0 })}
                 className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-indigo-500 outline-none min-h-[44px]"
                 required
               />
@@ -205,7 +206,7 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
                 step="1"
                 min="1"
                 value={formData.maxOpenTrades}
-                onChange={(e) => setFormData({ ...formData, maxOpenTrades: parseInt(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, maxOpenTrades: parseInt(e.target.value, 10) || 0 })}
                 className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-indigo-500 outline-none min-h-[44px]"
                 required
               />
@@ -263,7 +264,12 @@ export const RiskControlPanel: React.FC<RiskControlPanelProps> = ({
               </div>
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-400 font-bold uppercase tracking-widest">Maintenance Req.</span>
-                <span className="font-mono text-white font-bold">{riskStatus.margin.maintenanceRequirement.toLocaleString()} IRR</span>
+                <span className="font-mono text-white font-bold">
+                  {(riskStatus.margin.maintenanceRequirement <= 1
+                    ? riskStatus.margin.maintenanceRequirement * 100
+                    : riskStatus.margin.maintenanceRequirement
+                  ).toFixed(0)}%
+                </span>
               </div>
             </div>
           </div>

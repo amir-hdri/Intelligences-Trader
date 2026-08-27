@@ -51,7 +51,7 @@ The safety circuit breaker is independent from the learned policy and must remai
 
 برای اجرای تست‌ها:
 ```bash
-.venv/bin/pytest test_strategy_engine.py -q --strict-markers
+uv run pytest test_strategy_engine.py -q --strict-markers
 ```
 
 ## Performance Metrics Calculator
@@ -129,6 +129,6 @@ metrics, equity = engine.run_backtest(
 برای نصب وابستگی‌ها و اجرای کل تست‌های Python:
 
 ```bash
-python -m pip install -r requirements.txt
-pytest -q
+uv sync --locked
+uv run pytest -q
 ```

@@ -78,3 +78,47 @@ test('generateAnalysis returns valid prediction and < 500ms for 1000 candles', (
   assert.ok(analysis.confidence >= 0 && analysis.confidence <= 1);
   assert.ok(typeof analysis.risk.valueAtRisk95 === 'number');
 });
+
+test('generateAnalysis throws TypeError on invalid candle invariants', () => {
+  const invalidCandles = [
+    { open: 100, high: 90, low: 95, close: 100, volume: 10 }, // high < low
+  ];
+  assert.throws(() => generateAnalysis(invalidCandles), TypeError);
+});
+
+import {
+  calculateRSI,
+  calculateEMA,
+  calculateMACD,
+  calculateATR,
+  calculateIchimoku,
+  calculateBollingerBands,
+  detectMarketRegime,
+  analyzeMarketMTF,
+} from './analyzer.js';
+
+test('analyzer fallback behaviors on empty or malformed inputs', () => {
+  assert.strictEqual(calculateRSI([]), 50);
+  assert.strictEqual(calculateRSI(null), 50);
+  assert.strictEqual(calculateRSI([10, 20]), 50);
+
+  assert.strictEqual(calculateEMA([], 20), 0);
+  assert.strictEqual(calculateEMA(null, 20), 0);
+  assert.strictEqual(calculateEMA([10, 20], -1), 0);
+
+  assert.deepStrictEqual(calculateMACD([]), { value: 0, signal: 0, histogram: 0 });
+  assert.deepStrictEqual(calculateMACD(null), { value: 0, signal: 0, histogram: 0 });
+
+  assert.strictEqual(calculateATR([]), 0);
+  assert.strictEqual(calculateATR([{ close: 10 }]), 0);
+
+  assert.deepStrictEqual(calculateIchimoku([]), { tenkan: 0, kijun: 0, senkouA: 0, senkouB: 0 });
+  assert.deepStrictEqual(calculateBollingerBands([]), { upper: 0, middle: 0, lower: 0 });
+
+  assert.strictEqual(detectMarketRegime([]), 'RANGING');
+
+  const emptyMTF = analyzeMarketMTF({ '1h': [] });
+  assert.strictEqual(emptyMTF.action, 'HOLD');
+  assert.strictEqual(emptyMTF.confidence, 0);
+});
+

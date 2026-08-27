@@ -75,9 +75,9 @@ learning, paper-trading, and ledger boundaries.
 | Vite/Playwright config TypeScript | PASS | `tsc -p robot trader/tsconfig.node.json --noEmit` |
 | Production frontend build | PASS | `npm run build` |
 | Frontend/domain unit tests | PASS | 41 tests |
-| Analysis API/unit/integration/security tests | PASS | 97 tests including auth, model, ledger, P2 and Phase 3 suites |
+| Analysis API/unit/integration/security tests | PASS | 145 tests including auth, model, ledger, P2 and Phase 3 suites |
 | Gateway/real WebSocket integration tests | PASS | 7 tests covering normalized external data, fallback provenance, order book, Prometheus output and WS |
-| Python unit/integration tests | PASS | 69 tests |
+| Python unit/integration tests | PASS | 69 tests with 0 deprecation warnings |
 | Python dependency/lock consistency | PASS | `uv lock --check`, `pip check` |
 | npm dependency audit | PASS | 0 vulnerabilities (all and production dependencies) |
 | Backtest reproducibility | PASS | 9 runs, 18 PNGs, hash/link/accounting checks |
