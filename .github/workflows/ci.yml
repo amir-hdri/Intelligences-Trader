@@ -7,21 +7,62 @@ on:
     branches: [ "main" ]
 
 jobs:
-  test:
+  node-fullstack-checks:
+    name: Node & TypeScript Checks
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Node.js
+    - name: Setup Node.js 22
       uses: actions/setup-node@v4
       with:
         node-version: '22'
+        cache: 'npm'
 
-    - name: Install Dependencies
+    - name: Install Node Dependencies
       run: npm ci --no-audit --no-fund
 
-    - name: Run Tests
+    - name: TypeScript Typecheck
+      run: npm run typecheck
+
+    - name: Production Bundle Build
+      run: npm run build
+
+    - name: Run Backend & Frontend Unit/Integration Tests
       run: npm test --workspaces --if-present
 
     - name: Security Scan (npm audit)
       run: npm audit --audit-level=high || true
+
+  python-ml-checks:
+    name: Python ML Pipeline Checks
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        version: "latest"
+        enable-cache: true
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install Python ML Dependencies
+      run: |
+        cd ml_service
+        uv sync --locked
+
+    - name: Run Pytest Suite
+      run: |
+        cd ml_service
+        uv run pytest -q
+
+    - name: Run Deterministic Backtest Runner
+      run: |
+        cd ml_service
+        uv run python run_backtests.py
+
