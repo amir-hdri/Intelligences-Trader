@@ -72,4 +72,6 @@ MEMORY.md
 .autoclaw/
 .cluster/
 .openclaw/
+.opencode/
+config/
 memory/
