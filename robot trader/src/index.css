@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-sans: 'Inter', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --font-farsi: 'Vazirmatn', system-ui, -apple-system, sans-serif;
 }
 
@@ -12,10 +12,26 @@
     --safe-area-top: env(safe-area-inset-top, 0px);
     --safe-area-left: env(safe-area-inset-left, 0px);
     --safe-area-right: env(safe-area-inset-right, 0px);
+
+    /* Cybernetic Quant Colors */
+    --color-surface-dim: #060E20;
+    --color-surface: #0B1326;
+    --color-surface-bright: #1E293B;
+    --color-surface-container-lowest: #060E20;
+    --color-surface-container-low: #0F172A;
+    --color-surface-container: #131B2E;
+    --color-surface-container-high: #1A2338;
+    --color-surface-container-highest: #222C42;
+    --color-on-surface: #DAE2FD;
+    --color-on-surface-variant: #94A3B8;
+    --color-telemetry-cyan: #00F0FF;
+    --color-vibrant-emerald: #10B981;
+    --color-crimson-loss: #EF4444;
+    --color-amber-warning: #F59E0B;
   }
 
   html, body {
-    @apply bg-[#05070B] text-[#F8FAFC] antialiased selection:bg-violet-500/30;
+    @apply bg-[#060E20] text-[#DAE2FD] antialiased selection:bg-[#00F0FF]/30 selection:text-white;
     font-family: var(--font-sans);
     overflow-x: hidden;
     width: 100%;
@@ -26,7 +42,7 @@
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+    scrollbar-color: rgba(0, 240, 255, 0.2) rgba(6, 14, 32, 0.5);
     box-sizing: border-box;
   }
 
@@ -37,16 +53,39 @@
 }
 
 @layer utilities {
+  .cyber-grid {
+    background-image: 
+      linear-gradient(to right, rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .cyber-glow {
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
+  }
+
+  .cyber-glow-emerald {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+  }
+
+  .cyber-glow-crimson {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+  }
+
   .glass-panel {
-    @apply bg-[#0B0F17] border border-white/[0.07] shadow-2xl;
+    @apply bg-[#0B1326]/85 backdrop-blur-xl border border-white/[0.08] shadow-2xl;
+  }
+
+  .glass-panel-active {
+    @apply bg-[#0F172A]/90 backdrop-blur-2xl border border-[#00F0FF]/40 shadow-[0_0_20px_rgba(0,240,255,0.15)];
   }
   
   .glass-card {
-    @apply bg-[#101620] border border-white/[0.07];
+    @apply bg-[#0F172A]/80 backdrop-blur-md border border-white/[0.07] shadow-lg;
   }
   
   .elevated {
-    @apply bg-[#151C27] border border-white/[0.07];
+    @apply bg-[#131B2E]/90 backdrop-blur-lg border border-white/[0.08] shadow-xl;
   }
   
   .mono {
@@ -61,11 +100,19 @@
   .font-vazir {
     font-family: 'Vazirmatn', var(--font-sans);
   }
+
+  .data-stripe:nth-child(even) {
+    background-color: rgba(255, 255, 255, 0.02);
+  }
+
+  .data-stripe:nth-child(odd) {
+    background-color: transparent;
+  }
   
   .shimmer {
-    background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.04) 63%);
+    background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(0,240,255,0.08) 37%, rgba(255,255,255,0.03) 63%);
     background-size: 400% 100%;
-    animation: shimmer 1.4s ease infinite;
+    animation: shimmer 1.6s ease infinite;
   }
 
   .safe-pb {
@@ -92,21 +139,21 @@
   }
 
   @keyframes priceFlashUp {
-    0% { background-color: rgba(34, 197, 94, 0.35); }
+    0% { background-color: rgba(16, 185, 129, 0.4); }
     100% { background-color: transparent; }
   }
 
   @keyframes priceFlashDown {
-    0% { background-color: rgba(239, 68, 68, 0.35); }
+    0% { background-color: rgba(239, 68, 68, 0.4); }
     100% { background-color: transparent; }
   }
 
   .animate-price-up {
-    animation: priceFlashUp 180ms ease-out;
+    animation: priceFlashUp 250ms ease-out;
   }
 
   .animate-price-down {
-    animation: priceFlashDown 180ms ease-out;
+    animation: priceFlashDown 250ms ease-out;
   }
 
   @keyframes pulseSubtle {
@@ -117,6 +164,19 @@
   .animate-pulse-subtle {
     animation: pulseSubtle 2s infinite ease-in-out;
   }
+
+  @keyframes tickerTape {
+    0% { transform: translate3d(0, 0, 0); }
+    100% { transform: translate3d(-50%, 0, 0); }
+  }
+
+  .animate-ticker {
+    animation: tickerTape 35s linear infinite;
+  }
+
+  .animate-ticker:hover {
+    animation-play-state: paused;
+  }
 }
 
 ::-webkit-scrollbar {
@@ -124,17 +184,21 @@
   height: 5px;
 }
 
+::-webkit-scrollbar-track {
+  background: rgba(6, 14, 32, 0.6);
+}
+
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(0, 240, 255, 0.2);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(0, 240, 255, 0.45);
 }
 
 *:focus-visible {
-  @apply outline-none ring-2 ring-violet-500/40 ring-offset-0;
+  @apply outline-none ring-2 ring-[#00F0FF] ring-offset-2 ring-offset-[#060E20];
 }
 
 @media (max-width: 767px) {
@@ -163,3 +227,4 @@
   user-select: none;
   -webkit-user-select: none;
 }
+

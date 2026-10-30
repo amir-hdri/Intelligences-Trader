@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { MarketRegime } from '../../types';
-import { Activity, Clock } from 'lucide-react';
+import { Activity, Clock, Layers, Sparkles, ShieldAlert } from 'lucide-react';
+import { Badge } from '../common/ui';
 
 const cn = (...c: (string | false | undefined | null)[]) => c.filter(Boolean).join(' ');
 
@@ -11,11 +12,11 @@ interface MarketRegimeTimelineProps {
   history?: { regime: MarketRegime; timestamp: number; confidence: number }[];
 }
 
-const REGIME_STYLE: Record<MarketRegime, { label: string; color: string }> = {
-  'TRENDING_UP': { label: 'BULLISH', color: 'bg-emerald-500' },
-  'TRENDING_DOWN': { label: 'BEARISH', color: 'bg-rose-500' },
-  'RANGING': { label: 'SIDEWAYS', color: 'bg-slate-500' },
-  'HIGH_VOLATILITY': { label: 'VOLATILE', color: 'bg-amber-500' },
+const REGIME_STYLE: Record<MarketRegime, { label: string; color: string; text: string; border: string }> = {
+  'TRENDING_UP': { label: 'BULLISH TREND', color: 'bg-[#10B981]', text: 'text-[#10B981]', border: 'border-[#10B981]/30' },
+  'TRENDING_DOWN': { label: 'BEARISH DRIFT', color: 'bg-[#EF4444]', text: 'text-[#EF4444]', border: 'border-[#EF4444]/30' },
+  'RANGING': { label: 'SIDEWAYS RANGE', color: 'bg-[#64748B]', text: 'text-[#94A3B8]', border: 'border-white/10' },
+  'HIGH_VOLATILITY': { label: 'HIGH VOLATILITY', color: 'bg-[#F59E0B]', text: 'text-[#F59E0B]', border: 'border-[#F59E0B]/30' },
 };
 
 export const MarketRegimeTimeline: React.FC<MarketRegimeTimelineProps> = ({
@@ -31,9 +32,6 @@ export const MarketRegimeTimeline: React.FC<MarketRegimeTimelineProps> = ({
     vol: string;
   } | null>(null);
 
-  // Render ONLY observed detections. Without a supplied history we show the
-  // current detection alone — inventing past regimes would present unobserved
-  // analytics as measured HMM output.
   const segments = useMemo(() => {
     const style = REGIME_STYLE[currentRegime] || REGIME_STYLE['RANGING'];
     const current = {
@@ -41,7 +39,7 @@ export const MarketRegimeTimeline: React.FC<MarketRegimeTimelineProps> = ({
       raw: currentRegime,
       color: style.color,
       conf: Math.round(confidence * 100),
-      time: 'Current detection',
+      time: 'Current tick',
       vol: currentRegime === 'HIGH_VOLATILITY' ? 'Surge' : currentRegime === 'TRENDING_UP' ? 'High' : currentRegime === 'TRENDING_DOWN' ? 'Medium' : 'Low',
     };
     if (!history || history.length === 0) return [current];
@@ -60,88 +58,98 @@ export const MarketRegimeTimeline: React.FC<MarketRegimeTimelineProps> = ({
     })];
   }, [currentRegime, confidence, history]);
 
+  const activeStyle = REGIME_STYLE[currentRegime] || REGIME_STYLE['RANGING'];
+
   return (
-    <div className={cn("glass-panel rounded-2xl p-4 lg:p-5 space-y-4", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Activity className="w-4 h-4 text-violet-400" />
-          <h3 className="text-xs font-black tracking-widest uppercase text-violet-300">
-            Market Regime Timeline
-          </h3>
+    <div
+      aria-label="Rule-Based Market Regime Classifier Timeline"
+      className={cn("glass-panel rounded-3xl p-5 lg:p-6 space-y-4 border border-white/[0.08] font-mono", className)}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/30 grid place-items-center">
+            <Activity className="w-4 h-4 text-[#00F0FF]" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold tracking-wider uppercase text-white">
+              Market Regime Classifier
+            </h3>
+            <span className="text-[10px] text-[#849495]">EMA20 / EMA50 trend and ATR volatility rules</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-[10px] text-[#64748B] uppercase font-bold tracking-wider">Current:</span>
-          <span className={cn(
-            "px-2 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider",
-            currentRegime === 'TRENDING_UP' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
-            currentRegime === 'TRENDING_DOWN' ? "bg-rose-500/10 text-red-400 border-rose-500/20" :
-            currentRegime === 'HIGH_VOLATILITY' ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
-            "bg-slate-500/10 text-slate-300 border-slate-500/20"
-          )}>
-            {currentRegime.replace('_', ' ')}
+
+        <div className="flex items-center gap-2.5 text-xs">
+          <Badge
+            tone={currentRegime === 'TRENDING_UP' ? 'emerald' : currentRegime === 'TRENDING_DOWN' ? 'crimson' : currentRegime === 'HIGH_VOLATILITY' ? 'amber' : 'slate'}
+            dot
+          >
+            {activeStyle.label}
+          </Badge>
+          <span className="text-white font-bold text-xs bg-[#060E20] px-3 py-1 rounded-xl border border-white/[0.1]">
+            {(confidence * 100).toFixed(0)}% Signal Score
           </span>
-          <span className="mono font-bold text-white text-[11px]">{(confidence * 100).toFixed(0)}% Conf</span>
         </div>
       </div>
 
       <div className="space-y-2">
-        <div className="relative w-full h-8 rounded-xl bg-white/[0.03] border border-white/[0.06] p-1 flex gap-1 overflow-x-auto scrollbar-none">
+        <div className="relative w-full h-8 rounded-xl bg-[#060E20] border border-white/[0.08] p-1 flex gap-1 overflow-x-auto scrollbar-none">
           {segments.map((seg, i) => {
             const isCurrent = i === 0;
             return (
-              <div
+              <button
                 key={i}
+                type="button"
                 onMouseEnter={() => setActiveTooltip(seg)}
                 onMouseLeave={() => setActiveTooltip(null)}
                 onClick={() => setActiveTooltip(seg)}
-                style={{ width: isCurrent ? '35%' : `${Math.max(10, 65 / Math.max(1, segments.length - 1))}%` }}
+                style={{ width: isCurrent ? '40%' : `${Math.max(10, 60 / Math.max(1, segments.length - 1))}%` }}
                 className={cn(
                   "h-full rounded-lg transition-all cursor-pointer flex items-center justify-center px-2 min-w-[70px] relative group",
                   seg.color,
-                  isCurrent ? "opacity-95 ring-2 ring-violet-400 shadow-lg" : "opacity-60 hover:opacity-90"
+                  isCurrent ? "opacity-100 ring-2 ring-[#00F0FF] shadow-[0_0_12px_rgba(0,240,255,0.4)]" : "opacity-50 hover:opacity-90"
                 )}
               >
-                <span className="text-[10px] font-black text-black tracking-tight truncate uppercase">
+                <span className="text-[9px] font-black text-[#060E20] tracking-tight truncate uppercase">
                   {seg.regime}
                 </span>
                 {isCurrent && (
                   <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-white animate-ping" />
                 )}
-              </div>
+              </button>
             );
           })}
         </div>
 
         {activeTooltip ? (
-          <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs animate-in fade-in duration-150">
+          <div className="p-3.5 rounded-2xl bg-[#060E20] border border-[#00F0FF]/30 flex flex-wrap items-center justify-between gap-3 text-xs animate-in fade-in duration-150 shadow-[0_0_15px_rgba(0,240,255,0.1)]">
             <div className="flex items-center gap-2">
-              <span className="font-black text-white">{activeTooltip.regime} REGIME</span>
-              <span className="text-[11px] text-[#94A3B8]">({activeTooltip.time})</span>
+              <span className="font-bold text-white">{activeTooltip.regime}</span>
+              <span className="text-[11px] text-[#849495]">({activeTooltip.time})</span>
             </div>
-            <div className="flex items-center gap-4 mono text-[11px]">
-              <span>Conf: <strong className="text-violet-300">{activeTooltip.conf}%</strong></span>
-              <span>Vol: <strong className="text-sky-300">{activeTooltip.vol}</strong></span>
+            <div className="flex items-center gap-4 text-[11px]">
+              <span>Signal Score: <strong className="text-[#00F0FF]">{activeTooltip.conf}%</strong></span>
+              <span>Volatility: <strong className="text-[#DAE2FD]">{activeTooltip.vol}</strong></span>
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-between text-[10px] mono text-[#64748B] px-1">
-            <span>{history?.length ? `Last ${history.length + 1} detections` : 'Awaiting regime history'}</span>
-            <span className="flex items-center gap-1"><Clock className="w-3 h-3"/> Tap / hover segment for metrics</span>
-            <span>HMM Detection</span>
+          <div className="flex items-center justify-between text-[10px] text-[#849495] px-1 font-sans">
+            <span>{history?.length ? `Last ${history.length + 1} observed transitions` : 'Online regime evaluation'}</span>
+            <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-[#00F0FF]"/> Tap segment for detailed parameters</span>
+            <span className="font-mono">Rule-Based Classifier</span>
           </div>
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 pt-1 text-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 pt-1 text-xs">
         {segments.slice(0, 4).map((seg, i) => (
-          <div key={i} className="elevated rounded-xl p-2.5">
-            <div className="text-[9px] uppercase tracking-wider text-[#64748B] font-bold">
+          <div key={i} className="glass-card rounded-2xl p-3 border border-white/[0.08]">
+            <div className="text-[9px] uppercase tracking-wider text-[#849495] font-bold">
               {i === 0 ? 'Current Regime' : `${seg.time}`}
             </div>
-            <div className={cn("font-black mono text-sm mt-0.5",
-              seg.regime === 'BULLISH' ? "text-emerald-400" :
-              seg.regime === 'BEARISH' ? "text-rose-400" :
-              seg.regime === 'VOLATILE' ? "text-amber-400" : "text-slate-300"
+            <div className={cn("font-bold text-sm mt-0.5",
+              seg.regime.includes('BULLISH') ? "text-[#10B981]" :
+              seg.regime.includes('BEARISH') ? "text-[#EF4444]" :
+              seg.regime.includes('VOLATILITY') ? "text-[#F59E0B]" : "text-[#DAE2FD]"
             )}>
               {seg.regime}
             </div>
@@ -153,3 +161,4 @@ export const MarketRegimeTimeline: React.FC<MarketRegimeTimelineProps> = ({
 };
 
 export default MarketRegimeTimeline;
+

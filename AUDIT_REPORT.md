@@ -60,6 +60,9 @@ This hardening pass repairs those defects and changes documentation/API behavior
 
 ## Verification performed
 
+> These are the 2026-08-08 baseline numbers, kept as history. The current per-suite counts are in
+> [`FULL_STACK_AUDIT_REPORT.md`](./FULL_STACK_AUDIT_REPORT.md) and are guarded by `npm run verify`.
+
 - Frontend strict TypeScript check: passed.
 - Frontend build: passed.
 - Frontend/domain tests: 50 passed.
@@ -70,16 +73,41 @@ This hardening pass repairs those defects and changes documentation/API behavior
 
 ## Remaining blockers before live trading
 
-1. **No broker/OMS implementation.** There is no authenticated order state machine, idempotency key, reconciliation, partial-fill handling, cancel/replace flow, or disaster recovery.
-2. **Data provenance is incomplete.** Instrument mappings are placeholders and most intraday/macro/news data remains generated. A licensed, timestamped, quality-controlled feed is required.
-3. **Model provenance is incomplete.** Tracked ONNX artifacts lack a signed model card, exact dataset hash, feature schema, scaler parameters, training commit, validation report, and promotion approval.
-4. **No realistic execution backtester.** Current walk-forward logic omits spread, queue position, slippage, price limits, latency, funding/margin changes, and survivorship/selection bias.
-5. **Statistical validation is insufficient.** Add embargoed purged cross-validation over multiple folds, deflated Sharpe/probability-of-backtest-overfitting checks, calibration confidence intervals, regime-specific results, and transaction-cost sensitivity.
-6. **Authentication is optional.** Production must force authentication, externalize refresh-token rotation/revocation, use a real identity provider, and store audit logs in append-only remote storage.
-7. **Metrics are process-local.** Replace simple counters with Prometheus histograms/counters and an OTLP exporter; add alerts and SLOs.
-8. **No database.** Portfolio, order, model, user, and audit state are in memory/local storage/files and cannot support safe multi-replica operation.
-9. **Kubernetes/Terraform are templates.** Images, TLS ingress, network policies, pod security, secret injection, immutable tags, backup policy, and environment-specific overlays still require deployment engineering.
-10. **Python training CI is intentionally lightweight.** Core safety/environment tests run by default. Full PyTorch/ONNX training dependencies use the `training` extra and need a separate scheduled CPU/GPU validation job.
+> Refreshed 2026-10-30, after the terminal-contract and documentation-truth remediation phase and the
+> adversarial review of the terminal redesign. Items are
+> marked **CODE-VERIFIED** when the repository itself now proves the state (a test or a check fails if the
+> state regresses), and **ASPIRATIONAL** when the capability is simply not built yet.
+
+1. **No broker/OMS implementation.** There is no authenticated order state machine, idempotency key, reconciliation, partial-fill handling, cancel/replace flow, or disaster recovery. **ASPIRATIONAL** — no code claims to provide it.
+2. **Data provenance is incomplete.** Instrument mappings are placeholders and most intraday/macro/news data remains generated. A licensed, timestamped, quality-controlled feed is required. **ASPIRATIONAL** — the fallbacks are labelled, but the licensed feed is a business dependency.
+3. **Model provenance is incomplete.** Tracked ONNX artifacts lack a signed model card, exact dataset hash, feature schema, scaler parameters, training commit, validation report, and promotion approval. **CODE-VERIFIED** that the artifacts exist and are pinned (input/output names, shapes and SHA-256 digests are asserted by `ml_service/test_model_contract.py` and `robot trader/server/modelArtifactContract.test.js`); the governance artefacts are still missing.
+4. **The two shipped ONNX artifacts do not share a contract.** The Python research artifact takes 5 features and returns 2 outputs; the Node serving artifact takes 10 features and returns 1. The mismatch is **CODE-VERIFIED** by the two contract tests, and it is *not* resolved: one artifact has to be rebuilt and promoted.
+5. **The PPO action space is inconsistent between the two services.** The Python policy emits a continuous direction while the Node environment decodes a discrete action. **CODE-VERIFIED** as a known defect (the decode contract is asserted, the semantics differ) — it needs one shared action contract.
+6. **No realistic execution backtester.** Current walk-forward logic omits spread, queue position, slippage, price limits, latency, funding/margin changes, and survivorship/selection bias. **ASPIRATIONAL**.
+7. **Statistical validation is insufficient.** Add embargoed purged cross-validation over multiple folds, deflated Sharpe/probability-of-backtest-overfitting checks, calibration confidence intervals, regime-specific results, and transaction-cost sensitivity. **ASPIRATIONAL**.
+8. **Identity lifecycle is minimal.** Single-admin JWT login has no durable refresh-token rotation/revocation, MFA, RBAC or external IdP. Authentication itself is enforced fail-closed in production. **ASPIRATIONAL** beyond the single-admin deployment.
+9. **Metrics are process-local.** Replace simple counters with Prometheus histograms/counters and an OTLP exporter; add alerts and SLOs. **ASPIRATIONAL**.
+10. **Kubernetes/Terraform are templates.** Images, TLS ingress, network policies, pod security, secret injection, immutable tags, backup policy, and environment-specific overlays still require deployment engineering. The CI deploy step is also not connected to the k8s cluster. **ASPIRATIONAL** — operator work, not code work.
+11. **Python training CI is intentionally lightweight.** Core safety/environment tests run by default. Full PyTorch/ONNX training dependencies use the `training` extra and need a separate scheduled CPU/GPU validation job. **ASPIRATIONAL**.
+
+### Closed by the 2026-10-29 and 2026-10-30 remediation phases
+
+- The production build is green again (the `Badge` tone contract is enforced by strict TypeScript).
+- Every one of the 22 navigation ids renders its own labelled destination, and a regression spec fails when
+  one of them does not — **CODE-VERIFIED** by `robot trader/tests/audit/navigation.spec.ts`.
+- No module under `robot trader/src/` is left unreachable from the entry points — **CODE-VERIFIED** by
+  `robot trader/src/orphanGuard.test.ts`, which fails the test suite (`npm test`) when the next orphan
+  appears.
+- The browser end-to-end suite runs locally and proves a real WebSocket connection, and the documented test
+  totals can no longer drift from the executed ones — **CODE-VERIFIED** by `npm run test:e2e` and
+  `npm run verify` (also wired into CI and into the root `check` script).
+- The header tape, the arbitrage panel, the regime timeline and the health monitor show only observed or
+  explicitly labelled simulation state; the fabricated live quotes, the "LIVE SCANNER" badge, the invented
+  gateway latency, the "API Uptime" label and the HMM/confidence wording are gone.
+- The emergency kill switch persists only the halt flag instead of the unsaved edit buffer, and a latched
+  risk halt is released only by an explicit reset — **CODE-VERIFIED** by `robot trader/src/riskEngine.test.ts`.
+- The shared dialog primitive and the command palette move, trap and restore keyboard focus, and the risk
+  panel no longer claims that the advisory position-size limit is enforced on the execution path.
 
 ## Recommended next phase
 

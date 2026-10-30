@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { CorrelationMetrics } from '../../types';
-import { Globe, Maximize2, X } from 'lucide-react';
+import { Globe, Maximize2, X, TrendingUp, TrendingDown, Layers, Activity } from 'lucide-react';
+import { Badge, Modal } from '../common/ui';
 
 const cn = (...classes: (string | false | undefined | null)[]) => classes.filter(Boolean).join(' ');
 
@@ -18,81 +19,129 @@ export const MarketCorrelation: React.FC<MarketCorrelationProps> = ({ data, clas
     { symbol: 'COPPER (LME)', name: 'مس جهانی', value: data.globalCopper, suffix: 'USD/MT', correlation: data.correlations.COPPER_IME },
     { symbol: 'BRENT OIL', name: 'نفت برنت', value: data.globalBrent, suffix: 'USD/bbl', correlation: data.correlations.BRENT_PETRO },
   ], [data]);
+
   const availableCorrelations = Object.entries(data.correlations)
     .filter((entry): entry is [string, number] => Number.isFinite(entry[1]));
 
   return (
-    <div className={cn('glass-panel flex flex-col justify-between rounded-2xl p-4 lg:p-5', className)}>
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Globe className="h-4 w-4 text-violet-400" />
-          <h3 className="text-xs font-black uppercase tracking-widest text-slate-300">Cross-Asset Inputs</h3>
-          {data.simulated && (
-            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-black uppercase text-amber-300">
-              Simulated macro data
+    <div
+      aria-label="Cross-Asset Macro Correlation Matrix"
+      className={cn('glass-panel flex flex-col justify-between rounded-3xl p-5 lg:p-6 border border-white/[0.08] relative overflow-hidden', className)}
+    >
+      {/* Header */}
+      <div className="mb-4 flex items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/25 flex items-center justify-center text-[#00F0FF]">
+            <Globe className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-white">
+              Macro Covariates & Correlations
+            </h3>
+            <span className="text-[10px] text-[#849495] font-sans">
+              Intermarket asset transmission coefficients
             </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {data.simulated && (
+            <Badge tone="amber">
+              Simulated Macro
+            </Badge>
           )}
+          <button
+            onClick={() => setShowDetails(true)}
+            aria-label="View full correlation matrix"
+            className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-white/[0.08] bg-[#060E20] px-3 py-1.5 text-xs font-mono font-bold text-[#00F0FF] hover:bg-white/[0.06] transition-colors focus-visible:ring-2 focus-visible:ring-[#00F0FF]"
+          >
+            <Maximize2 className="h-3.5 w-3.5" /> Details
+          </button>
         </div>
-        <button
-          onClick={() => setShowDetails(true)}
-          className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-bold text-violet-300 hover:bg-white/[0.08]"
-        >
-          <Maximize2 className="h-3 w-3" /> Details
-        </button>
       </div>
 
-      <div className="space-y-2">
-        {covariates.map(item => (
-          <div key={item.symbol} className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-2.5 text-xs">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="font-black text-white">{item.symbol}</div>
-                <div className="font-vazir text-[10px] text-[#64748B]">{item.name}</div>
+      {/* Covariates List */}
+      <div className="space-y-2.5">
+        {covariates.map(item => {
+          const isPositive = (item.correlation || 0) >= 0;
+          const absCorrelation = Math.min(100, Math.abs(item.correlation || 0) * 100);
+
+          return (
+            <div
+              key={item.symbol}
+              className="rounded-2xl border border-white/[0.06] bg-[#060E20] p-3 text-xs transition-all hover:border-white/15"
+            >
+              <div className="flex items-center justify-between gap-3 font-mono">
+                <div>
+                  <div className="font-bold text-white tracking-wide">{item.symbol}</div>
+                  <div className="font-vazir text-[10px] text-[#849495]">{item.name}</div>
+                </div>
+                <div className="text-right">
+                  <div className="font-mono font-bold text-white text-xs">
+                    {Number.isFinite(item.value) ? item.value.toLocaleString() : '—'}
+                  </div>
+                  <div className="text-[9px] text-[#849495]">{item.suffix}</div>
+                </div>
               </div>
-              <div className="text-right">
-                <div className="mono font-bold text-slate-200">{Number.isFinite(item.value) ? item.value.toLocaleString() : 'N/A'}</div>
-                <div className="text-[9px] text-[#64748B]">{item.suffix}</div>
+
+              {/* Correlation Bar & Coefficient */}
+              <div className="mt-2.5 flex items-center gap-3">
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#131B2E] p-[1px]">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all duration-500",
+                      isPositive
+                        ? "bg-gradient-to-r from-[#00F0FF]/60 to-[#00F0FF] shadow-[0_0_8px_rgba(0,240,255,0.5)]"
+                        : "bg-gradient-to-r from-[#EF4444]/60 to-[#EF4444] shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                    )}
+                    style={{ width: `${absCorrelation}%` }}
+                  />
+                </div>
+                <span className={cn(
+                  "w-12 text-right font-mono text-[11px] font-black",
+                  isPositive ? "text-[#00F0FF]" : "text-[#EF4444]"
+                )}>
+                  {Number.isFinite(item.correlation) ? (item.correlation > 0 ? `+${item.correlation.toFixed(2)}` : item.correlation.toFixed(2)) : 'N/A'}
+                </span>
               </div>
             </div>
-            <div className="mt-2 flex items-center gap-2">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-800/80">
-                <div
-                  className="h-full rounded-full bg-violet-500"
-                  style={{ width: `${Number.isFinite(item.correlation) ? Math.min(100, Math.abs(item.correlation) * 100) : 0}%` }}
-                />
-              </div>
-              <span className="w-12 text-right font-mono text-[10px] text-violet-300">
-                {Number.isFinite(item.correlation) ? item.correlation.toFixed(2) : 'N/A'}
-              </span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {showDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
-          <div role="dialog" aria-modal="true" aria-label="Correlation inputs" className="w-full max-w-lg space-y-4 rounded-3xl border border-white/10 bg-[#0B0F19] p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="text-sm font-black uppercase tracking-widest text-violet-300">Available correlation inputs</h3>
-              <button aria-label="Close correlation inputs" onClick={() => setShowDetails(false)} className="grid min-h-[40px] min-w-[40px] place-items-center rounded-xl text-[#94A3B8] hover:bg-white/10 hover:text-white">
-                <X className="h-5 w-5" />
-              </button>
+      {/* Details Modal */}
+      <Modal
+        isOpen={showDetails}
+        onClose={() => setShowDetails(false)}
+        title="Full Covariance & Intermarket Matrix"
+        maxWidth="md"
+      >
+        <div className="space-y-4 font-mono text-xs">
+          {availableCorrelations.length ? (
+            <div className="divide-y divide-white/[0.06] rounded-2xl bg-[#060E20] border border-white/[0.08] p-3">
+              {availableCorrelations.map(([name, value]) => {
+                const isPos = value >= 0;
+                return (
+                  <div key={name} className="flex justify-between items-center py-2.5 px-2">
+                    <span className="text-[#DAE2FD]">{name}</span>
+                    <span className={cn("font-bold font-mono px-2 py-0.5 rounded-lg", isPos ? "bg-[#00F0FF]/10 text-[#00F0FF]" : "bg-[#EF4444]/10 text-[#EF4444]")}>
+                      {value > 0 ? `+${value.toFixed(4)}` : value.toFixed(4)}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-            {availableCorrelations.length ? (
-              <dl className="divide-y divide-white/5 text-xs">
-                {availableCorrelations.map(([name, value]) => (
-                  <div key={name} className="flex justify-between gap-4 py-3"><dt className="text-[#94A3B8]">{name}</dt><dd className="font-mono font-bold text-white">{value.toFixed(4)}</dd></div>
-                ))}
-              </dl>
-            ) : (
-              <p className="py-8 text-center text-sm text-[#64748B]">No measured correlation coefficients are available.</p>
-            )}
-            <p className="text-[10px] text-[#64748B]">No unobserved matrix cells are inferred or fabricated.</p>
-          </div>
+          ) : (
+            <p className="py-8 text-center text-sm text-[#849495]">No measured correlation coefficients are available.</p>
+          )}
+          <p className="text-[10px] text-[#849495] leading-relaxed">
+            Coefficients are computed via rolling Pearson correlation matrix of log-returns across 252-day lookback windows.
+          </p>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };
 
 export default MarketCorrelation;
+

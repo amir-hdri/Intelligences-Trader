@@ -38,6 +38,7 @@ export default defineConfig({
       url: 'http://127.0.0.1:3001/api/status',
       timeout: 60_000,
       reuseExistingServer: !process.env.CI,
+      env: { CORS_ORIGIN: 'http://localhost:5173,http://127.0.0.1:5173' },
     },
     {
       command: 'npm run dev -- --host 127.0.0.1 --port 5173',

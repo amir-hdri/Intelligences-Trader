@@ -22,17 +22,31 @@ import { Header, Sidebar, MobileDrawer, BottomNav, StatusBar, NAV } from './comp
 import { MetricCard } from './components/dashboard/KPI';
 import { AISignal } from './components/dashboard/AISignal';
 import { RiskControlPanel } from './components/dashboard/RiskControlPanel';
-import { Skeleton } from './components/common/ui';
+import { SystemHealthMonitor } from './components/dashboard/SystemHealthMonitor';
+import { ApiSettingsPanel } from './components/dashboard/ApiSettingsPanel';
+import { Skeleton, useModalFocus } from './components/common/ui';
 import { predictionService } from './services/PredictionHistoryService';
 import { learningEngine } from './services/LearningEngine';
 import { createBackendApi } from './services/BackendApiService';
 import type { Order as BackendOrder, Position as BackendPosition, PaperTradeResult } from './services/BackendApiService';
 import {
   AlertTriangle, Zap, ShieldCheck, BarChart3, TrendingUp, ShieldAlert,
-  RefreshCw, Eye, Download, Search, X, ChevronDown, ChevronUp
+  RefreshCw, Download, Search, X, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 const cn = (...c: (string | false | undefined | null)[]) => c.filter(Boolean).join(' ');
+
+const NAV_LABEL_BY_ID = new Map(NAV.flatMap(group => group.items).map(item => [item.id, item.label] as const));
+
+const Destination: React.FC<{ id: string; className?: string; children: React.ReactNode }> = ({
+  id,
+  className,
+  children,
+}) => (
+  <section aria-label={NAV_LABEL_BY_ID.get(id) ?? id} className={className}>
+    {children}
+  </section>
+);
 
 type LedgerDisplayRow = {
   id: string;
@@ -54,6 +68,10 @@ export default function App() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const [cmdQuery, setCmdQuery] = useState('');
   const [notifOpen, setNotifOpen] = useState(false);
+  const cmdPaletteRef = useRef<HTMLDivElement>(null);
+  const notifPanelRef = useRef<HTMLDivElement>(null);
+  useModalFocus(cmdOpen, cmdPaletteRef, () => setCmdOpen(false));
+  useModalFocus(notifOpen, notifPanelRef, () => setNotifOpen(false));
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   const [selectedSymbolId, setSelectedSymbolId] = useLocalStorage<string>('selectedSymbolId', IME_SYMBOLS[0].id);
@@ -70,10 +88,6 @@ export default function App() {
   });
   const [backendPositions, setBackendPositions] = useState<BackendPosition[]>([]);
   const [backendOrders, setBackendOrders] = useState<BackendOrder[]>([]);
-  const [apiTestState, setApiTestState] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
-  const [authUsername, setAuthUsername] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authPending, setAuthPending] = useState(false);
   const backendApi = useMemo(
     () => createBackendApi(apiConfig.proxyUrl || window.location.origin, apiConfig.apiKey),
     [apiConfig.proxyUrl, apiConfig.apiKey],
@@ -115,10 +129,25 @@ export default function App() {
 
   const riskEngineRef = useRef<RiskEngine | null>(null);
   if (!riskEngineRef.current) {
-    riskEngineRef.current = new RiskEngine(riskLimits, metrics.balance || INITIAL_METRICS.balance);
+    try {
+      riskEngineRef.current = new RiskEngine(riskLimits, metrics.balance || INITIAL_METRICS.balance);
+    } catch {
+      riskEngineRef.current = new RiskEngine(DEFAULT_RISK_LIMITS, metrics.balance || INITIAL_METRICS.balance);
+    }
   }
   const riskEngine = riskEngineRef.current;
   const [riskStatus, setRiskStatus] = useState<RiskStatus>(() => riskEngine.getStatus());
+
+  const resetRiskHalt = () => {
+    riskEngine.resetKillSwitch();
+    const status = riskEngine.getStatus();
+    setRiskStatus(status);
+    pushToast(
+      status.isKillSwitchActive
+        ? 'Risk halt is still engaged — release the manual kill switch first.'
+        : 'Risk halt reset — execution resumed.',
+    );
+  };
 
   // Real Paper Trading Engine - deterministic, no Math.random, connected to backend
   const executeTradeFromTicket = async (order: {
@@ -233,24 +262,22 @@ export default function App() {
     return () => { cancelled = true; };
   }, [activeTab, selectedSymbolId, backendApi]);
 
-  const loginToApi = useCallback(async () => {
-    if (!authUsername.trim() || !authPassword) {
+  const loginToApi = useCallback(async (username: string, password: string): Promise<boolean> => {
+    if (!username.trim() || !password) {
       pushToast('Username and password are required.');
-      return;
+      return false;
     }
-    setAuthPending(true);
     try {
-      const session = await backendApi.login(authUsername.trim(), authPassword);
+      const session = await backendApi.login(username.trim(), password);
       sessionStorage.setItem('refreshToken', session.refreshToken);
       setApiConfig(previous => ({ ...previous, apiKey: session.accessToken, isConnected: true }));
-      setAuthPassword('');
       pushToast('Authenticated API session established.');
+      return true;
     } catch (error) {
       pushToast(error instanceof Error ? `Login failed: ${error.message}` : 'Login failed.');
-    } finally {
-      setAuthPending(false);
+      return false;
     }
-  }, [authPassword, authUsername, backendApi, setApiConfig]);
+  }, [backendApi, setApiConfig]);
 
   const logoutFromApi = useCallback(() => {
     sessionStorage.removeItem('refreshToken');
@@ -258,18 +285,17 @@ export default function App() {
     pushToast('API session cleared.');
   }, [setApiConfig]);
 
-  const testApiConnection = useCallback(async () => {
-    setApiTestState('testing');
+  const testApiConnection = useCallback(async (): Promise<boolean> => {
     try {
       const status = await backendApi.testConnection();
       if (!status || typeof status.modelReady !== 'boolean') throw new Error('Malformed status response');
       setApiConfig((previous) => ({ ...previous, isConnected: true }));
-      setApiTestState('ok');
       pushToast('API connection verified successfully.');
+      return true;
     } catch (error) {
       setApiConfig((previous) => ({ ...previous, isConnected: false }));
-      setApiTestState('error');
       pushToast(error instanceof Error ? `API connection failed: ${error.message}` : 'API connection failed.');
+      return false;
     }
   }, [backendApi, setApiConfig]);
 
@@ -278,9 +304,14 @@ export default function App() {
   }, [loadData]);
 
   useEffect(() => {
-    riskEngine.setLimits(riskLimits);
-    setRiskStatus(riskEngine.getStatus());
-  }, [riskEngine, riskLimits]);
+    try {
+      riskEngine.setLimits(riskLimits);
+      setRiskStatus(riskEngine.getStatus());
+    } catch {
+      setRiskLimits(prev => ({ ...DEFAULT_RISK_LIMITS, stopAllTrading: prev.stopAllTrading }));
+      pushToast('Risk limits rejected by the risk engine — safe defaults restored.');
+    }
+  }, [riskEngine, riskLimits, setRiskLimits]);
 
   useEffect(() => {
     riskEngine.updatePerformanceMetrics(metrics.winRate, metrics.profitFactor);
@@ -335,6 +366,13 @@ export default function App() {
       b = arr[arr.length - 1].close;
     return ((b - a) / a) * 100;
   }, [mtfData, timeframe]);
+
+  const liveQuote = useMemo(() => {
+    const arr = mtfData[timeframe];
+    const last = arr?.[arr.length - 1];
+    if (!last || !Number.isFinite(last.close)) return null;
+    return { price: last.close, change: priceChange, asOf: last.timestamp };
+  }, [mtfData, timeframe, priceChange]);
 
   const predictionHistory = useMemo(() => predictionService.getHistory(), [tradeLogs, forecast]);
   const adaptiveWeights = useMemo(() => learningEngine.calculateAdaptiveWeights(predictionHistory), [predictionHistory]);
@@ -414,6 +452,8 @@ export default function App() {
         setSelected={setSelectedSymbolId}
         currentPrice={currentPrice}
         priceChange={priceChange}
+        quote={liveQuote}
+        feedMode={apiConfig.useDigitalTwin ? 'twin' : 'api'}
         onRefresh={() => void loadData()}
         isLoading={isLoading}
       />
@@ -464,7 +504,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="p-3 sm:p-4 lg:p-6 space-y-6 pb-28 lg:pb-8 max-w-[2560px] mx-auto w-full">
+          <div role="region" aria-label="Terminal content" className="p-3 sm:p-4 lg:p-6 space-y-6 pb-28 lg:pb-8 max-w-[2560px] mx-auto w-full">
             {errorState && (
               <div role="alert" className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-amber-300 text-sm">
@@ -481,7 +521,7 @@ export default function App() {
             )}
 
             {activeTab === 'dashboard' && (
-              <div className="space-y-6">
+              <Destination id="dashboard" className="space-y-6">
                 <div className="hidden lg:grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
                   <MetricCard
                     loading={isLoading}
@@ -654,26 +694,52 @@ export default function App() {
                     <LearningDashboard history={predictionHistory.slice(0, 50)} currentWeights={adaptiveWeights} />
                   </div>
                 </div>
-              </div>
+              </Destination>
+            )}
+
+            {activeTab === 'intelligence' && (
+              <Destination id="intelligence" className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2 space-y-6">
+                    <ProfessionalChart
+                      data={mtfData['1h']}
+                      forecast={forecast}
+                      symbolName={selectedSymbol.name}
+                    />
+                  </div>
+                  <div className="space-y-6">
+                    <AISignal forecast={forecast} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {correlation && <MarketCorrelation data={correlation} />}
+                  {sentiment && <SentimentMonitor data={sentiment} />}
+                  <ArbitragePanel opportunities={forecast?.arbitrage ? [forecast.arbitrage] : []} />
+                </div>
+              </Destination>
             )}
 
             {activeTab === 'paper' && (
-              <FullPaperTradingDashboard accessToken={apiConfig.apiKey} />
+              <Destination id="paper">
+                <FullPaperTradingDashboard accessToken={apiConfig.apiKey} />
+              </Destination>
             )}
 
             {/* Current multi-timeframe data includes a generated intraday path, so retain synthetic provenance. */}
             {activeTab === 'backtest' && (
-              <BacktestingDashboard
-                symbolId={selectedSymbolId}
-                timeframe={timeframe}
-                candles={mtfData[timeframe] || []}
-                sourceIsSynthetic={true}
-                accessToken={apiConfig.apiKey}
-              />
+              <Destination id="backtest">
+                <BacktestingDashboard
+                  symbolId={selectedSymbolId}
+                  timeframe={timeframe}
+                  candles={mtfData[timeframe] || []}
+                  sourceIsSynthetic={true}
+                  accessToken={apiConfig.apiKey}
+                />
+              </Destination>
             )}
 
             {activeTab === 'trade' && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <Destination id="trade" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                   <TradeTicket
                     symbol={selectedSymbol}
@@ -711,11 +777,11 @@ export default function App() {
                   <AISignal forecast={forecast} />
                   {orderBook && <OrderBookView data={orderBook} />}
                 </div>
-              </div>
+              </Destination>
             )}
 
             {activeTab === 'overview' && (
-              <div className="space-y-6">
+              <Destination id="overview" className="space-y-6">
                 <div className="glass-panel rounded-3xl p-6">
                   <h3 className="text-sm font-black uppercase tracking-widest text-violet-300 mb-4">
                     Iranian Mercantile Exchange (IME) Instruments
@@ -768,11 +834,53 @@ export default function App() {
                   {correlation && <MarketCorrelation data={correlation} />}
                   {sentiment && <SentimentMonitor data={sentiment} />}
                 </div>
-              </div>
+              </Destination>
+            )}
+
+            {activeTab === 'orderbook' && (
+              <Destination id="orderbook">
+                {orderBook ? (
+                  <OrderBookView data={orderBook} />
+                ) : (
+                  <div className="glass-panel rounded-3xl p-6 text-xs text-[#94A3B8]">
+                    Depth of market is not available yet. The view renders as soon as the first order book snapshot arrives on the market data channel.
+                  </div>
+                )}
+              </Destination>
+            )}
+
+            {activeTab === 'correlations' && (
+              <Destination id="correlations">
+                {correlation ? (
+                  <MarketCorrelation data={correlation} />
+                ) : (
+                  <div className="glass-panel rounded-3xl p-6 text-xs text-[#94A3B8]">
+                    Cross-market correlations are not available yet. They are measured from the live market feed and appear here once the service responds.
+                  </div>
+                )}
+              </Destination>
+            )}
+
+            {activeTab === 'sentiment' && (
+              <Destination id="sentiment">
+                {sentiment ? (
+                  <SentimentMonitor data={sentiment} />
+                ) : (
+                  <div className="glass-panel rounded-3xl p-6 text-xs text-[#94A3B8]">
+                    NLP sentiment is not available yet. The monitor appears after the news and social signal feed is ingested.
+                  </div>
+                )}
+              </Destination>
+            )}
+
+            {activeTab === 'arbitrage' && (
+              <Destination id="arbitrage">
+                <ArbitragePanel opportunities={forecast?.arbitrage ? [forecast.arbitrage] : []} />
+              </Destination>
             )}
 
             {['positions', 'orders', 'history'].includes(activeTab) && (
-              <div className="glass-panel rounded-3xl overflow-hidden space-y-4">
+              <Destination id={activeTab} className="glass-panel rounded-3xl overflow-hidden space-y-4">
                 <div className="p-4 sm:p-6 border-b border-white/5 flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h3 className="text-xs font-black uppercase tracking-widest text-violet-300">
@@ -917,160 +1025,102 @@ export default function App() {
                     </div>
                   )}
                 </div>
-              </div>
+              </Destination>
             )}
 
             {activeTab === 'performance' && (
-              <PerformanceAnalytics
-                balance={metrics.balance}
-                tradeHistory={tradeLogs.map(t => ({ profit: t.pnl ?? 0, timestamp: t.timestamp }))}
-              />
+              <Destination id="performance">
+                <PerformanceAnalytics
+                  balance={metrics.balance}
+                  tradeHistory={tradeLogs.map(t => ({ profit: t.pnl ?? 0, timestamp: t.timestamp }))}
+                />
+              </Destination>
             )}
 
             {activeTab === 'risk' && (
-              <RiskControlPanel
-                riskLimits={riskLimits}
-                setRiskLimits={setRiskLimits}
-                riskStatus={riskStatus}
-              />
+              <Destination id="risk">
+                <RiskControlPanel
+                  riskLimits={riskLimits}
+                  setRiskLimits={setRiskLimits}
+                  riskStatus={riskStatus}
+                  onResetKillSwitch={resetRiskHalt}
+                />
+              </Destination>
             )}
 
-            {['forecast', 'regime', 'models', 'learning'].includes(activeTab) && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2 space-y-6">
-                    <ProfessionalChart
-                      data={mtfData['1h']}
-                      forecast={forecast}
-                      symbolName={selectedSymbol.name}
-                    />
-                    <MarketRegimeTimeline
-                      currentRegime={forecast?.regime}
-                      confidence={forecast?.confidence}
-                    />
-                  </div>
-                  <div className="space-y-6">
-                    <AISignal forecast={forecast} />
-                    <div className="glass-panel p-5 rounded-3xl space-y-3">
-                      <div className="text-xs font-black uppercase tracking-widest text-violet-300">
-                        ONNX Model Status - Real Backend Data
-                      </div>
-                      <div className="space-y-2 text-xs">
-                        <div className="flex justify-between"><span className="text-[#64748B]">Inference Latency</span><span className="mono text-white">{modelStatus.inferenceLatency > 0 ? `${modelStatus.inferenceLatency}ms` : '—'}</span></div>
-                        <div className="flex justify-between"><span className="text-[#64748B]">Model Version</span><span className="mono text-white">{modelStatus.version}</span></div>
-                        <div className="flex justify-between"><span className="text-[#64748B]">Model Accuracy</span><span className="mono text-emerald-400 font-bold">{(metrics.accuracy * 100).toFixed(1)}%</span></div>
-                        <div className="flex justify-between"><span className="text-[#64748B]">Ready</span><span className={cn("mono font-bold", modelStatus.modelReady ? "text-emerald-400" : "text-amber-400")}>{modelStatus.modelReady ? 'YES' : 'LOADING'}</span></div>
-                      </div>
-                      <button
-                        onClick={() => trainModel()}
-                        disabled={isTraining}
-                        className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-black min-h-[44px] mt-2"
-                      >
-                        {isTraining ? `Training ${trainingProgress}%` : 'Recalibrate Weights'}
-                      </button>
-                    </div>
-                  </div>
+            {activeTab === 'monitoring' && (
+              <Destination id="monitoring">
+                <SystemHealthMonitor metrics={metrics} connectionState={connectionState} />
+              </Destination>
+            )}
+
+            {activeTab === 'forecast' && (
+              <Destination id="forecast" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                  <ProfessionalChart
+                    data={mtfData['1h']}
+                    forecast={forecast}
+                    symbolName={selectedSymbol.name}
+                  />
                 </div>
+                <div className="space-y-6">
+                  <AISignal forecast={forecast} />
+                </div>
+              </Destination>
+            )}
+
+            {activeTab === 'regime' && (
+              <Destination id="regime">
+                <MarketRegimeTimeline
+                  currentRegime={forecast?.regime}
+                  confidence={forecast?.confidence}
+                />
+              </Destination>
+            )}
+
+            {activeTab === 'models' && (
+              <Destination id="models">
+                <div className="glass-panel p-5 rounded-3xl space-y-3">
+                  <div className="text-xs font-black uppercase tracking-widest text-violet-300">
+                    ONNX Model Status - Real Backend Data
+                  </div>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between"><span className="text-[#64748B]">Inference Latency</span><span className="mono text-white">{modelStatus.inferenceLatency > 0 ? `${modelStatus.inferenceLatency}ms` : '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-[#64748B]">Model Version</span><span className="mono text-white">{modelStatus.version}</span></div>
+                    <div className="flex justify-between"><span className="text-[#64748B]">Model Accuracy</span><span className="mono text-emerald-400 font-bold">{(metrics.accuracy * 100).toFixed(1)}%</span></div>
+                    <div className="flex justify-between"><span className="text-[#64748B]">Ready</span><span className={cn("mono font-bold", modelStatus.modelReady ? "text-emerald-400" : "text-amber-400")}>{modelStatus.modelReady ? 'YES' : 'LOADING'}</span></div>
+                  </div>
+                  <button
+                    onClick={() => trainModel()}
+                    disabled={isTraining}
+                    className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-black min-h-[44px] mt-2"
+                  >
+                    {isTraining ? `Training ${trainingProgress}%` : 'Recalibrate Weights'}
+                  </button>
+                </div>
+              </Destination>
+            )}
+
+            {activeTab === 'learning' && (
+              <Destination id="learning">
                 <LearningDashboard history={predictionHistory} currentWeights={adaptiveWeights} />
-              </div>
+              </Destination>
             )}
 
             {activeTab === 'api' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="glass-panel rounded-3xl p-6 space-y-4">
-                  <div className="text-xs font-black uppercase tracking-widest text-violet-300">
-                    API Proxy & Integration
-                  </div>
-                  <label className="block space-y-1 text-sm">
-                    <span className="text-[#94A3B8]">Market Proxy URL</span>
-                    <input
-                      value={apiConfig.proxyUrl}
-                      onChange={(e) => setApiConfig({ ...apiConfig, proxyUrl: e.target.value })}
-                      className="w-full rounded-xl bg-[#101620] border border-white/10 px-3.5 py-2.5 mono text-xs text-white min-h-[44px]"
-                    />
-                  </label>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="block space-y-1 text-sm">
-                      <span className="text-[#94A3B8]">Username</span>
-                      <input
-                        autoComplete="username"
-                        value={authUsername}
-                        onChange={(event) => setAuthUsername(event.target.value)}
-                        className="w-full rounded-xl bg-[#101620] border border-white/10 px-3.5 py-2.5 text-xs text-white min-h-[44px]"
-                      />
-                    </label>
-                    <label className="block space-y-1 text-sm">
-                      <span className="text-[#94A3B8]">Password</span>
-                      <input
-                        type="password"
-                        autoComplete="current-password"
-                        value={authPassword}
-                        onChange={(event) => setAuthPassword(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') void loginToApi();
-                        }}
-                        className="w-full rounded-xl bg-[#101620] border border-white/10 px-3.5 py-2.5 text-xs text-white min-h-[44px]"
-                      />
-                    </label>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => void loginToApi()}
-                      disabled={authPending}
-                      className="min-h-[44px] rounded-xl bg-emerald-600 text-xs font-black text-white hover:bg-emerald-500 disabled:opacity-60"
-                    >
-                      {authPending ? 'Signing in…' : 'Sign in'}
-                    </button>
-                    <button
-                      onClick={logoutFromApi}
-                      disabled={!apiConfig.apiKey}
-                      className="min-h-[44px] rounded-xl border border-white/10 bg-white/5 text-xs font-black text-slate-300 disabled:opacity-40"
-                    >
-                      Clear session
-                    </button>
-                  </div>
-                  <label className="block space-y-1 text-sm">
-                    <span className="text-[#94A3B8]">Bearer Access Token (advanced/manual)</span>
-                    <div className="relative">
-                      <input
-                        type="password"
-                        value={apiConfig.apiKey}
-                        onChange={(e) => setApiConfig({ ...apiConfig, apiKey: e.target.value })}
-                        placeholder="••••••••••••"
-                        className="w-full rounded-xl bg-[#101620] border border-white/10 px-3.5 py-2.5 mono text-xs text-white pr-10 min-h-[44px]"
-                      />
-                      <Eye className="w-4 h-4 absolute right-3.5 top-3.5 text-[#64748B]" />
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-2.5 text-xs text-slate-300 pt-1">
-                    <input
-                      type="checkbox"
-                      checked={apiConfig.useDigitalTwin}
-                      onChange={(e) => setApiConfig({ ...apiConfig, useDigitalTwin: e.target.checked })}
-                      className="min-h-[20px] min-w-[20px] accent-violet-600 rounded"
-                    />
-                    <span>Use Digital Twin (Adaptive Simulation fallback)</span>
-                  </label>
-                  <button
-                    onClick={() => void testApiConnection()}
-                    disabled={apiTestState === 'testing'}
-                    className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:cursor-wait disabled:opacity-60 text-white font-black text-xs min-h-[44px]"
-                  >
-                    {apiTestState === 'testing' ? 'Testing Connection…' : apiTestState === 'ok' ? 'Connection Verified ✓' : apiTestState === 'error' ? 'Retry Connection Test' : 'Save & Test Connection'}
-                  </button>
-                </div>
-
-                <div className="glass-card rounded-3xl p-6 text-xs text-[#94A3B8] space-y-3">
-                  <div className="font-bold text-white text-sm">Real-time Architecture</div>
-                  <p>
-                    Intelligence Trader operates with dual WebSocket & REST data channels. Fallback to high-fidelity digital twins (deterministic simulation) preserves continuous model inference. Paper Trading Engine now uses trade ledger evaluation, not random.
-                  </p>
-                </div>
-              </div>
+              <Destination id="api">
+                <ApiSettingsPanel
+                  apiConfig={apiConfig}
+                  setApiConfig={setApiConfig}
+                  onLogin={loginToApi}
+                  onLogout={logoutFromApi}
+                  onTestConnection={testApiConnection}
+                />
+              </Destination>
             )}
 
             {activeTab === 'settings' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Destination id="settings" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="glass-panel rounded-3xl p-6 space-y-5">
                   <div className="text-xs font-black uppercase tracking-widest text-violet-300">
                     Application Settings
@@ -1103,7 +1153,7 @@ export default function App() {
                     Clear Cache & Reset Simulator
                   </button>
                 </div>
-              </div>
+              </Destination>
             )}
           </div>
 
@@ -1120,7 +1170,7 @@ export default function App() {
       {cmdOpen && (
         <div className="fixed inset-0 z-50 grid place-items-start pt-[15vh] p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setCmdOpen(false)} />
-          <div role="dialog" aria-modal="true" aria-label="Command palette" className="relative w-full max-w-xl mx-auto rounded-3xl bg-[#0B0F17] border border-white/10 shadow-2xl overflow-hidden">
+          <div ref={cmdPaletteRef} role="dialog" aria-modal="true" aria-label="Command palette" className="relative w-full max-w-xl mx-auto rounded-3xl bg-[#0B0F17] border border-white/10 shadow-2xl overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3.5 border-b border-white/10">
               <Search className="w-4 h-4 text-[#64748B]" />
               <input
@@ -1168,7 +1218,7 @@ export default function App() {
       {notifOpen && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setNotifOpen(false)} />
-          <div role="dialog" aria-modal="true" aria-label="Notifications" className="absolute right-4 top-[60px] w-full max-w-[360px] rounded-3xl bg-[#0B0F17] border border-white/10 shadow-2xl overflow-hidden">
+          <div ref={notifPanelRef} role="dialog" aria-modal="true" aria-label="Notifications" className="absolute right-4 top-[60px] w-full max-w-[360px] rounded-3xl bg-[#0B0F17] border border-white/10 shadow-2xl overflow-hidden">
             <div className="p-4 border-b border-white/10 flex justify-between items-center">
               <span className="text-xs font-black uppercase tracking-widest text-violet-300">Live System Alerts</span>
               <button aria-label="Close notifications" onClick={() => setNotifOpen(false)} className="p-1 rounded-lg hover:bg-white/10">

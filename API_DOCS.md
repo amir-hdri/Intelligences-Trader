@@ -238,17 +238,17 @@ pnl = riskPerTrade * profitFactor (WIN) or -riskPerTrade (LOSS)
 |---|---|---|
 | `POST /api/analyze` | `POST` | Synchronous rule-based analysis (<500ms) with asynchronous TCN ONNX shadow mode execution. |
 | `POST /api/predict` | `POST` | Direct ONNX inference with feature tensor input shape `[batch, 30, 10]` and latency tracking. |
-| `GET /api/news` | `GET` | FinBERT NLP sentiment generator with Dollar Risk index and Political Risk score (0-100). |
+| `GET /api/news` | `GET` | Deterministic fixture-news generator scored with the `sentiment` package, with Dollar Risk and Political Risk score (0-100). The response is marked `simulated: true`. |
 | `GET /api/tse/:id` | `GET` | Live TSETMC daily snapshot via `tsetmc-client` anchored to real last price. |
 | `GET /api/tse/history/:symbolId` | `GET` | Multi-timeframe analysis (1m, 15m, 1h, 1d), ATR volatility regime, and 95% Historical VaR. |
 | `GET /api/tse/info/:symbolId` | `GET` | Real-time TSETMC best limits depth with automated symbol resolution. |
-| `POST /api/train` | `POST` | Fractional differentiation ($d=0.5$), 5-fold purged cross-validation, and local TCN model fitting. |
+| `POST /api/train` | `POST` | Fractional differentiation ($d=0.5$), 5-fold purged cross-validation, and local TCN model fitting on the final purged fold; the reported metrics are measured on that holdout. |
 
 ## Proxy Gateway Server (`server/` - Port 3001)
 
-- `GET /api/status` — Service health, CORS verification, and uptime metadata.
+- `GET /api/status` — Service status, service name and version.
 - `GET /api/market/:symbol` — TSETMC instrument history with 15s FIFO memory cache and digital twin fallback.
-- `GET /api/orderbook/:symbol` — 5-level deterministic bid/ask depth with spoofing signals.
+- `GET /api/orderbook/:symbol` — 5-level deterministic bid/ask depth with a synthetic spoofing flag (`source: DIGITAL_TWIN_ORDER_BOOK`, `simulated: true`).
 - `GET /metrics` — Prometheus metrics (`http_requests_total`, `http_request_duration_milliseconds`).
 - `WS ws://host:3001/?symbol=GOLD1403` — 100ms real-time tick and order-book streaming with 30s heartbeat ping-pong.
 

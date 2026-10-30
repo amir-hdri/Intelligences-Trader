@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArbitrageOpportunity } from '../../types';
-import { Zap, Activity, Repeat } from 'lucide-react';
+import { Zap, Activity, Repeat, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Badge } from '../common/ui';
 
 interface ArbitragePanelProps {
   opportunities: ArbitrageOpportunity[];
@@ -8,37 +9,71 @@ interface ArbitragePanelProps {
 
 export const ArbitragePanel: React.FC<ArbitragePanelProps> = ({ opportunities }) => {
   return (
-    <div className="glass-panel p-5 rounded-3xl overflow-hidden relative">
-      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500" />
-      
-      <h3 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] mb-5 flex items-center gap-2">
-        <Repeat className="w-3 h-3 text-indigo-400" />
-        Arbitrage Scanner
-      </h3>
-      
+    <div
+      aria-label="Cross-Market Arbitrage Scanner"
+      className="glass-panel p-5 lg:p-6 rounded-3xl overflow-hidden relative border border-white/[0.08] space-y-4"
+    >
+      <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/25 flex items-center justify-center text-[#00F0FF]">
+            <Repeat className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-white font-mono font-bold text-xs uppercase tracking-wider">
+              Cross-Market Arbitrage Scanner
+            </h3>
+            <span className="text-[10px] text-[#849495] font-sans">
+              Spot vs forward basis spread detection
+            </span>
+          </div>
+        </div>
+
+        <Badge tone="amber" dot>
+          SIMULATED FEED
+        </Badge>
+      </div>
+
       {opportunities.length === 0 ? (
-        <div className="text-center py-10 glass-card rounded-2xl border-dashed border-slate-700/50">
-          <Activity className="w-6 h-6 mx-auto mb-3 text-slate-700 animate-pulse-slow" />
-          <div className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">Efficiency Level 100%</div>
-          <div className="text-slate-600 text-[11px] font-medium italic">Market in Equilibrium</div>
+        <div className="text-center py-10 rounded-2xl bg-[#060E20] border border-dashed border-white/[0.08] space-y-2">
+          <Activity className="w-6 h-6 mx-auto text-[#00F0FF] opacity-60 animate-pulse" />
+          <div className="text-white font-mono text-xs font-bold uppercase tracking-wider">
+            Market Equilibrium Verified
+          </div>
+          <div className="text-[#849495] text-[11px] font-sans">
+            No statistical basis mispricings exceeding net transaction cost friction.
+          </div>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {opportunities.map((opt, i) => (
-            <div key={i} className="glass-card p-4 rounded-2xl border-indigo-500/20 group relative overflow-hidden">
-              <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="relative z-10 flex justify-between items-start mb-3">
+            <div
+              key={i}
+              className="p-4 rounded-2xl bg-[#060E20] border border-white/[0.08] hover:border-[#00F0FF]/30 transition-all space-y-3"
+            >
+              <div className="flex justify-between items-start">
                 <div>
-                  <div className="text-[9px] text-indigo-400 font-black uppercase tracking-widest mb-1">{opt.type.replace(/_/g, ' ')}</div>
-                  <div className="text-white text-sm font-black tracking-tight">Convergence Signal</div>
+                  <span className="text-[9px] font-mono font-bold text-[#00F0FF] uppercase tracking-wider px-2 py-0.5 rounded bg-[#00F0FF]/10 border border-[#00F0FF]/20">
+                    {opt.type.replace(/_/g, ' ')}
+                  </span>
+                  <div className="text-white text-sm font-mono font-bold mt-1.5">
+                    Basis Convergence Signal
+                  </div>
                 </div>
-                <div className="flex flex-col items-end">
-                  <div className="text-emerald-400 text-lg font-black text-glow">+{opt.profitPercentage.toFixed(2)}%</div>
-                  <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Expected Yield</div>
+                <div className="text-right font-mono">
+                  <div className="text-[#10B981] text-base font-black">
+                    +{opt.profitPercentage.toFixed(2)}%
+                  </div>
+                  <div className="text-[8px] text-[#849495] uppercase font-bold">
+                    Net Expected Alpha
+                  </div>
                 </div>
               </div>
-              <p className="relative z-10 text-[11px] text-slate-400 leading-relaxed mb-3">{opt.details}</p>
-              <div className="relative z-10 w-full py-2.5 bg-slate-800/60 text-slate-400 text-[10px] font-black rounded-xl uppercase tracking-widest border border-slate-700/50 text-center">
+
+              <p className="text-xs text-[#DAE2FD] leading-relaxed font-sans">
+                {opt.details}
+              </p>
+
+              <div className="w-full py-2.5 rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/25 text-[#F59E0B] text-[10px] font-mono font-bold uppercase tracking-wider text-center">
                 Simulated Signal — Execution Disabled
               </div>
             </div>
@@ -46,16 +81,12 @@ export const ArbitragePanel: React.FC<ArbitragePanelProps> = ({ opportunities })
         </div>
       )}
 
-      <div className="mt-5 pt-4 border-t border-slate-800/50 flex justify-between items-center">
-        <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Scanning Spot vs Futures (Digital Twin)</span>
-        <div className="flex items-center gap-2">
-           <span className="relative flex h-2 w-2">
-             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-           </span>
-           <span className="text-[9px] font-black text-emerald-500 tracking-tighter">LIVE MONITOR</span>
-        </div>
+      <div className="pt-2 border-t border-white/[0.06] flex justify-between items-center text-[10px] font-mono text-[#849495]">
+        <span>Basis spread derived from synthetic candle feed</span>
+        <span className="text-[#F59E0B]">Detection only</span>
       </div>
     </div>
   );
 };
+
+export default ArbitragePanel;

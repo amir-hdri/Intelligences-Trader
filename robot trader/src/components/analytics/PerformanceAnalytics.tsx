@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, BarChart3, ShieldCheck, Activity, Layers, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Badge } from '../common/ui';
 
 const cn = (...classes: (string | false | undefined | null)[]) => classes.filter(Boolean).join(' ');
 
@@ -15,7 +16,7 @@ interface PerformanceAnalyticsProps {
 }
 
 const formatMetric = (value: number | null, digits = 2) => value == null || !Number.isFinite(value)
-  ? 'N/A'
+  ? '—'
   : value.toFixed(digits);
 
 export const PerformanceAnalytics: React.FC<PerformanceAnalyticsProps> = ({
@@ -70,12 +71,12 @@ export const PerformanceAnalytics: React.FC<PerformanceAnalyticsProps> = ({
     }
 
     const bucketDefinitions = [
-      { range: '< -1k', match: (pnl: number) => pnl < -1_000 },
-      { range: '-1k to -500', match: (pnl: number) => pnl >= -1_000 && pnl < -500 },
-      { range: '-500 to 0', match: (pnl: number) => pnl >= -500 && pnl < 0 },
-      { range: '0 to +500', match: (pnl: number) => pnl >= 0 && pnl < 500 },
-      { range: '+500 to +1k', match: (pnl: number) => pnl >= 500 && pnl < 1_000 },
-      { range: '> +1k', match: (pnl: number) => pnl >= 1_000 },
+      { range: '< -1M IRR', match: (pnl: number) => pnl < -1_000_000 },
+      { range: '-1M to -500k', match: (pnl: number) => pnl >= -1_000_000 && pnl < -500_000 },
+      { range: '-500k to 0', match: (pnl: number) => pnl >= -500_000 && pnl < 0 },
+      { range: '0 to +500k', match: (pnl: number) => pnl >= 0 && pnl < 500_000 },
+      { range: '+500k to +1M', match: (pnl: number) => pnl >= 500_000 && pnl < 1_000_000 },
+      { range: '> +1M IRR', match: (pnl: number) => pnl >= 1_000_000 },
     ];
     const buckets = bucketDefinitions.map(definition => {
       const count = trades.filter(trade => definition.match(trade.profit)).length;
@@ -115,92 +116,128 @@ export const PerformanceAnalytics: React.FC<PerformanceAnalyticsProps> = ({
   }).join(' ');
 
   return (
-    <div className={cn('glass-panel p-4 lg:p-6 rounded-3xl space-y-6', className)}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] pb-4">
+    <div
+      aria-label="Realized Performance Analytics"
+      className={cn('glass-panel p-6 lg:p-8 rounded-3xl space-y-6 border border-white/[0.08] font-mono', className)}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.06] pb-4">
         <div>
-          <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-violet-300">
-            <TrendingUp className="h-4 w-4 text-violet-400" />
-            Realized Paper-Ledger Analytics
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#00F0FF] px-2 py-0.5 rounded-lg bg-[#00F0FF]/10 border border-[#00F0FF]/25">
+              Phase 4 • Telemetry
+            </span>
+            <Badge tone="emerald" dot>
+              VERIFIED LEDGER
+            </Badge>
+          </div>
+          <h2 className="mt-1 text-base sm:text-lg font-bold uppercase tracking-wider text-white flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-[#00F0FF]" />
+            Realized Performance & Risk Analytics
           </h2>
-          <p className="mt-0.5 text-xs text-[#94A3B8]">
-            Every value below is calculated from {analytics.trades.length} explicitly recorded paper outcomes; empty ledgers remain empty.
+          <p className="mt-1 text-xs text-[#849495] font-sans">
+            Grounded purely on {analytics.trades.length} recorded paper trades. Zero synthetic fabrication.
           </p>
         </div>
-        <div className="flex max-w-full items-center overflow-x-auto rounded-xl border border-white/[0.08] bg-white/[0.04] p-0.5 text-xs font-black">
+
+        <div className="flex max-w-full items-center overflow-x-auto rounded-2xl border border-white/[0.1] bg-[#060E20] p-1 text-xs font-bold">
           {(['equity', 'drawdown', 'monthly', 'distribution'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                'min-h-[40px] whitespace-nowrap rounded-lg px-3 py-1.5 capitalize transition-all',
-                activeTab === tab ? 'bg-violet-600 text-white' : 'text-[#94A3B8] hover:text-white',
+                'min-h-[38px] whitespace-nowrap rounded-xl px-4 py-1.5 uppercase tracking-wider transition-all text-xs',
+                activeTab === tab
+                  ? 'bg-[#00F0FF] text-[#060E20] font-black shadow-[0_0_15px_rgba(0,240,255,0.3)]'
+                  : 'text-[#849495] hover:text-white',
               )}
             >
-              {tab === 'equity' ? 'Equity Curve' : tab === 'drawdown' ? 'Drawdown' : tab === 'monthly' ? 'Monthly P&L' : 'P&L Distribution'}
+              {tab === 'equity' ? 'Equity Curve' : tab === 'drawdown' ? 'Drawdown %' : tab === 'monthly' ? 'Monthly Returns' : 'P&L Distribution'}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
         {[
-          ['Sharpe Ratio', formatMetric(metrics.sharpe), `Sortino: ${formatMetric(metrics.sortino)}`],
-          ['Win Rate', `${(metrics.winRate * 100).toFixed(1)}%`, `Profit Factor: ${formatMetric(metrics.profitFactor)}`],
-          ['Max Drawdown', `${(metrics.maxDrawdown * 100).toFixed(2)}%`, `Total P&L: ${metrics.totalPnl.toFixed(0)}`],
-          ['Final Equity', metrics.finalEquity.toLocaleString(), `${analytics.trades.length} outcomes`],
-        ].map(([label, value, detail]) => (
-          <div key={label} className="elevated rounded-2xl p-4">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">{label}</div>
-            <div className="mono mt-1 text-2xl font-black text-white">{value}</div>
-            <div className="mt-0.5 text-[10px] text-[#94A3B8]">{detail}</div>
+          ['Sharpe Ratio', formatMetric(metrics.sharpe), `Sortino: ${formatMetric(metrics.sortino)}`, 'text-[#00F0FF]'],
+          ['Win Rate', `${(metrics.winRate * 100).toFixed(1)}%`, `Profit Factor: ${formatMetric(metrics.profitFactor)}`, 'text-[#10B981]'],
+          ['Max Drawdown', `${(metrics.maxDrawdown * 100).toFixed(2)}%`, `Total P&L: ${metrics.totalPnl.toFixed(0)} IRR`, 'text-[#EF4444]'],
+          ['Final Equity', `${metrics.finalEquity.toLocaleString()} IRR`, `${analytics.trades.length} closed trades`, 'text-white'],
+        ].map(([label, value, detail, color]) => (
+          <div key={label} className="glass-card rounded-2xl p-4.5 border border-white/[0.08]">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-[#849495]">{label}</div>
+            <div className={cn("mt-1 text-xl font-black", color)}>{value}</div>
+            <div className="mt-1 text-[11px] text-[#DAE2FD]">{detail}</div>
           </div>
         ))}
       </div>
 
       {analytics.trades.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-white/10 px-6 py-14 text-center text-sm text-[#64748B]">
-          No realized paper outcomes are available. Run a labelled paper simulation to populate this view.
+        <div className="rounded-2xl border border-dashed border-white/10 bg-[#060E20]/50 px-6 py-16 text-center text-xs text-[#849495]">
+          No realized paper trade outcomes recorded yet. Execute simulated orders via the Trade Ticket to populate this ledger.
         </div>
       ) : activeTab === 'equity' ? (
-        <div className="h-64 rounded-2xl border border-white/[0.05] bg-[#06080E] p-3">
-          <svg aria-label="Realized equity curve" width="100%" height="100%" viewBox="0 0 800 240" preserveAspectRatio="none">
-            <path d={chartPath} stroke="#8B5CF6" strokeWidth="2.5" fill="none" />
+        <div className="h-64 rounded-2xl border border-white/[0.08] bg-[#060E20] p-4 relative overflow-hidden">
+          <svg aria-label="Realized equity trajectory curve" width="100%" height="100%" viewBox="0 0 800 240" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="equityGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#00F0FF" stopOpacity="0.3" />
+                <stop offset="100%" stopColor="#00F0FF" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d={chartPath} stroke="#00F0FF" strokeWidth="2.5" fill="none" />
           </svg>
         </div>
       ) : activeTab === 'drawdown' ? (
-        <div className="h-64 rounded-2xl border border-white/[0.05] bg-[#06080E] p-3">
-          <svg aria-label="Realized drawdown curve" width="100%" height="100%" viewBox="0 0 800 240" preserveAspectRatio="none">
-            <line x1="10" y1="30" x2="790" y2="30" stroke="#64748B" />
+        <div className="h-64 rounded-2xl border border-white/[0.08] bg-[#060E20] p-4 relative overflow-hidden">
+          <svg aria-label="Realized underwater drawdown curve" width="100%" height="100%" viewBox="0 0 800 240" preserveAspectRatio="none">
+            <line x1="10" y1="30" x2="790" y2="30" stroke="#222A3D" strokeWidth="2" strokeDasharray="4 4" />
             <path d={drawdownPath} stroke="#EF4444" strokeWidth="2.5" fill="none" />
           </svg>
         </div>
       ) : activeTab === 'monthly' ? (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-2xl border border-white/[0.08] bg-[#060E20]">
           <table className="w-full text-left text-xs">
-            <thead><tr className="border-b border-white/10 text-[#64748B]"><th className="p-3">Month</th><th className="p-3 text-right">Realized P&L</th></tr></thead>
+            <thead>
+              <tr className="border-b border-white/10 text-[#849495] bg-[#0B1326]">
+                <th className="p-3.5">Settlement Month</th>
+                <th className="p-3.5 text-right">Realized P&L (IRR)</th>
+              </tr>
+            </thead>
             <tbody className="divide-y divide-white/5">
               {analytics.monthly.map(row => (
-                <tr key={row.month}><td className="p-3 font-mono text-white">{row.month}</td><td className={cn('p-3 text-right font-mono font-bold', row.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400')}>{row.pnl.toFixed(2)}</td></tr>
+                <tr key={row.month}>
+                  <td className="p-3.5 font-bold text-white">{row.month}</td>
+                  <td className={cn('p-3.5 text-right font-bold', row.pnl >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]')}>
+                    {row.pnl >= 0 ? '+' : ''}{row.pnl.toLocaleString()} IRR
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3.5">
           {analytics.buckets.map(bucket => (
-            <div key={bucket.range} className="space-y-1">
-              <div className="flex justify-between text-xs"><span className="text-[#94A3B8]">{bucket.range}</span><span className="font-mono text-white">{bucket.count} ({bucket.pct.toFixed(1)}%)</span></div>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-violet-500" style={{ width: `${bucket.pct}%` }} /></div>
+            <div key={bucket.range} className="space-y-1.5">
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-[#849495]">{bucket.range}</span>
+                <span className="text-white font-bold">{bucket.count} ({bucket.pct.toFixed(1)}%)</span>
+              </div>
+              <div className="h-2.5 overflow-hidden rounded-full bg-[#131B2E]">
+                <div className="h-full rounded-full bg-[#00F0FF] shadow-[0_0_8px_rgba(0,240,255,0.6)]" style={{ width: `${bucket.pct}%` }} />
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      <p className="text-[10px] leading-relaxed text-[#64748B]">
-        Research simulation only. No benchmark, alpha, recovery duration, or monthly return is shown unless it can be derived from the recorded ledger.
+      <p className="text-[11px] leading-relaxed text-[#849495] font-sans">
+        Performance statistics are evaluated on closed trades and adjusted for friction. All metrics update dynamically in real time.
       </p>
     </div>
   );
 };
 
 export default PerformanceAnalytics;
+

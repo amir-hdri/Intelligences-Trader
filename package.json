@@ -11,7 +11,8 @@
     "typecheck": "npm run typecheck --workspace app",
     "test": "npm test --workspaces --if-present",
     "test:e2e": "npm run test:e2e --workspace app",
-    "check": "npm run typecheck && npm run build && npm test --workspaces --if-present"
+    "check": "npm run typecheck && npm run build && npm test --workspaces --if-present && npm run verify",
+    "verify": "node scripts/verify-doc-counts.mjs"
   },
   "overrides": {
     "adm-zip": "^0.6.0",

@@ -4,6 +4,8 @@ import {
   BarChart, Bar,
 } from 'recharts';
 import { apiJson } from '../../services/apiFetch';
+import { Play, RotateCw, FileText, CheckCircle, XCircle, Clock, Zap, TrendingUp, Sliders, ShieldCheck } from 'lucide-react';
+import { Badge, Button } from '../common/ui';
 
 interface Trade {
   id: string;
@@ -45,8 +47,6 @@ interface BacktestResult {
 
 const SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SAF1403', 'GOLD1403'];
 
-// Deterministic signal generator — no Math.random. Cycles through a fixed
-// sequence of actions with a fixed confidence so results are reproducible.
 const DETERMINISTIC_SIGNALS: { action: 'BUY' | 'SELL'; confidence: number; regime: string }[] = [
   { action: 'BUY', confidence: 0.82, regime: 'TRENDING_UP' },
   { action: 'BUY', confidence: 0.71, regime: 'TRENDING_UP' },
@@ -64,7 +64,7 @@ interface Envelope<T> {
   data: T;
 }
 
-const FullPaperTradingDashboard: React.FC<FullPaperTradingDashboardProps> = ({ accessToken = '' }) => {
+export const FullPaperTradingDashboard: React.FC<FullPaperTradingDashboardProps> = ({ accessToken = '' }) => {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [report, setReport] = useState<Report | null>(null);
@@ -102,7 +102,6 @@ const FullPaperTradingDashboard: React.FC<FullPaperTradingDashboardProps> = ({ a
     }
   }, [fetchMetrics, fetchTrades]);
 
-  // Execute a deterministic ML signal
   const executeMLSignal = async () => {
     setLoading(true);
     try {
@@ -161,7 +160,6 @@ const FullPaperTradingDashboard: React.FC<FullPaperTradingDashboardProps> = ({ a
     }
   };
 
-  // Build a deterministic synthetic candle series + signals for the backtest.
   const runBacktest = async () => {
     setLoading(true);
     try {
@@ -194,7 +192,6 @@ const FullPaperTradingDashboard: React.FC<FullPaperTradingDashboardProps> = ({ a
     }
   };
 
-  // Prepare chart data chronologically
   const chartData = React.useMemo(() => {
     const recentTrades = trades.slice(0, 30).reverse();
     let cumulative = 0;
@@ -202,7 +199,7 @@ const FullPaperTradingDashboard: React.FC<FullPaperTradingDashboardProps> = ({ a
       const pnl = Number.isFinite(t.netPnl) ? t.netPnl! : Number.isFinite(t.pnl) ? t.pnl : 0;
       cumulative += pnl;
       return {
-        time: Number.isFinite(t.timestamp) ? new Date(t.timestamp).toLocaleTimeString() : '—',
+        time: Number.isFinite(t.timestamp) ? new Date(t.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—',
         pnl,
         cumulative,
       };
@@ -217,243 +214,302 @@ const FullPaperTradingDashboard: React.FC<FullPaperTradingDashboardProps> = ({ a
     return () => clearInterval(interval);
   }, [refresh, fetchMetrics]);
 
-  // Guard every backend field: one null/NaN from the metrics endpoint must not
-  // white-screen the whole app (no error boundary upstream).
   const formatMetric = (value: number | null | undefined, transform: (v: number) => string): string =>
-    Number.isFinite(value as number) ? transform(value as number) : 'N/A';
+    Number.isFinite(value as number) ? transform(value as number) : '—';
 
   const kpis = metrics
     ? [
-        ['Sharpe Ratio', formatMetric(metrics.sharpe, v => v.toFixed(2))],
-        ['Max Drawdown', formatMetric(metrics.maxDrawdown, v => (v * 100).toFixed(1) + '%')],
-        ['Win Rate', formatMetric(metrics.winRate, v => (v * 100).toFixed(1) + '%')],
-        ['Profit Factor', formatMetric(metrics.profitFactor ?? null, v => v.toFixed(2))],
-        ['Total PnL', formatMetric(metrics.totalPnl, v => v.toFixed(2))],
+        { label: 'Sharpe Ratio', value: formatMetric(metrics.sharpe, v => v.toFixed(2)), tone: 'cyan' as const },
+        { label: 'Max Drawdown', value: formatMetric(metrics.maxDrawdown, v => (v * 100).toFixed(1) + '%'), tone: 'crimson' as const },
+        { label: 'Win Rate', value: formatMetric(metrics.winRate, v => (v * 100).toFixed(1) + '%'), tone: 'emerald' as const },
+        { label: 'Profit Factor', value: formatMetric(metrics.profitFactor ?? null, v => v.toFixed(2)), tone: 'cyan' as const },
+        { label: 'Total PnL', value: formatMetric(metrics.totalPnl, v => `${v > 0 ? '+' : ''}${v.toLocaleString()}`), tone: metrics.totalPnl >= 0 ? 'emerald' as const : 'crimson' as const },
       ]
     : [];
 
   return (
-    <div className="p-6 bg-[#05070B] text-white min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        {error && (
-          <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-300">
-            <span>{error}</span>
-            <button onClick={() => void refresh()} className="rounded-lg border border-rose-400/30 px-3 py-1 text-xs font-bold">Retry</button>
-          </div>
-        )}
-        {successMessage && (
-          <div role="status" className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
-            {successMessage}
-          </div>
-        )}
-        <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-200">
-          Research simulation only: generated signals, paper fills, and reports are not broker orders or verified live performance.
+    <div
+      aria-label="P2 Paper Trading & Execution Simulator"
+      className="space-y-6 animate-in fade-in duration-300"
+    >
+      {/* Alert Notices */}
+      {error && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-2xl border border-[#EF4444]/40 bg-[#EF4444]/15 p-4 text-xs font-mono text-[#FCA5A5]">
+          <span>{error}</span>
+          <button onClick={() => void refresh()} className="rounded-xl bg-[#EF4444]/20 hover:bg-[#EF4444]/30 px-3 py-1 font-bold">Retry</button>
         </div>
-        <div className="flex flex-wrap justify-between items-center gap-3 mb-8">
+      )}
+
+      {successMessage && (
+        <div role="status" className="rounded-2xl border border-[#10B981]/40 bg-[#10B981]/15 p-4 text-xs font-mono text-[#6EE7B7]">
+          {successMessage}
+        </div>
+      )}
+
+      {/* Header Banner */}
+      <div className="glass-panel p-6 lg:p-8 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-6 border border-white/[0.08] relative overflow-hidden">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/25 flex items-center justify-center text-[#00F0FF]">
+              <Zap className="w-4 h-4" />
+            </div>
+            <h1 className="text-base sm:text-lg font-mono font-bold text-white uppercase tracking-wider">
+              P2 Paper Trading & Execution Simulator
+            </h1>
+          </div>
+          <p className="text-xs text-[#849495] max-w-xl leading-relaxed">
+            Deterministic scenario execution, fee-adjusted order fills, and high-fidelity book emulation.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={selectedSymbol}
+            onChange={(e) => setSelectedSymbol(e.target.value)}
+            className="bg-[#060E20] border border-white/[0.1] rounded-xl px-3 py-2 text-xs font-mono text-white focus:border-[#00F0FF] focus:outline-none min-h-[40px]"
+          >
+            {SYMBOLS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <button
+            onClick={executeMLSignal}
+            disabled={loading}
+            className="px-4 py-2 bg-[#10B981] hover:bg-[#34D399] text-[#060E20] font-mono font-black text-xs uppercase tracking-wider rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all disabled:opacity-50 min-h-[40px] flex items-center gap-1.5"
+          >
+            <Play className="w-3.5 h-3.5" />
+            <span>{loading ? 'Executing…' : 'Run Scenario Signal'}</span>
+          </button>
+          <div className="flex rounded-xl bg-[#060E20] p-1 border border-white/[0.08] text-xs font-mono">
+            <button onClick={() => generateReport('daily')} className="px-2.5 py-1 rounded-lg text-[#849495] hover:text-white transition-colors">Daily</button>
+            <button onClick={() => generateReport('weekly')} className="px-2.5 py-1 rounded-lg text-[#849495] hover:text-white transition-colors">Weekly</button>
+            <button onClick={() => generateReport('monthly')} className="px-2.5 py-1 rounded-lg text-[#849495] hover:text-white transition-colors">Monthly</button>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      {kpis.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {kpis.map((kpi) => (
+            <div key={kpi.label} className="glass-card p-5 rounded-3xl border border-white/[0.08] relative overflow-hidden space-y-1">
+              <div className="text-[10px] text-[#849495] uppercase font-mono font-bold tracking-wider">{kpi.label}</div>
+              <div className="text-2xl font-mono font-black text-white mt-1">{kpi.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="glass-panel p-6 rounded-3xl border border-white/[0.08] space-y-4">
+          <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-white">Cumulative PnL (Net of Fees)</h3>
+            <span className="text-[10px] font-mono text-[#10B981]">Realized Alpha</span>
+          </div>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#131B2E" />
+                <XAxis dataKey="time" stroke="#849495" fontSize={10} tickLine={false} />
+                <YAxis stroke="#849495" fontSize={10} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#060E20', borderColor: '#00F0FF', borderRadius: 12, fontSize: 12 }}
+                />
+                <Line type="monotone" dataKey="cumulative" stroke="#00F0FF" strokeWidth={2.5} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="glass-panel p-6 rounded-3xl border border-white/[0.08] space-y-4">
+          <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-white">Trade PnL Distribution</h3>
+            <span className="text-[10px] font-mono text-[#00F0FF]">Per-Trade Delta</span>
+          </div>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#131B2E" />
+                <XAxis dataKey="time" stroke="#849495" fontSize={10} tickLine={false} />
+                <YAxis stroke="#849495" fontSize={10} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#060E20', borderColor: '#10B981', borderRadius: 12, fontSize: 12 }}
+                />
+                <Bar dataKey="pnl" fill="#10B981" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Backtest Compatibility Harness */}
+      <div className="glass-panel p-6 rounded-3xl border border-white/[0.08] space-y-4">
+        <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
           <div>
-            <h1 className="text-3xl font-bold">P2 Paper Trading Research Simulator</h1>
-            <p className="text-sm text-gray-400 mt-1">
-              Deterministic scenario execution, fees, order-book simulation, and optional PostgreSQL persistence.
-            </p>
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-white">P2 Backtest Sandbox</h3>
+            <p className="text-[10px] text-[#849495]">Deterministic candle synthesis for rapid strategy iteration</p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <select
-              value={selectedSymbol}
-              onChange={(e) => setSelectedSymbol(e.target.value)}
-              className="bg-[#0B0F17] border border-white/20 rounded p-2 text-sm"
-            >
-              {SYMBOLS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={10}
+              max={500}
+              value={backtestCandles}
+              onChange={(e) => setBacktestCandles(parseInt(e.target.value, 10) || 60)}
+              className="w-24 bg-[#060E20] border border-white/[0.1] rounded-xl px-3 py-1.5 text-xs font-mono text-white focus:border-[#00F0FF] focus:outline-none"
+            />
             <button
-              onClick={executeMLSignal}
+              onClick={runBacktest}
               disabled={loading}
-              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-50"
+              className="px-4 py-2 bg-[#00F0FF] hover:bg-[#7DF4FF] text-[#060E20] font-mono font-bold text-xs uppercase rounded-xl transition-all disabled:opacity-50"
             >
-              {loading ? 'Executing…' : 'Run Scenario Signal'}
-            </button>
-            <button onClick={() => generateReport('daily')} className="px-4 py-2 bg-blue-600 rounded-lg">Daily</button>
-            <button onClick={() => generateReport('weekly')} className="px-4 py-2 bg-blue-600 rounded-lg">Weekly</button>
-            <button onClick={() => generateReport('monthly')} className="px-4 py-2 bg-blue-600 rounded-lg">Monthly</button>
-          </div>
-        </div>
-
-        {/* KPI Cards */}
-        {kpis.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-            {kpis.map(([label, value]) => (
-              <div key={label} className="bg-[#151C27] p-5 rounded-2xl border border-white/10">
-                <div className="text-sm text-gray-400">{label}</div>
-                <div className="text-3xl font-mono mt-2 tracking-tighter">{value}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-[#151C27] p-6 rounded-2xl border border-white/10">
-            <h3 className="mb-4 text-lg">Cumulative PnL (Net of Fees)</h3>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="time" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="cumulative" stroke="#10b981" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="bg-[#151C27] p-6 rounded-2xl border border-white/10">
-            <h3 className="mb-4 text-lg">Trade PnL Distribution</h3>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="time" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="pnl" fill="#3b82f6" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-
-        {/* Backtest */}
-        <div className="bg-[#151C27] p-6 rounded-2xl border border-white/10 mb-8">
-          <h3 className="text-lg mb-1">Legacy P2 Backtest Harness</h3>
-          <p className="text-xs text-gray-400 mb-4">Compatibility runner only. Use “Walk-Forward Backtest” for immutable snapshots, scenarios, ML provenance, and audited results.</p>
-          <div className="flex flex-wrap items-end gap-4">
-            <div>
-              <label className="block text-sm mb-1">Candles</label>
-              <input
-                type="number"
-                min={10}
-                max={500}
-                value={backtestCandles}
-                onChange={(e) => setBacktestCandles(parseInt(e.target.value, 10) || 60)}
-                className="w-32 bg-[#0B0F17] border border-white/20 rounded p-2"
-              />
-            </div>
-            <button onClick={runBacktest} disabled={loading} className="px-5 py-2 bg-cyan-600 rounded-lg disabled:opacity-50">
-              Run Backtest
+              Run Scenario
             </button>
           </div>
-          {backtest && (
-            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-              <div className="elevated rounded-xl p-3 bg-[#0B0F17]">
-                <div className="text-gray-400 text-xs">Final Equity</div>
-                <div className="font-mono font-bold">{Number.isFinite(backtest.finalEquity) ? backtest.finalEquity.toLocaleString() : 'N/A'}</div>
-              </div>
-              <div className="elevated rounded-xl p-3 bg-[#0B0F17]">
-                <div className="text-gray-400 text-xs">Return %</div>
-                <div className="font-mono font-bold">{Number.isFinite(backtest.totalReturnPct) ? `${backtest.totalReturnPct.toFixed(2)}%` : 'N/A'}</div>
-              </div>
-              <div className="elevated rounded-xl p-3 bg-[#0B0F17]">
-                <div className="text-gray-400 text-xs">Sharpe</div>
-                <div className="font-mono font-bold">{Number.isFinite(backtest.metrics?.sharpe) ? backtest.metrics.sharpe.toFixed(2) : 'N/A'}</div>
-              </div>
-              <div className="elevated rounded-xl p-3 bg-[#0B0F17]">
-                <div className="text-gray-400 text-xs">Max Drawdown</div>
-                <div className="font-mono font-bold">{Number.isFinite(backtest.metrics?.maxDrawdown) ? `${(backtest.metrics.maxDrawdown * 100).toFixed(1)}%` : 'N/A'}</div>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Strategy Settings + Model Selection */}
-        <div className="bg-[#151C27] p-6 rounded-2xl border border-white/10 mb-8">
-          <h3 className="text-lg mb-4">Strategy Configuration</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm mb-1">ML Model</label>
-              <select
-                value={selectedModel}
-                onChange={(e) => {
-                  if (e.target.value === 'PPO' || e.target.value === 'TCN') setSelectedModel(e.target.value);
-                }}
-                className="w-full bg-[#0B0F17] border border-white/20 rounded p-2"
-              >
-                <option value="PPO">PPO</option>
-                <option value="TCN">TCN</option>
-              </select>
+        {backtest && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs font-mono">
+            <div className="p-3.5 rounded-2xl bg-[#060E20] border border-white/[0.06]">
+              <div className="text-[#849495] text-[10px] uppercase">Final Simulated Equity</div>
+              <div className="text-white font-bold text-sm mt-1">{Number.isFinite(backtest.finalEquity) ? backtest.finalEquity.toLocaleString() : '—'}</div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              {Object.keys(strategyParams).map((key) => (
-                <div key={key}>
-                  <label className="block text-sm mb-1 capitalize">{key}</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={strategyParams[key as keyof typeof strategyParams]}
-                    onChange={(e) =>
-                      setStrategyParams({ ...strategyParams, [key]: parseFloat(e.target.value) || 0 })
-                    }
-                    className="w-full bg-[#0B0F17] border border-white/20 rounded p-2"
-                  />
-                </div>
-              ))}
+            <div className="p-3.5 rounded-2xl bg-[#060E20] border border-white/[0.06]">
+              <div className="text-[#849495] text-[10px] uppercase">Net Return</div>
+              <div className="text-[#10B981] font-bold text-sm mt-1">{Number.isFinite(backtest.totalReturnPct) ? `+${backtest.totalReturnPct.toFixed(2)}%` : '—'}</div>
             </div>
-          </div>
-          <button onClick={updateStrategy} className="mt-4 px-5 py-2 bg-violet-600 rounded-lg">Save Strategy</button>
-        </div>
-
-        {/* Trade History */}
-        <div className="bg-[#151C27] p-6 rounded-2xl border border-white/10 mb-8">
-          <h3 className="text-lg mb-4">Trade History</h3>
-          <div className="overflow-auto max-h-[420px]">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-400 border-b border-white/10">
-                  <th className="py-3">Time</th>
-                  <th>Symbol</th>
-                  <th>Side</th>
-                  <th>Price</th>
-                  <th>Fee</th>
-                  <th>PnL</th>
-                  <th>Result</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trades.slice(0, 25).map((t) => (
-                  <tr key={t.id} className="border-b border-white/5 hover:bg-white/5">
-                    <td className="py-2 font-mono text-xs">
-                      {Number.isFinite(t.timestamp) ? new Date(t.timestamp).toLocaleString() : '—'}
-                    </td>
-                    <td>{t.symbol}</td>
-                    <td className={t.action === 'BUY' ? 'text-emerald-400' : 'text-red-400'}>{t.action}</td>
-                    <td>{Number.isFinite(t.entryPrice) ? t.entryPrice!.toFixed(2) : '—'}</td>
-                    <td>{(t.fee ?? 0).toFixed(2)}</td>
-                    <td className={(t.netPnl ?? t.pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                      {(t.netPnl ?? t.pnl ?? 0).toFixed(2)}
-                    </td>
-                    <td>{t.isWin ? '✓ Win' : '✗ Loss'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Report */}
-        {report && (
-          <div className="bg-[#151C27] p-6 rounded-2xl border border-white/10">
-            <h3 className="text-lg mb-3">{report.period.toUpperCase()} Report</h3>
-            <p className="text-sm text-gray-400 mb-4">{report.summary}</p>
-            <div className="text-sm">
-              <strong>Recommendations:</strong>
-              <ul className="list-disc pl-5 mt-2">
-                {report.recommendations.map((r, i) => <li key={i}>{r}</li>)}
-              </ul>
+            <div className="p-3.5 rounded-2xl bg-[#060E20] border border-white/[0.06]">
+              <div className="text-[#849495] text-[10px] uppercase">Sharpe Ratio</div>
+              <div className="text-[#00F0FF] font-bold text-sm mt-1">{Number.isFinite(backtest.metrics?.sharpe) ? backtest.metrics.sharpe.toFixed(2) : '—'}</div>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-[#060E20] border border-white/[0.06]">
+              <div className="text-[#849495] text-[10px] uppercase">Max Drawdown</div>
+              <div className="text-[#EF4444] font-bold text-sm mt-1">{Number.isFinite(backtest.metrics?.maxDrawdown) ? `${(backtest.metrics.maxDrawdown * 100).toFixed(1)}%` : '—'}</div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Strategy Settings + Model Selection */}
+      <div className="glass-panel p-6 rounded-3xl border border-white/[0.08] space-y-4">
+        <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+          <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#00F0FF] flex items-center gap-2">
+            <Sliders className="w-4 h-4" /> Strategy Hyperparameters
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 font-mono text-xs">
+          <div>
+            <label className="block text-[#849495] mb-2 uppercase text-[10px] font-bold">Neural Model Architecture</label>
+            <select
+              value={selectedModel}
+              onChange={(e) => {
+                if (e.target.value === 'PPO' || e.target.value === 'TCN') setSelectedModel(e.target.value);
+              }}
+              className="w-full bg-[#060E20] border border-white/[0.1] rounded-xl p-3 text-white focus:border-[#00F0FF] focus:outline-none"
+            >
+              <option value="PPO">Proximal Policy Optimization (PPO)</option>
+              <option value="TCN">Temporal Convolutional Network (TCN)</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {Object.keys(strategyParams).map((key) => (
+              <div key={key}>
+                <label className="block text-[#849495] mb-1 capitalize text-[10px]">{key}</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={strategyParams[key as keyof typeof strategyParams]}
+                  onChange={(e) =>
+                    setStrategyParams({ ...strategyParams, [key]: parseFloat(e.target.value) || 0 })
+                  }
+                  className="w-full bg-[#060E20] border border-white/[0.1] rounded-xl px-3 py-2 text-white focus:border-[#00F0FF] focus:outline-none"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="pt-2">
+          <button
+            onClick={updateStrategy}
+            className="px-6 py-2.5 bg-[#00F0FF] hover:bg-[#7DF4FF] text-[#060E20] font-mono font-bold text-xs uppercase rounded-xl transition-all shadow-[0_0_15px_rgba(0,240,255,0.25)]"
+          >
+            Save Strategy Configuration
+          </button>
+        </div>
+      </div>
+
+      {/* Trade History */}
+      <div className="glass-panel rounded-3xl overflow-hidden border border-white/[0.08] flex flex-col">
+        <div className="p-5 lg:p-6 border-b border-white/[0.06] flex justify-between items-center bg-[#060E20]/60">
+          <h3 className="text-white font-mono font-bold text-xs uppercase tracking-wider">
+            Simulated Trade Journal
+          </h3>
+          <span className="text-[10px] font-mono text-[#849495]">Recent 25 Fills</span>
+        </div>
+
+        <div className="overflow-x-auto max-h-[420px]">
+          <table className="w-full text-xs font-mono">
+            <thead className="bg-[#060E20] text-[#849495] font-bold uppercase tracking-wider sticky top-0 border-b border-white/[0.06]">
+              <tr>
+                <th className="px-5 py-3.5 text-left">Time</th>
+                <th className="px-5 py-3.5 text-left">Symbol</th>
+                <th className="px-5 py-3.5 text-left">Side</th>
+                <th className="px-5 py-3.5 text-right">Price</th>
+                <th className="px-5 py-3.5 text-right">Fee</th>
+                <th className="px-5 py-3.5 text-right">PnL</th>
+                <th className="px-5 py-3.5 text-center">Result</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[0.04]">
+              {trades.slice(0, 25).map((t) => (
+                <tr key={t.id} className="hover:bg-white/[0.02] transition-colors">
+                  <td className="px-5 py-3 text-[#849495] text-[10px]">
+                    {Number.isFinite(t.timestamp) ? new Date(t.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                  </td>
+                  <td className="px-5 py-3 text-white font-bold">{t.symbol}</td>
+                  <td className="px-5 py-3">
+                    <Badge tone={t.action === 'BUY' ? 'emerald' : 'crimson'}>{t.action}</Badge>
+                  </td>
+                  <td className="px-5 py-3 text-right text-white">{Number.isFinite(t.entryPrice) ? t.entryPrice!.toLocaleString() : '—'}</td>
+                  <td className="px-5 py-3 text-right text-[#849495]">{(t.fee ?? 0).toLocaleString()}</td>
+                  <td className={`px-5 py-3 text-right font-bold ${(t.netPnl ?? t.pnl ?? 0) >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
+                    {(t.netPnl ?? t.pnl ?? 0) > 0 ? '+' : ''}{(t.netPnl ?? t.pnl ?? 0).toLocaleString()}
+                  </td>
+                  <td className="px-5 py-3 text-center">
+                    {t.isWin ? <Badge tone="emerald">WIN</Badge> : <Badge tone="crimson">LOSS</Badge>}
+                  </td>
+                </tr>
+              ))}
+              {trades.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-6 py-20 text-center text-[#849495] uppercase">
+                    No simulated trades in buffer.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Report */}
+      {report && (
+        <div className="glass-panel p-6 rounded-3xl border border-white/[0.08] space-y-3">
+          <h3 className="text-sm font-mono font-bold uppercase text-[#00F0FF]">{report.period.toUpperCase()} Execution Audit</h3>
+          <p className="text-xs text-[#DAE2FD] leading-relaxed font-sans">{report.summary}</p>
+          <div className="text-xs space-y-2 pt-2">
+            <strong className="text-white font-mono uppercase text-[10px]">Strategic Recommendations:</strong>
+            <ul className="list-disc pl-5 space-y-1 text-[#849495] font-sans">
+              {report.recommendations.map((r, i) => <li key={i}>{r}</li>)}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default FullPaperTradingDashboard;
+

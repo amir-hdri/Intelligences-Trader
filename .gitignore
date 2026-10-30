@@ -75,3 +75,9 @@ MEMORY.md
 .opencode/
 config/
 memory/
+
+# Local agent continuity / attachment artifacts
+.cairn/
+.tracker/
+.openclaw-attachments/
+cairn.json

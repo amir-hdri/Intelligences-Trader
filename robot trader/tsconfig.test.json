@@ -20,6 +20,9 @@
     "src/services/PredictionHistoryService.ts",
     "src/services/PredictionHistoryService.test.ts",
     "src/workers/workerPool.ts",
-    "src/workers/workerPool.test.ts"
+    "src/workers/workerPool.test.ts",
+    "src/workers/marketAnalyzer.worker.ts",
+    "src/workers/marketAnalyzer.worker.test.ts",
+    "src/orphanGuard.test.ts"
   ]
 }

@@ -1,214 +1,134 @@
 import React, { useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { ApiConfig } from '../../types';
-import { Settings, Eye, EyeOff, ShieldCheck, ToggleLeft, ToggleRight, Check, KeyRound } from 'lucide-react';
-import { login, logout, isAuthed } from '../../services/api';
+import { Eye } from 'lucide-react';
 
 interface ApiSettingsPanelProps {
   apiConfig: ApiConfig;
-  setApiConfig: (config: ApiConfig) => void;
+  setApiConfig: Dispatch<SetStateAction<ApiConfig>>;
+  onLogin: (username: string, password: string) => Promise<boolean>;
+  onLogout: () => void;
+  onTestConnection: () => Promise<boolean>;
 }
 
 export const ApiSettingsPanel: React.FC<ApiSettingsPanelProps> = ({
   apiConfig,
   setApiConfig,
+  onLogin,
+  onLogout,
+  onTestConnection,
 }) => {
-  const [formData, setFormData] = useState<ApiConfig>({ ...apiConfig });
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [authState, setAuthState] = useState<'idle' | 'busy' | 'ok' | 'error'>(isAuthed() ? 'ok' : 'idle');
-  const [authMessage, setAuthMessage] = useState('');
+  const [authPending, setAuthPending] = useState(false);
+  const [connectionState, setConnectionState] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthState('busy');
-    const res = await login(username, password);
-    if (res.ok) {
-      setAuthState('ok');
-      setAuthMessage('Authenticated — predictions and orders will sync to the server.');
-    } else {
-      setAuthState('error');
-      setAuthMessage(res.error || 'Authentication failed');
+  const handleLogin = async () => {
+    setAuthPending(true);
+    try {
+      const authenticated = await onLogin(username.trim(), password);
+      if (authenticated) setPassword('');
+    } finally {
+      setAuthPending(false);
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    setAuthState('idle');
-    setAuthMessage('');
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setApiConfig({ ...formData, isConnected: true });
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2000);
+  const handleTestConnection = async () => {
+    setConnectionState('testing');
+    const verified = await onTestConnection();
+    setConnectionState(verified ? 'ok' : 'error');
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Banner */}
-      <div className="bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-transparent border border-indigo-900/30 rounded-3xl p-6 lg:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h2 className="text-xl lg:text-2xl font-black text-indigo-400 uppercase tracking-widest flex items-center gap-3">
-            <Settings className="w-8 h-8 text-indigo-500" />
-            API & Endpoint Configuration
-          </h2>
-          <p className="text-sm text-slate-400 mt-2 max-w-xl">
-            Configure REST proxies, API keys, and toggle active modes between Live and Digital Twin simulation.
-          </p>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="glass-panel rounded-3xl p-6 space-y-4">
+        <div className="text-xs font-black uppercase tracking-widest text-violet-300">
+          API Proxy & Integration
         </div>
-        <div className="flex items-center gap-4">
-          <div className={`px-4 py-2.5 rounded-xl border flex items-center gap-2.5 ${
-            apiConfig.isConnected
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-              : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-          }`}>
-            <span className="text-xs font-black tracking-widest uppercase">
-              {apiConfig.isConnected ? 'API CONNECTED' : 'OFFLINE'}
-            </span>
+        <label className="block space-y-1 text-sm">
+          <span className="text-[#94A3B8]">Market Proxy URL</span>
+          <input
+            value={apiConfig.proxyUrl}
+            onChange={(e) => setApiConfig({ ...apiConfig, proxyUrl: e.target.value })}
+            className="w-full rounded-xl bg-[#101620] border border-white/10 px-3.5 py-2.5 mono text-xs text-white min-h-[44px]"
+          />
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block space-y-1 text-sm">
+            <span className="text-[#94A3B8]">Username</span>
+            <input
+              autoComplete="username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              className="w-full rounded-xl bg-[#101620] border border-white/10 px-3.5 py-2.5 text-xs text-white min-h-[44px]"
+            />
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="text-[#94A3B8]">Password</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void handleLogin();
+              }}
+              className="w-full rounded-xl bg-[#101620] border border-white/10 px-3.5 py-2.5 text-xs text-white min-h-[44px]"
+            />
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => void handleLogin()}
+            disabled={authPending}
+            className="min-h-[44px] rounded-xl bg-emerald-600 text-xs font-black text-white hover:bg-emerald-500 disabled:opacity-60"
+          >
+            {authPending ? 'Signing in…' : 'Sign in'}
+          </button>
+          <button
+            onClick={onLogout}
+            disabled={!apiConfig.apiKey}
+            className="min-h-[44px] rounded-xl border border-white/10 bg-white/5 text-xs font-black text-slate-300 disabled:opacity-40"
+          >
+            Clear session
+          </button>
+        </div>
+        <label className="block space-y-1 text-sm">
+          <span className="text-[#94A3B8]">Bearer Access Token (advanced/manual)</span>
+          <div className="relative">
+            <input
+              type="password"
+              value={apiConfig.apiKey}
+              onChange={(e) => setApiConfig({ ...apiConfig, apiKey: e.target.value })}
+              placeholder="••••••••••••"
+              className="w-full rounded-xl bg-[#101620] border border-white/10 px-3.5 py-2.5 mono text-xs text-white pr-10 min-h-[44px]"
+            />
+            <Eye className="w-4 h-4 absolute right-3.5 top-3.5 text-[#64748B]" />
           </div>
-        </div>
+        </label>
+        <label className="flex items-center gap-2.5 text-xs text-slate-300 pt-1">
+          <input
+            type="checkbox"
+            checked={apiConfig.useDigitalTwin}
+            onChange={(e) => setApiConfig({ ...apiConfig, useDigitalTwin: e.target.checked })}
+            className="min-h-[20px] min-w-[20px] accent-violet-600 rounded"
+          />
+          <span>Use Digital Twin (Adaptive Simulation fallback)</span>
+        </label>
+        <button
+          onClick={() => void handleTestConnection()}
+          disabled={connectionState === 'testing'}
+          className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:cursor-wait disabled:opacity-60 text-white font-black text-xs min-h-[44px]"
+        >
+          {connectionState === 'testing' ? 'Testing Connection…' : connectionState === 'ok' ? 'Connection Verified ✓' : connectionState === 'error' ? 'Retry Connection Test' : 'Save & Test Connection'}
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-        {/* Authentication Panel */}
-        <form onSubmit={handleLogin} className="lg:col-span-2 glass-panel p-6 lg:p-8 rounded-3xl space-y-6">
-          <h3 className="text-lg font-black uppercase tracking-widest text-emerald-400 mb-2 flex items-center gap-2">
-            <KeyRound className="w-5 h-5" /> Account Authentication
-          </h3>
-          <p className="text-xs text-slate-400 -mt-2">
-            Log in to enable server-side persistence of predictions, orders and audit logs.
-            Default admin is seeded on first boot (see backend <code className="text-indigo-400">.env</code>).
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-black uppercase text-slate-400 mb-2 tracking-wider">Username</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-black uppercase text-slate-400 mb-2 tracking-wider">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
-                required
-              />
-            </div>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className={`text-xs font-bold ${authState === 'ok' ? 'text-emerald-400' : authState === 'error' ? 'text-rose-400' : 'text-slate-500'}`}>
-              {authState === 'ok' ? '● Authenticated' : authState === 'error' ? authMessage : authState === 'busy' ? 'Signing in…' : authMessage || 'Not signed in'}
-            </span>
-            <div className="flex items-center gap-3">
-              {authState === 'ok' && (
-                <button type="button" onClick={handleLogout} className="text-slate-500 hover:text-slate-300 text-xs font-bold uppercase tracking-wider">Sign out</button>
-              )}
-              <button
-                type="submit"
-                disabled={authState === 'busy'}
-                className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black uppercase tracking-widest text-xs px-6 py-3.5 rounded-xl shadow-lg shadow-emerald-500/10 active:scale-95 transition-all"
-              >
-                {authState === 'busy' ? 'Signing in…' : 'Sign In'}
-              </button>
-            </div>
-          </div>
-        </form>
-
-        {/* Form Panel */}
-        <form onSubmit={handleSubmit} className="lg:col-span-2 glass-panel p-6 lg:p-8 rounded-3xl space-y-6">
-          <h3 className="text-lg font-black uppercase tracking-widest text-indigo-400 mb-2">Endpoint Settings</h3>
-
-          <div className="space-y-6">
-            <div>
-              <label className="block text-xs font-black uppercase text-slate-400 mb-2.5 tracking-wider">
-                Proxy Endpoint Gateway URL
-              </label>
-              <input
-                type="url"
-                value={formData.proxyUrl}
-                onChange={(e) => setFormData({ ...formData, proxyUrl: e.target.value })}
-                className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-black uppercase text-slate-400 mb-2.5 tracking-wider">
-                Access Token / Secret API Key
-              </label>
-              <div className="relative">
-                <input
-                  type={showApiKey ? 'text' : 'password'}
-                  value={formData.apiKey}
-                  onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
-                  className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl pl-4 pr-12 py-3 text-sm text-white font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-4 top-3.5 text-slate-500 hover:text-slate-300 transition-colors"
-                >
-                  {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between border-t border-slate-800/50 pt-6">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, useDigitalTwin: !formData.useDigitalTwin })}
-                className="text-slate-400 hover:text-white transition-colors"
-              >
-                {formData.useDigitalTwin ? (
-                  <ToggleRight className="w-12 h-12 text-indigo-500" />
-                ) : (
-                  <ToggleLeft className="w-12 h-12 text-slate-600" />
-                )}
-              </button>
-              <div>
-                <span className="block text-xs font-black uppercase tracking-wider text-white">Digital Twin Mode</span>
-                <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Use Merton Jump Diffusion offline simulation</span>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest text-xs px-6 py-3.5 rounded-xl shadow-lg shadow-indigo-500/10 active:scale-95 transition-all flex items-center gap-2"
-            >
-              {saveSuccess ? (
-                <>
-                  <Check className="w-4 h-4" /> Save Successful
-                </>
-              ) : (
-                'Save Connection'
-              )}
-            </button>
-          </div>
-        </form>
-
-        {/* Informational Panel */}
-        <div className="space-y-6">
-          <div className="glass-panel p-6 rounded-3xl space-y-4">
-            <h3 className="text-sm font-black uppercase tracking-widest text-indigo-400 border-b border-slate-800/50 pb-3 flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" /> Secure Protocol
-            </h3>
-            <p className="text-xs text-slate-400 leading-relaxed font-sans">
-              All credentials and keys are stored locally inside the browser's hardware-isolated LocalStorage space and are never shared or sent to external trackers.
-            </p>
-          </div>
-        </div>
+      <div className="glass-card rounded-3xl p-6 text-xs text-[#94A3B8] space-y-3">
+        <div className="font-bold text-white text-sm">Real-time Architecture</div>
+        <p>
+          Intelligences Trader operates with dual WebSocket & REST data channels. Fallback to high-fidelity digital twins (deterministic simulation) preserves continuous model inference. Paper Trading Engine now uses trade ledger evaluation, not random.
+        </p>
       </div>
     </div>
   );

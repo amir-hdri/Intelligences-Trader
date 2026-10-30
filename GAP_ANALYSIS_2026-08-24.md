@@ -1,5 +1,10 @@
 # Gap Analysis & Remediation — 2026-08-24
 
+> This is the historical record of the 2026-08-24 pass against commit `2f13b80`: the suite counts,
+> findings and CI/CD status below describe that commit, not the current tree. For the current audit
+> and the latest remediation see
+> [`FULL_STACK_AUDIT_REPORT.md`](./FULL_STACK_AUDIT_REPORT.md).
+
 Full-stack review pass (senior full-stack + ML audit) performed against
 `main` at commit `2f13b80`. Method: three parallel deep reviews (Node
 security/correctness, infrastructure/CI, ML service/frontend), full test-suite

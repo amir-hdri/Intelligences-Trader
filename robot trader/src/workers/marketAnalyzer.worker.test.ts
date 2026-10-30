@@ -1,6 +1,12 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
 
+const loadWorkerModule = async (): Promise<void> => {
+  const workerModulePath = require.resolve('./marketAnalyzer.worker');
+  delete require.cache[workerModulePath];
+  await import('./marketAnalyzer.worker');
+};
+
 describe('Market Analyzer Worker', () => {
   let postMessageCalls: any[] = [];
   let originalSelf: any;
@@ -20,7 +26,7 @@ describe('Market Analyzer Worker', () => {
 
   test('Worker returns generic error message if error has no message', async () => {
     if (!(global as any).self.onmessage) {
-      await import('./marketAnalyzer.worker.ts?v=' + Date.now());
+      await loadWorkerModule();
     }
 
     const onmessage = (global as any).self.onmessage;
@@ -47,7 +53,7 @@ describe('Market Analyzer Worker', () => {
 
   test('Worker returns generic error message if string is thrown', async () => {
     if (!(global as any).self.onmessage) {
-      await import('./marketAnalyzer.worker.ts?v=' + Date.now());
+      await loadWorkerModule();
     }
 
     const onmessage = (global as any).self.onmessage;
@@ -74,7 +80,7 @@ describe('Market Analyzer Worker', () => {
 
   test('Worker handles unknown message type', async () => {
     if (!(global as any).self.onmessage) {
-      await import('./marketAnalyzer.worker.ts?v=' + Date.now());
+      await loadWorkerModule();
     }
 
     const onmessage = (global as any).self.onmessage;

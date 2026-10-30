@@ -1,7 +1,8 @@
 import React from 'react';
 import { StoredPrediction } from '../../services/PredictionHistoryService';
 import { StrategyWeights, DEFAULT_WEIGHTS } from '../../dataUtils';
-import { BrainCircuit, CheckCircle, XCircle, Clock, Target, Zap, Activity } from 'lucide-react';
+import { BrainCircuit, CheckCircle, XCircle, Clock, Target, Zap, Activity, Cpu, Sparkles } from 'lucide-react';
+import { Badge } from '../common/ui';
 
 interface LearningDashboardProps {
   history: StoredPrediction[];
@@ -21,162 +22,199 @@ export const LearningDashboard: React.FC<LearningDashboardProps> = ({ history, c
   })).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
 
   return (
-    <div className="space-y-8">
+    <div
+      aria-label="Online Learning & Neural Adaptive Engine"
+      className="space-y-6 animate-in fade-in duration-300"
+    >
       {/* Header Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <BrainCircuit size={100} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="glass-panel p-6 rounded-3xl relative overflow-hidden border border-white/[0.08]">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[#849495] font-mono font-bold text-xs uppercase tracking-wider flex items-center gap-2">
+              <BrainCircuit className="w-4 h-4 text-[#00F0FF]" /> Neural Signals Evaluated
+            </h3>
+            <Badge tone="cyan" dot>
+              LIVE LEARNER
+            </Badge>
           </div>
-          <h3 className="text-slate-500 font-black text-[10px] uppercase tracking-[0.2em] mb-4">Neural Learning Context</h3>
-          <div className="flex items-end gap-3 mb-6">
-             <span className="text-5xl font-black text-white tracking-tighter text-glow">{completed.length}</span>
-             <span className="text-[10px] font-black text-slate-500 mb-2 uppercase tracking-widest">Signals Resolved</span>
+
+          <div className="flex items-baseline gap-3 mb-4 font-mono">
+            <span className="text-4xl font-black text-white">{completed.length}</span>
+            <span className="text-xs text-[#849495]">Resolved Invariants</span>
           </div>
+
           <div className="flex gap-2">
-             <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 text-[10px] font-black rounded-lg border border-emerald-500/20 shadow-sm">{wins} WINS</span>
-             <span className="px-2.5 py-1 bg-rose-500/10 text-rose-400 text-[10px] font-black rounded-lg border border-rose-500/20 shadow-sm">{completed.length - wins} LOSSES</span>
+            <Badge tone="emerald">
+              {wins} WINS
+            </Badge>
+            <Badge tone="crimson">
+              {completed.length - wins} LOSSES
+            </Badge>
           </div>
         </div>
 
-        <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group">
-          <h3 className="text-slate-500 font-black text-[10px] uppercase tracking-[0.2em] mb-4">Verification Accuracy</h3>
-          <div className="flex items-end gap-3 mb-6">
-             <span className={`text-5xl font-black tracking-tighter text-glow ${winRate >= 50 ? 'text-emerald-400' : 'text-rose-400'}`}>
-               {winRate.toFixed(1)}%
-             </span>
-             <span className="text-[10px] font-black text-slate-500 mb-2 uppercase tracking-widest">Hedge Ratio</span>
+        <div className="glass-panel p-6 rounded-3xl relative overflow-hidden border border-white/[0.08]">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[#849495] font-mono font-bold text-xs uppercase tracking-wider flex items-center gap-2">
+              <Target className="w-4 h-4 text-[#10B981]" /> Verification Hit Rate
+            </h3>
+            <span className="text-[10px] font-mono text-[#849495]">Rolling 50 Epochs</span>
           </div>
-          <div className="w-full bg-slate-800/50 h-1.5 rounded-full overflow-hidden border border-slate-700/20">
-             <div className={`h-full transition-all duration-1000 ${winRate >= 50 ? 'bg-gradient-to-r from-emerald-600 to-emerald-400' : 'bg-gradient-to-r from-rose-600 to-rose-400'}`} style={{ width: `${winRate}%` }} />
+
+          <div className="flex items-baseline gap-3 mb-4 font-mono">
+            <span className={`text-4xl font-black ${winRate >= 50 ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
+              {winRate.toFixed(1)}%
+            </span>
+            <span className="text-xs text-[#849495]">Ensemble Precision</span>
+          </div>
+
+          <div className="w-full bg-[#060E20] h-2 rounded-full overflow-hidden border border-white/[0.08] p-[1px]">
+            <div
+              className={`h-full rounded-full transition-all duration-1000 ${winRate >= 50 ? 'bg-[#10B981] shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-[#EF4444] shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}
+              style={{ width: `${winRate}%` }}
+            />
           </div>
         </div>
 
-        <div className="glass-panel p-6 rounded-3xl relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1">
-           <h3 className="text-slate-500 font-black text-[10px] uppercase tracking-[0.2em] mb-4">Neural Strategy Bias</h3>
-           <div className="space-y-4">
-             {weightChanges.slice(0, 3).map(w => (
-               <div key={w.key} className="flex flex-col gap-1.5">
-                 <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                   <span className="text-slate-400">{w.key}</span>
-                   <span className={w.diff > 0 ? 'text-emerald-400' : w.diff < 0 ? 'text-rose-400' : 'text-slate-500'}>
-                     {w.diff > 0 ? '+' : ''}{w.diff.toFixed(2)}
-                   </span>
-                 </div>
-                 <div className="h-1 w-full rounded-full bg-slate-800/50 overflow-hidden border border-slate-700/10">
-                   <div
-                     className={`h-full transition-all duration-1000 ${w.diff > 0 ? 'bg-emerald-500' : w.diff < 0 ? 'bg-rose-500' : 'bg-slate-500'}`}
-                     style={{ width: `${Math.min(100, (w.current / 5) * 100)}%` }}
-                   />
-                 </div>
-               </div>
-             ))}
-           </div>
+        <div className="glass-panel p-6 rounded-3xl relative overflow-hidden border border-white/[0.08] col-span-1 sm:col-span-2 lg:col-span-1">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[#849495] font-mono font-bold text-xs uppercase tracking-wider flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-[#A78BFA]" /> Active Sub-Model Biases
+            </h3>
+            <span className="text-[10px] font-mono text-[#00F0FF]">Bayesian Tuning</span>
+          </div>
+
+          <div className="space-y-3 font-mono">
+            {weightChanges.slice(0, 3).map(w => (
+              <div key={w.key} className="space-y-1">
+                <div className="flex justify-between items-center text-[10px] uppercase">
+                  <span className="text-white font-bold">{w.key}</span>
+                  <span className={w.diff > 0 ? 'text-[#10B981] font-bold' : w.diff < 0 ? 'text-[#EF4444] font-bold' : 'text-[#849495]'}>
+                    {w.diff > 0 ? '+' : ''}{w.diff.toFixed(2)}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-[#060E20] overflow-hidden border border-white/[0.06]">
+                  <div
+                    className={`h-full transition-all duration-500 ${w.diff > 0 ? 'bg-[#10B981]' : w.diff < 0 ? 'bg-[#EF4444]' : 'bg-[#00F0FF]'}`}
+                    style={{ width: `${Math.min(100, (w.current / 5) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Adaptive Weights Panel */}
-        <div className="glass-panel p-6 rounded-3xl h-full flex flex-col">
-           <h3 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
-             <Zap className="w-3 h-3 text-indigo-400" />
-             Weight Distribution
-           </h3>
-           <div className="space-y-6 flex-1">
-             {weightChanges.map((w) => (
-               <div key={w.key} className="group glass-card p-4 rounded-2xl transition-all border-slate-800/40 hover:scale-[1.02]">
-                 <div className="flex justify-between items-center mb-3">
-                    <span className="text-[11px] font-black uppercase tracking-widest text-slate-300">{w.key}</span>
-                    <div className={`px-2 py-0.5 rounded text-[10px] font-mono font-black border ${w.diff > 0.1 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : w.diff < -0.1 ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-slate-800/50 text-slate-500 border-slate-700/50'}`}>
-                      {w.current.toFixed(2)}
-                    </div>
-                 </div>
-                 <div className="relative h-1.5 bg-slate-900/50 rounded-full overflow-hidden border border-slate-800/50">
-                    <div className="absolute top-0 bottom-0 w-0.5 bg-indigo-500/50 z-10" style={{ left: `${(w.default / 5) * 100}%` }} />
-                    <div
-                      className={`absolute top-0 bottom-0 transition-all duration-1000 ease-out ${w.current > w.default ? 'bg-gradient-to-r from-emerald-600 to-emerald-400' : 'bg-gradient-to-r from-rose-600 to-rose-400'}`}
-                      style={{ width: `${(w.current / 5) * 100}%` }}
-                    />
-                 </div>
-               </div>
-             ))}
-           </div>
-           <div className="mt-8 p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl">
-              <div className="flex items-center gap-2 text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-2">
-                 <Activity className="w-3 h-3" />
-                 Meta-Learning Info
+        <div className="glass-panel p-6 rounded-3xl flex flex-col border border-white/[0.08] space-y-5">
+          <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#00F0FF] flex items-center gap-2">
+              <Zap className="w-4 h-4" /> Strategy Weights Distribution
+            </h3>
+          </div>
+
+          <div className="space-y-3 flex-1 font-mono">
+            {weightChanges.map((w) => (
+              <div key={w.key} className="p-3.5 rounded-2xl bg-[#060E20] border border-white/[0.06] hover:border-white/15 transition-all space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-white font-bold uppercase">{w.key}</span>
+                  <div className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${w.diff > 0.1 ? 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/25' : w.diff < -0.1 ? 'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/25' : 'bg-white/[0.04] text-[#849495] border-white/10'}`}>
+                    {w.current.toFixed(2)}
+                  </div>
+                </div>
+
+                <div className="relative h-2 bg-[#131B2E] rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${w.current > w.default ? 'bg-gradient-to-r from-[#10B981]/60 to-[#10B981]' : 'bg-gradient-to-r from-[#EF4444]/60 to-[#EF4444]'}`}
+                    style={{ width: `${(w.current / 5) * 100}%` }}
+                  />
+                </div>
               </div>
-              <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic">
-                 The ensemble controller is dynamically re-weighting technical indicators based on Bayesian probability of current regime stability.
-              </p>
-           </div>
+            ))}
+          </div>
+
+          <div className="p-4 bg-[#060E20] border border-white/[0.06] rounded-2xl space-y-1">
+            <div className="flex items-center gap-2 text-[10px] font-mono font-bold text-[#00F0FF] uppercase tracking-wider">
+              <Activity className="w-3 h-3" /> Meta-Learning Controller
+            </div>
+            <p className="text-[11px] text-[#849495] leading-relaxed font-sans">
+              The neural meta-controller dynamically updates sub-model alphas according to recent regime performance and loss gradients.
+            </p>
+          </div>
         </div>
 
         {/* Prediction History Table */}
-        <div className="lg:col-span-2 glass-panel rounded-3xl overflow-hidden flex flex-col">
-           <div className="p-6 border-b border-slate-800/50 flex justify-between items-center bg-slate-900/40">
-             <h3 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] flex items-center gap-2">
-               <Target className="w-3 h-3 text-indigo-400" />
-               Signal Verification Log
-             </h3>
-             <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Rolling Window: 50 Signals</span>
-           </div>
+        <div className="lg:col-span-2 glass-panel rounded-3xl overflow-hidden flex flex-col border border-white/[0.08]">
+          <div className="p-5 lg:p-6 border-b border-white/[0.06] flex justify-between items-center bg-[#060E20]/60">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/25 flex items-center justify-center text-[#00F0FF]">
+                <Target className="w-4 h-4" />
+              </div>
+              <h3 className="text-white font-mono font-bold text-xs uppercase tracking-wider">
+                Signal Verification Stream
+              </h3>
+            </div>
+            <span className="text-[10px] font-mono text-[#849495] uppercase">
+              Window: 50 Signals
+            </span>
+          </div>
 
-           <div className="overflow-y-auto max-h-[650px] scrollbar-thin scrollbar-thumb-slate-800/50">
-             <table className="w-full text-left text-xs">
-               <thead className="bg-slate-900/60 text-slate-500 font-black uppercase tracking-[0.15em] sticky top-0 backdrop-blur-xl z-10 border-b border-slate-800/50">
-                 <tr>
-                   <th className="px-6 py-5">Timestamp</th>
-                   <th className="px-6 py-5">Alpha Signal</th>
-                   <th className="px-6 py-5 text-right">Target</th>
-                   <th className="px-6 py-5 text-center">Status</th>
-                   <th className="px-6 py-5 text-right">Settlement</th>
-                 </tr>
-               </thead>
-               <tbody className="divide-y divide-slate-800/40">
-                 {history.slice(0, 50).map((p) => (
-                   <tr key={p.id} className="hover:bg-white/[0.02] transition-colors group">
-                     <td className="px-6 py-4 text-slate-500 font-mono text-[10px]">
-                       {new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                     </td>
-                     <td className="px-6 py-4">
-                       <div className="flex flex-col gap-1">
-                         <div className="flex items-center gap-2">
-                           <span className={`font-black text-[11px] tracking-tight ${p.action === 'BUY' ? 'text-emerald-400 text-glow' : 'text-rose-400 text-glow'}`}>
-                             {p.action}
-                           </span>
-                           <span className="text-slate-300 font-mono text-[11px]">@{p.entryPrice.toLocaleString()}</span>
-                         </div>
-                         <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tight group-hover:text-slate-400 transition-colors">{p.reason.split('.')[0]}</span>
-                       </div>
-                     </td>
-                     <td className="px-6 py-4 text-right font-mono text-[11px] text-slate-300">
-                       {p.targetPrice.toLocaleString()}
-                     </td>
-                     <td className="px-6 py-4 text-center">
-                       {p.status === 'WIN' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg text-[9px] font-black border border-emerald-500/20 shadow-sm"><CheckCircle size={10} /> WIN</span>}
-                       {p.status === 'LOSS' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-500/10 text-rose-400 rounded-lg text-[9px] font-black border border-rose-500/20 shadow-sm"><XCircle size={10} /> LOSS</span>}
-                       {p.status === 'PENDING' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-500/10 text-indigo-400 rounded-lg text-[9px] font-black border border-indigo-500/20 shadow-sm animate-pulse"><Clock size={10} /> ACTIVE</span>}
-                     </td>
-                     <td className="px-6 py-4 text-right font-mono text-[11px] text-slate-400">
-                       {p.actualOutcome ? p.actualOutcome.toLocaleString() : '---'}
-                     </td>
-                   </tr>
-                 ))}
-                 {history.length === 0 && (
-                   <tr>
-                     <td colSpan={5} className="px-6 py-32 text-center text-slate-600 font-black uppercase tracking-[0.2em] italic opacity-40">
-                        Awaiting Market Signals...
-                     </td>
-                   </tr>
-                 )}
-               </tbody>
-             </table>
-           </div>
+          <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="bg-[#060E20] text-[#849495] font-bold uppercase tracking-wider sticky top-0 border-b border-white/[0.06] z-10">
+                <tr>
+                  <th className="px-5 py-3.5">Timestamp</th>
+                  <th className="px-5 py-3.5">Alpha Signal</th>
+                  <th className="px-5 py-3.5 text-right">Target</th>
+                  <th className="px-5 py-3.5 text-center">Status</th>
+                  <th className="px-5 py-3.5 text-right">Settlement</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {history.slice(0, 50).map((p) => (
+                  <tr key={p.id} className="hover:bg-white/[0.03] transition-colors">
+                    <td className="px-5 py-3.5 text-[#849495] text-[10px]">
+                      {new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-bold ${p.action === 'BUY' ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
+                          {p.action}
+                        </span>
+                        <span className="text-white">@{p.entryPrice.toLocaleString()}</span>
+                      </div>
+                      <span className="text-[9px] text-[#849495] truncate block max-w-xs">{p.reason.split('.')[0]}</span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right text-white">
+                      {p.targetPrice.toLocaleString()}
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      {p.status === 'WIN' && <Badge tone="emerald" dot>WIN</Badge>}
+                      {p.status === 'LOSS' && <Badge tone="crimson" dot>LOSS</Badge>}
+                      {p.status === 'PENDING' && <Badge tone="amber" dot>ACTIVE</Badge>}
+                    </td>
+                    <td className="px-5 py-3.5 text-right text-[#849495]">
+                      {p.actualOutcome ? p.actualOutcome.toLocaleString() : '—'}
+                    </td>
+                  </tr>
+                ))}
+                {history.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-24 text-center text-[#849495] uppercase tracking-wider">
+                      Awaiting live market signals…
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
   );
 };
+
+export default LearningDashboard;
+

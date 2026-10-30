@@ -16,6 +16,7 @@ export class RiskEngine {
   private dailyStartingEquity: number;
   private winRate = 0.55;
   private profitFactor = 1.8;
+  private riskHaltLatched = false;
 
   constructor(limits: RiskLimits, initialEquity: number) {
     if (!Number.isFinite(initialEquity) || initialEquity <= 0) {
@@ -49,8 +50,8 @@ export class RiskEngine {
       limits.maxPositionSize,
       limits.maxOpenTrades,
     ];
-    if (numericLimits.some(value => !Number.isFinite(value) || value < 0)) {
-      throw new Error('Risk limits must be non-negative finite numbers');
+    if (numericLimits.some(value => !Number.isFinite(value) || value <= 0)) {
+      throw new Error('Risk limits must be positive finite numbers');
     }
     if (!Number.isInteger(limits.maxOpenTrades)) {
       throw new Error('maxOpenTrades must be an integer');
@@ -90,19 +91,21 @@ export class RiskEngine {
   }
 
   private checkLimits(): void {
-    const violations: string[] = [];
+    const riskViolations: string[] = [];
     if (this.status.currentDailyDrawdown >= this.limits.maxDailyDrawdown) {
-      violations.push(`Daily drawdown limit exceeded: ${this.status.currentDailyDrawdown.toFixed(2)}%`);
+      riskViolations.push(`Daily drawdown limit exceeded: ${this.status.currentDailyDrawdown.toFixed(2)}%`);
     }
     if (this.status.currentTotalDrawdown >= this.limits.maxTotalDrawdown) {
-      violations.push(`Total drawdown limit exceeded: ${this.status.currentTotalDrawdown.toFixed(2)}%`);
+      riskViolations.push(`Total drawdown limit exceeded: ${this.status.currentTotalDrawdown.toFixed(2)}%`);
     }
-    if (this.status.margin.isCallRisk) violations.push('Critical Margin Level - Liquidation Risk');
-    if (this.limits.stopAllTrading) violations.push('Manual trading halt active');
+    if (this.status.margin.isCallRisk) riskViolations.push('Critical Margin Level - Liquidation Risk');
+    if (riskViolations.length > 0) this.riskHaltLatched = true;
 
-    this.status.violations = violations;
+    const manualHalt = this.limits.stopAllTrading;
+    this.status.violations = manualHalt ? [...riskViolations, 'Manual trading halt active'] : riskViolations;
     // A risk-triggered halt is deliberately sticky until an explicit reset.
-    if (violations.length > 0) this.status.isKillSwitchActive = true;
+    // The manual halt only holds while the operator keeps it engaged.
+    this.status.isKillSwitchActive = manualHalt || this.riskHaltLatched;
   }
 
   private isIranianHoliday(date: Date): boolean {
@@ -196,9 +199,11 @@ export class RiskEngine {
 
   resetKillSwitch(): void {
     if (this.limits.stopAllTrading) return;
+    this.riskHaltLatched = false;
+    this.dailyStartingEquity = this.currentEquity;
+    this.status.currentDailyDrawdown = 0;
     this.status.isKillSwitchActive = false;
     this.status.violations = [];
-    this.dailyStartingEquity = this.currentEquity;
     this.checkLimits();
   }
 }

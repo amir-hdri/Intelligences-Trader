@@ -10,8 +10,9 @@
 npm ci
 npm run typecheck                  # بررسی تایپ‌اسکریپت (0 خطا)
 npm run build                      # بیلد پروداکشن کلاینت با Vite
-npm test --workspaces --if-present  # اجرای 152 تست بک‌اند و پروکسی
-npm test --workspace app           # اجرای 41 تست کلاینت فرانت‌اند
+npm test --workspaces --if-present  # اجرای 198 تست Node (42 فرانت‌اند + 149 بک‌اند هسته + 7 پروکسی)
+npm test --workspace app           # اجرای 42 تست کلاینت فرانت‌اند
+npm run verify                     # بررسی تطابق شمارش تست‌های مستندشده با شمارش اجراشده
 npm audit --audit-level=moderate   # بررسی امنیتی پکیج‌ها (0 آسیب‌پذیری)
 ```
 
@@ -20,7 +21,7 @@ npm audit --audit-level=moderate   # بررسی امنیتی پکیج‌ها (0 
 ```bash
 cd ml_service
 uv sync --locked
-uv run pytest -q                   # اجرای 69 تست با 0 هشدار Deprecation
+uv run pytest -q                   # اجرای 73 تست با 0 هشدار Deprecation
 uv run python run_backtests.py     # بازتولید گزارش متنی و نمودارهای PNG بک‌تست
 git diff --exit-code -- backtest_results.csv backtest_report.md backtest_artifacts/
 ```

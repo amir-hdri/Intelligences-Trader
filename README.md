@@ -388,8 +388,8 @@ flowchart TD
     end
 
     subgraph Alternative_Data_And_XAI ["E. Alt-Data Fusion & Explainable AI (altDataEngine.js & xaiEngine.js)"]
-        ALT_NEWS["FinBERT News Sentiment\n(Dollar Bullish / Bearish impact)"]
-        ALT_SOCIAL["Social Media NLP Aggregator\n(Telegram, Twitter, Forums)"]
+        ALT_NEWS["News Sentiment Aggregation\n(deterministic fixture headlines)"]
+        ALT_SOCIAL["Social Sentiment Weighting\n(Twitter / Telegram / Reddit factors)"]
         ALT_MACRO["Macro Factors Fusion\n(Inflation, NIMA Rate, Oil, Gold)"]
         ATTENTION_FUSION["Dynamic Attention Mechanism\n(Softmax-weighted cross-modality fusion)"]
         XAI_SHAP["XAIEngine SHAP Approximation\n(Feature attribution breakdown)"]
@@ -452,7 +452,7 @@ flowchart TD
 | **Python ML Research** | `ml_service/` | TCN causal actor-critic, Beta continuous sizing, Gaussian HMM, CircuitBreaker |
 | **Knowledge Graph** | `graphify-out/` | Graphify structural AST graph (1,546 nodes, 2,798 edges, 111 communities) |
 
-The frontend communicates with relative `/api` and `/ws` endpoints. Vite proxies these routes during development, while the production Nginx container proxies them in production. Continuous testing covers 221 unit and integration test suites with 100% pass rate.
+The frontend communicates with relative `/api` and `/ws` endpoints. Vite proxies these routes during development, while the production Nginx container proxies them in production. Continuous testing covers 279 unit and integration test suites with 100% pass rate.
 
 
 ## Quick start

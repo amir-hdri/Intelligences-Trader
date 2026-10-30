@@ -66,3 +66,37 @@ jobs:
         cd ml_service
         uv run python run_backtests.py
 
+  documentation-truth:
+    name: Documentation Truth Guard
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js 22
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+
+    - name: Install Node Dependencies
+      run: npm ci --no-audit --no-fund
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        version: "latest"
+        enable-cache: true
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install Python ML Dependencies
+      run: |
+        cd ml_service
+        uv sync --locked
+
+    - name: Verify Documented Test Counts
+      run: npm run verify
+
