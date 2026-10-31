@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unused coverage dependency removed**: `c8` was declared in the frontend workspace but no script, test or CI
   job used it. It was the only reason the vulnerable `glob`/`minimatch`/`test-exclude` chain was in the tree, so
   it is deleted rather than pinned to a version with an open advisory.
+- **Remaining Dependabot bumps applied to the proxy server**: `dotenv` 18.0.9 and `nock` 15.0.5 replace the
+  versions the bot had queued in pull requests #225 and #224.
 
 ### Changed
 - **`GET /api/tse/:id` states what it serves**: the endpoint reads the instrument history from the TSETMC CDN

@@ -13,7 +13,7 @@
     "@tensorflow/tfjs": "^4.22.0",
     "ccxt": "^4.5.71",
     "cors": "^2.8.5",
-    "dotenv": "^17.4.2",
+    "dotenv": "^18.0.9",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "ioredis": "^6.0.0",
@@ -25,6 +25,7 @@
     "winston": "^3.19.0"
   },
   "devDependencies": {
+    "nock": "^15.0.5",
     "supertest": "^7.2.2"
   }
 }
