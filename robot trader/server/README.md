@@ -90,4 +90,4 @@ graph TD
 npm test --workspace robot trader/server
 ```
 
-The workspace runs 149 cases, including the P2 execution, chaos, ledger, authentication and model-contract suites.
+The workspace runs 151 cases, including the P2 execution, chaos, ledger, authentication and model-contract suites.

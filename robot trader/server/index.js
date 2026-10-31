@@ -57,7 +57,6 @@ import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import { auditLogger } from './AuditLogger.js';
 
-import { DayDetails } from 'tsetmc-client';
 import { analyzeMarketMTF, detectMarketRegime, calculateATR } from './analyzer.js';
 import { generateAnalysis, isValidCandle } from './analysisEngine.js';
 import { ModelManager } from './modelManager.js';
@@ -104,6 +103,7 @@ const SYMBOL_MAP = {
 
 const TSETMC_INFO_URL = 'https://cdn.tsetmc.com/api/Instrument/GetInstrumentInfo';
 const TSETMC_OB_URL = 'https://cdn.tsetmc.com/api/Instrument/GetInstrumentOrderBook';
+const TSETMC_HISTORY_URL = 'https://cdn.tsetmc.com/api/Instrument/GetInstrumentHistory/';
 
 const fetchWithRetry = async (url, retries = 3) => {
   for (let i = 0; i < retries; i++) {
@@ -470,34 +470,39 @@ app.get('/api/news', (req, res) => {
 // Proxy for Real API (TSETMC)
 app.get('/api/tse/:id', async (req, res) => {
   const id = String(req.params.id);
-  if (!/^[A-Z0-9-]+$/.test(id)) {
-    return res.status(400).json({ error: 'Invalid symbol format' });
+  if (!SYMBOL_MAP[id]) {
+    return res.status(400).json({ error: 'Unknown symbol' });
   }
 
   try {
-    const today = new Date();
-    // Assuming a simple way to format date as YYYYMMDD
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const dEven = parseInt(`${yyyy}${mm}${dd}`);
+    // Mirrors the market gateway's symbol→instrument mapping so both services
+    // read the same exchange instrument.
+    const instrumentId = id.includes('GOLD') ? '35425587644337450' : '65883838195688438';
+    const history = await fetchWithRetry(`${TSETMC_HISTORY_URL}${instrumentId}`, 1);
+    const rows = Array.isArray(history?.instrumentHistory) ? history.instrumentHistory : [];
+    if (rows.length === 0) {
+      throw new Error('TSETMC returned no history rows');
+    }
 
-    const data = await DayDetails.getPriceData({ insId: id, dEven: dEven });
+    const latest = rows[rows.length - 1];
+    const close = Number(latest.closingPrice);
+    if (!Number.isFinite(close) || close <= 0) {
+      throw new Error('TSETMC returned an unusable closing price');
+    }
+    const open = Number(latest.openPrice);
+    const high = Number(latest.highPrice);
+    const low = Number(latest.lowPrice);
+    const volume = Number(latest.volume);
 
-    // Transform tsetmc-client data into our MarketCandle format
-    // Real TSETMC client might not return historical intraday candles perfectly,
-    // so we will simulate generating the candles based on real daily data
-
-    const priceChange = data.priceChange || 0;
-    const openPrice = data.lastPrice - priceChange; // Approximation
-
+    // Anchor the snapshot to the real TSETMC daily bar; the history around it is
+    // synthetic and the response stays labelled as simulated.
     const candle = {
         timestamp: Date.now(),
-        open: openPrice,
-        high: data.high || data.lastPrice,
-        low: data.low || data.lastPrice,
-        close: data.lastPrice,
-        volume: data.tradeVolume || 0,
+        open: Number.isFinite(open) && open > 0 ? open : close,
+        high: Number.isFinite(high) && high > 0 ? high : close,
+        low: Number.isFinite(low) && low > 0 ? low : close,
+        close,
+        volume: Number.isFinite(volume) && volume > 0 ? volume : 0,
         openInterest: 0,
         basis: 0,
         warehouseVolume: 0
@@ -514,8 +519,18 @@ app.get('/api/tse/:id', async (req, res) => {
       data: candles,
     });
   } catch (error) {
-    logger.error('Real API Error:', error.message);
-    res.status(500).json({ success: false, error: 'Failed to fetch from real API. Check ID or network.' });
+    // The exchange feed is unreachable in most local and CI setups, so serve the
+    // labelled digital twin instead of failing the terminal's data load.
+    logger.warn('Real TSETMC fetch failed; serving the labelled digital twin', {
+      id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.json({
+      success: true,
+      source: 'DIGITAL_TWIN',
+      simulated: true,
+      data: generateSimulationData(id),
+    });
   }
 });
 

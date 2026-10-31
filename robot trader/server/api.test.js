@@ -70,3 +70,23 @@ describe('Analysis API integration', () => {
     assert.match(response.text, /backtest_runs_queued/);
   });
 });
+
+describe('TSETMC snapshot endpoint', () => {
+  test('rejects symbols outside the allowlist', async () => {
+    const response = await request(app).get('/api/tse/UNKNOWN-SYMBOL');
+    assert.strictEqual(response.status, 400);
+    assert.match(response.body.error, /Unknown symbol/);
+  });
+
+  test('always serves labelled candles, with or without the exchange feed', async () => {
+    const response = await request(app).get('/api/tse/SAF-NGN-FUT');
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.success, true);
+    assert.strictEqual(response.body.simulated, true);
+    assert.ok(['TSETMC_SNAPSHOT_WITH_SYNTHETIC_HISTORY', 'DIGITAL_TWIN'].includes(response.body.source));
+    assert.ok(Array.isArray(response.body.data) && response.body.data.length > 0);
+    for (const candle of response.body.data) {
+      assert.ok(Number.isFinite(candle.close) && candle.close > 0);
+    }
+  });
+});

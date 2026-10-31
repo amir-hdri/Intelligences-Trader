@@ -5,6 +5,36 @@ All notable changes to the Intelligences-Trader project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.2] - 2026-10-31
+
+### Security
+- **Dependency vulnerabilities closed on the default branch**: the Node lockfile is upgraded to the patched
+  releases of every advisory package (`axios` 1.21.0, `body-parser` 2.4.0, `follow-redirects` 1.16.2,
+  `ip-address` 10.7.5, `proxy-addr` 2.0.8, `qs` 6.17.1, `source-map-js` 1.2.2, `undici` 7.30.1) and the
+  Python lockfile is upgraded for the four pip advisories (`pillow` 13.0.0, `filelock` 4.2.5, `setuptools`
+  84.2.1, `torch` 2.15.0). `npm audit` reports 0 vulnerabilities and `uv lock --check` reports the lockfile in
+  sync with `pyproject.toml`.
+- **Unmaintained exchange client removed**: `tsetmc-client` is dropped from the `robot trader/server`
+  workspace. The snapshot endpoint now calls the exchange CDN itself, so the dependency no longer ships.
+- **Unused coverage dependency removed**: `c8` was declared in the frontend workspace but no script, test or CI
+  job used it. It was the only reason the vulnerable `glob`/`minimatch`/`test-exclude` chain was in the tree, so
+  it is deleted rather than pinned to a version with an open advisory.
+
+### Changed
+- **`GET /api/tse/:id` states what it serves**: the endpoint reads the instrument history from the TSETMC CDN
+  with a 5-second timeout, anchors the snapshot to the real last daily bar and labels the surrounding synthetic
+  history as such (`source: TSETMC_SNAPSHOT_WITH_SYNTHETIC_HISTORY`, `simulated: true`). Symbols outside the
+  instrument allowlist are rejected with `400 Unknown symbol` instead of an upstream failure, and when the CDN
+  is unreachable the response is the labelled digital twin (`source: DIGITAL_TWIN`) rather than a 500.
+- **Documentation truth**: `API_DOCS.md` describes the endpoint as it now behaves, and the test totals in
+  `README.md`, `TEST_GUIDE.md`, `FULL_STACK_AUDIT_REPORT.md`, `robot trader/server/README.md` and the delivery
+  acceptance report match the executed counts (281 in total, 151 in the core backend).
+
+### Verified
+- **Full-Stack Test Verification**: 281 of 281 automated tests passing with 100% green status (73 Python tests, 208 Node tests, 0 TypeScript compiler diagnostics).
+- **Dependency audit**: `npm audit` → 0 vulnerabilities (was 4 moderate after the lockfile upgrade); `uv lock --check` → the lockfile matches the manifest.
+- **Browser end-to-end**: 7 passed, 1 skipped (`npm run test:e2e --workspace app`).
+
 ## [2.9.1] - 2026-10-30
 
 ### Fixed

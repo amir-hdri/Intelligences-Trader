@@ -239,7 +239,7 @@ pnl = riskPerTrade * profitFactor (WIN) or -riskPerTrade (LOSS)
 | `POST /api/analyze` | `POST` | Synchronous rule-based analysis (<500ms) with asynchronous TCN ONNX shadow mode execution. |
 | `POST /api/predict` | `POST` | Direct ONNX inference with feature tensor input shape `[batch, 30, 10]` and latency tracking. |
 | `GET /api/news` | `GET` | Deterministic fixture-news generator scored with the `sentiment` package, with Dollar Risk and Political Risk score (0-100). The response is marked `simulated: true`. |
-| `GET /api/tse/:id` | `GET` | Live TSETMC daily snapshot via `tsetmc-client` anchored to real last price. |
+| `GET /api/tse/:id` | `GET` | TSETMC daily snapshot fetched from the exchange CDN (5s timeout), anchored to the real last daily bar and surrounded by synthetic history. Symbols outside the allowlist are rejected with `400 Unknown symbol`. The response carries `source` (`TSETMC_SNAPSHOT_WITH_SYNTHETIC_HISTORY` or `DIGITAL_TWIN`) and `simulated: true`; when the CDN is unreachable the labelled digital twin is served instead of an error. |
 | `GET /api/tse/history/:symbolId` | `GET` | Multi-timeframe analysis (1m, 15m, 1h, 1d), ATR volatility regime, and 95% Historical VaR. |
 | `GET /api/tse/info/:symbolId` | `GET` | Real-time TSETMC best limits depth with automated symbol resolution. |
 | `POST /api/train` | `POST` | Fractional differentiation ($d=0.5$), 5-fold purged cross-validation, and local TCN model fitting on the final purged fold; the reported metrics are measured on that holdout. |

@@ -95,7 +95,7 @@ learning, paper-trading, and ledger boundaries.
 | Vite/Playwright config TypeScript | PASS | `tsc -p robot trader/tsconfig.node.json --noEmit` |
 | Production frontend build | PASS | `npm run build` |
 | Frontend/domain unit tests | PASS | 50 tests |
-| Analysis API/unit/integration/security tests | PASS | 149 tests including auth, model, ledger, P2 and Phase 3 suites |
+| Analysis API/unit/integration/security tests | PASS | 151 tests including auth, model, ledger, P2 and Phase 3 suites |
 | Gateway/real WebSocket integration tests | PASS | 7 tests covering normalized external data, fallback provenance, order book, Prometheus output and WS |
 | Python unit/integration tests | PASS | 73 tests with 0 deprecation warnings |
 | Python dependency/lock consistency | PASS | `uv lock --check`, `pip check` |
@@ -108,7 +108,7 @@ learning, paper-trading, and ledger boundaries.
 | Terminal navigation contract | PASS | `robot trader/tests/audit/navigation.spec.ts` — all 22 nav ids land on a visible, non-empty labelled region |
 | Orphan-module guard | PASS | `robot trader/src/orphanGuard.test.ts` — every production module under `src/` is reachable from the entry points; the guard fails `npm test`, not `npm run build` |
 | ONNX artifact contract | PASS | `ml_service/test_model_contract.py` and `robot trader/server/modelArtifactContract.test.js` pin both artifacts' names, shapes and digests |
-| Documented test totals | PASS | `npm run verify` — the documented totals equal the executed counts (279) |
+| Documented test totals | PASS | `npm run verify` — the documented totals equal the executed counts (281) |
 | Docker image build/runtime | NOT AVAILABLE LOCALLY | Docker CLI/daemon unavailable in this sandbox |
 | Terraform validate/plan | NOT AVAILABLE LOCALLY | Terraform CLI and cloud credentials unavailable |
 | GitHub workflow publication | REQUIRES USER ACTION | GitHub App token lacks workflow-write permission |
