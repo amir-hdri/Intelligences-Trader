@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependabot now watches every workspace**: the npm ecosystem covers the repository root (the production
   `server` workspace) in addition to `robot trader`, and the `uv` ecosystem covers `ml_service`. The two
   unmonitored manifests were the reason the advisory queue kept stale rows alive after the lockfiles were fixed.
+- **Stale advisory rows dismissed with evidence**: the alert table still listed 109 open rows after the lockfiles
+  were fixed — 102 for packages whose installed version is at or above the advisory's first patched release, and 7
+  for packages (deepmerge, moment, glob, minimatch, brace-expansion) that the lockfiles no longer contain. Every
+  row was dismissed with its reason and the evidence, and the table now reports 0 open alerts.
 
 ### Fixed
 - **The tape badge no longer claims a live feed**: the frontend dropped the `source`/`simulated` labels that
@@ -33,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   series, `IME LIVE TAPE` only when the backend states the data is not simulated, and `IME FEED UNKNOWN` while
   the provenance is still unknown. The intraday frames (1h/15m/1m) are generated in the browser and are
   therefore always labelled as simulation.
+- **The documentation truth guard runs on CI again**: the guard read the executed case counters only from the
+  terminal reporter format, while the CI runtime prints the TAP format — every push failed with "could not read
+  the executed case counters". Both formats are parsed now, the workspace header is matched by package name or
+  by directory, and the guard self-checks its parser on every run.
 
 ### Changed
 - **`GET /api/tse/:id` states what it serves**: the endpoint reads the instrument history from the TSETMC CDN
