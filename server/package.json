@@ -15,7 +15,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "winston": "^3.19.0",
-    "ws": "^8.21.0"
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "nock": "^15.0.5",
