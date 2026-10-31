@@ -11,10 +11,20 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          charts: ['recharts'],
-          icons: ['lucide-react'],
-          analytics: ['sentiment', 'date-fns', 'jalaali-js'],
+        // The callback form is the portable one: Vite 8 bundles with Rolldown,
+        // which rejects the object form, while Vite 7 accepts both.
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('node_modules/recharts')) return 'charts'
+          if (id.includes('node_modules/lucide-react')) return 'icons'
+          if (
+            id.includes('node_modules/sentiment') ||
+            id.includes('node_modules/date-fns') ||
+            id.includes('node_modules/jalaali-js')
+          ) {
+            return 'analytics'
+          }
+          return undefined
         },
       },
     },
