@@ -2,7 +2,7 @@
 import { describe, it, test, before, after, afterEach, beforeEach } from 'node:test';
 // @ts-ignore
 import assert from 'node:assert';
-import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, calculateSeasonalityFactor } from './dataUtils';
+import { calculateMACD, analyzeMarketMTF, TseApiClient, calculateATR, calculateIchimoku, analyzeMarket, calculateSeasonalityFactor, resolveFeedMode } from './dataUtils';
 import { MarketCandle } from './types';
 import type { ApiConfig } from './types';
 
@@ -359,8 +359,8 @@ describe('TseApiClient', () => {
     };
     const client = new TseApiClient(config as any);
 
-    // Mock fetchMarketData to throw an error
-    client.fetchMarketData = async () => {
+    // Mock the market feed to throw an error
+    client.fetchMarketDataWithProvenance = async () => {
       throw new Error('API fetch failed');
     };
 
@@ -386,6 +386,105 @@ describe('TseApiClient', () => {
     } finally {
       console.warn = originalConsoleWarn;
     }
+  });
+
+  test('fetchMarketDataWithProvenance keeps the source and simulated label of the response', async () => {
+    const mockResponse: MarketCandle[] = [{
+      timestamp: 12345,
+      open: 100,
+      high: 110,
+      low: 90,
+      close: 105,
+      volume: 1000
+    }];
+
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        source: 'TSETMC_SNAPSHOT_WITH_SYNTHETIC_HISTORY',
+        simulated: true,
+        data: mockResponse,
+      }),
+    } as any);
+
+    const config: ApiConfig = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config);
+    const feed = await client.fetchMarketDataWithProvenance('TEST');
+
+    assert.deepStrictEqual(feed.candles, mockResponse);
+    assert.strictEqual(feed.provenance.source, 'TSETMC_SNAPSHOT_WITH_SYNTHETIC_HISTORY');
+    assert.strictEqual(feed.provenance.simulated, true);
+  });
+
+  test('fetchMarketDataWithProvenance never reports an unlabelled response as live', async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({ data: [] }),
+    } as any);
+
+    const config: ApiConfig = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config);
+    const feed = await client.fetchMarketDataWithProvenance('TEST');
+
+    assert.strictEqual(feed.provenance.source, 'UNLABELLED_API_RESPONSE');
+    assert.strictEqual(feed.provenance.simulated, true);
+    assert.strictEqual(resolveFeedMode(feed.provenance), 'twin');
+  });
+
+  test('fetchMultiTimeframeDataWithProvenance reports the backend label for the daily series and the twin for the intraday ones', async () => {
+    const mockResponse: MarketCandle[] = [{
+      timestamp: 12345,
+      open: 100,
+      high: 110,
+      low: 90,
+      close: 105,
+      volume: 1000
+    }];
+
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        source: 'TSETMC_SNAPSHOT_WITH_SYNTHETIC_HISTORY',
+        simulated: true,
+        data: mockResponse,
+      }),
+    } as any);
+
+    const config: ApiConfig = {
+      proxyUrl: 'http://proxy.com',
+      apiKey: 'key',
+      isConnected: true,
+      useDigitalTwin: false,
+    };
+
+    const client = new TseApiClient(config);
+    const feed = await client.fetchMultiTimeframeDataWithProvenance('TEST');
+
+    assert.strictEqual(feed.provenance['1d'].source, 'TSETMC_SNAPSHOT_WITH_SYNTHETIC_HISTORY');
+    assert.strictEqual(feed.provenance['1d'].simulated, true);
+    for (const tf of ['1h', '15m', '1m'] as const) {
+      assert.strictEqual(feed.provenance[tf].source, 'BROWSER_DIGITAL_TWIN');
+      assert.strictEqual(feed.provenance[tf].simulated, true);
+      assert.strictEqual(resolveFeedMode(feed.provenance[tf]), 'twin');
+    }
+  });
+
+  test('resolveFeedMode only reports a live feed when the backend says so', () => {
+    assert.strictEqual(resolveFeedMode(undefined), 'unknown');
+    assert.strictEqual(resolveFeedMode({ source: 'UNAVAILABLE', simulated: true }), 'twin');
+    assert.strictEqual(resolveFeedMode({ source: 'TSETMC_LIVE', simulated: false }), 'api');
   });
 
   test('fetchAdvancedMetrics handles fetch error and returns null', async () => {
@@ -440,9 +539,9 @@ describe('TseApiClient', () => {
     try {
       const client = new TseApiClient(config as any);
 
-      // Override fetchMarketData directly to force the exception
+      // Override the market feed directly to force the exception
       // which allows testing the catch block in fetchMultiTimeframeData
-      client.fetchMarketData = async () => {
+      client.fetchMarketDataWithProvenance = async () => {
         throw new Error('Forced fetchMarketData Error');
       };
 

@@ -8,6 +8,9 @@ import type {
   OrderBook,
   OrderBookItem,
   CorrelationMetrics,
+  FeedProvenance,
+  MarketFeed,
+  MultiTimeframeFeed,
   PoliticalRiskNews,
   SentimentData,
   ArbitrageOpportunity,
@@ -21,6 +24,17 @@ const sentiment = new Sentiment();
 
 // Module-level storage for simulation state to ensure continuity
 const SIMULATION_STATE: Record<string, Record<string, MarketCandle[]>> = {};
+
+// Candles generated inside the browser are never a live exchange feed.
+const BROWSER_TWIN_PROVENANCE: FeedProvenance = { source: 'BROWSER_DIGITAL_TWIN', simulated: true };
+
+export type FeedMode = 'api' | 'twin' | 'unknown';
+
+// A feed is only presented as live when the backend explicitly says it is.
+export const resolveFeedMode = (provenance?: FeedProvenance): FeedMode => {
+  if (!provenance) return 'unknown';
+  return provenance.simulated ? 'twin' : 'api';
+};
 
 export class TseApiClient {
   private config: ApiConfig;
@@ -42,21 +56,39 @@ export class TseApiClient {
     };
   }
 
-  async fetchMarketData(symbolId: string): Promise<MarketCandle[]> {
+  async fetchMarketDataWithProvenance(symbolId: string): Promise<MarketFeed> {
     const url = this.apiUrl(`/api/tse/${encodeURIComponent(symbolId)}`);
 
     try {
       const response = await fetch(url, { headers: this.requestHeaders() });
       if (!response.ok) throw new Error(`Market API returned HTTP ${response.status}`);
       const json: unknown = await response.json();
-      const data = (json as { data?: unknown })?.data;
-      if (Array.isArray(data)) return data as MarketCandle[];
-      throw new Error("Invalid real market data format");
+      const envelope = (json as { data?: unknown; source?: unknown; simulated?: unknown }) ?? {};
+      const data = envelope.data;
+      if (!Array.isArray(data)) throw new Error("Invalid real market data format");
+      return {
+        candles: data as MarketCandle[],
+        provenance: {
+          source: typeof envelope.source === 'string' ? envelope.source : 'UNLABELLED_API_RESPONSE',
+          // An unlabelled response is never presented as a live feed.
+          simulated: envelope.simulated === undefined ? true : Boolean(envelope.simulated),
+        },
+      };
     } catch (error) {
       console.error("Failed to fetch from real market API", error);
-      if (!this.config.useDigitalTwin) return [];
-      return this.generateDigitalTwinData(symbolId);
+      if (!this.config.useDigitalTwin) {
+        return { candles: [], provenance: { source: 'UNAVAILABLE', simulated: true } };
+      }
+      return {
+        candles: this.generateDigitalTwinData(symbolId),
+        provenance: { source: 'BROWSER_DIGITAL_TWIN', simulated: true },
+      };
     }
+  }
+
+  async fetchMarketData(symbolId: string): Promise<MarketCandle[]> {
+    const { candles } = await this.fetchMarketDataWithProvenance(symbolId);
+    return candles;
   }
 
   async fetchAdvancedMetrics(historyData: MarketCandle[]): Promise<unknown | null> {
@@ -305,25 +337,42 @@ export class TseApiClient {
     return { simulated: true, politicalRiskIndex, score, label, news };
   }
 
-  async fetchMultiTimeframeData(symbolId: string): Promise<Record<TimeFrame, MarketCandle[]>> {
+  async fetchMultiTimeframeDataWithProvenance(symbolId: string): Promise<MultiTimeframeFeed> {
     const timeframes: TimeFrame[] = ["1m", "15m", "1h", "1d"];
     const result: Partial<Record<TimeFrame, MarketCandle[]>> = {};
+    const provenance: Partial<Record<TimeFrame, FeedProvenance>> = {};
     if (this.config.proxyUrl && this.config.isConnected) {
       try {
-        const daily = await this.fetchMarketData(symbolId);
-        result["1d"] = daily;
+        const daily = await this.fetchMarketDataWithProvenance(symbolId);
+        result["1d"] = daily.candles;
+        provenance["1d"] = daily.provenance;
         result["1h"] = this.generateDigitalTwinData(symbolId, "1h");
+        provenance["1h"] = BROWSER_TWIN_PROVENANCE;
         result["15m"] = this.generateDigitalTwinData(symbolId, "15m");
+        provenance["15m"] = BROWSER_TWIN_PROVENANCE;
         result["1m"] = this.generateDigitalTwinData(symbolId, "1m");
-        return result as Record<TimeFrame, MarketCandle[]>;
+        provenance["1m"] = BROWSER_TWIN_PROVENANCE;
+        return {
+          data: result as Record<TimeFrame, MarketCandle[]>,
+          provenance: provenance as Record<TimeFrame, FeedProvenance>,
+        };
       } catch (e) {
         console.warn("API fetch failed, using full simulation for all timeframes");
       }
     }
     for (const tf of timeframes) {
       result[tf] = this.generateDigitalTwinData(symbolId, tf);
+      provenance[tf] = BROWSER_TWIN_PROVENANCE;
     }
-    return result as Record<TimeFrame, MarketCandle[]>;
+    return {
+      data: result as Record<TimeFrame, MarketCandle[]>,
+      provenance: provenance as Record<TimeFrame, FeedProvenance>,
+    };
+  }
+
+  async fetchMultiTimeframeData(symbolId: string): Promise<Record<TimeFrame, MarketCandle[]>> {
+    const { data } = await this.fetchMultiTimeframeDataWithProvenance(symbolId);
+    return data;
   }
 
   private async getLastPrice(symbolId: string): Promise<number> {

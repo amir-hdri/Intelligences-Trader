@@ -452,7 +452,7 @@ flowchart TD
 | **Python ML Research** | `ml_service/` | TCN causal actor-critic, Beta continuous sizing, Gaussian HMM, CircuitBreaker |
 | **Knowledge Graph** | `graphify-out/` | Graphify structural AST graph (1,546 nodes, 2,798 edges, 111 communities) |
 
-The frontend communicates with relative `/api` and `/ws` endpoints. Vite proxies these routes during development, while the production Nginx container proxies them in production. Continuous testing covers 281 unit and integration test suites with 100% pass rate.
+The frontend communicates with relative `/api` and `/ws` endpoints. Vite proxies these routes during development, while the production Nginx container proxies them in production. Continuous testing covers 285 unit and integration test suites with 100% pass rate.
 
 
 ## Quick start

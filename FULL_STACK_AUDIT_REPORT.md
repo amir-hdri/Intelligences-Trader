@@ -66,7 +66,7 @@ learning, paper-trading, and ledger boundaries.
 | P2 | The delivery acceptance document still documented the deleted `services/api.ts` and put the login form in the wrong tab | The acceptance report contradicted the delivered code | Both rows now reference `services/apiFetch.ts` and the API tab (`ApiSettingsPanel`) | `npm run verify` |
 | P2 | Quantity quick-set buttons labelled "25% / 50% / 75% / 100%" set lots from a hard-coded 100-lot base | The percentage implied a balance-derived sizing that did not exist | The buttons are labelled and set explicit lot quantities (25/50/75/100 lots) | `npm run build` |
 | P3 | Dead new props and paths shipped with the redesign (`onEmergencyHalt`, a gated one-click trade action, a hard-coded "ONLINE (0.8ms)") | Dead branches and fabricated latency in the shipped bundle | The unused emergency callback is replaced by a real "Reset Halt" action wired to `RiskEngine.resetKillSwitch`, the never-rendered trade buttons are removed, and the gateway label no longer invents a latency | `npm run typecheck` |
-| P3 | `marketAnalyzer.worker.test.ts` was never compiled or executed, and `tsc` did not clean `outDir` | Three worker tests were missing from every reported count and stale output could inflate it | The worker test is part of `tsconfig.test.json`, and `npm test` removes `test-out` before compiling | `npm test --workspace app` (50 cases) |
+| P3 | `marketAnalyzer.worker.test.ts` was never compiled or executed, and `tsc` did not clean `outDir` | Three worker tests were missing from every reported count and stale output could inflate it | The worker test is part of `tsconfig.test.json`, and `npm test` removes `test-out` before compiling | `npm test --workspace app` (54 cases) |
 
 ## C. Completed work
 
@@ -94,7 +94,7 @@ learning, paper-trading, and ledger boundaries.
 | Lint | NOT AVAILABLE | Repository has no ESLint configuration; strict TypeScript, production build, incomplete-marker/unsafe-pattern scans, and tests were used instead. Adding a formatter/linter is a P3 follow-up, not hidden as a pass. |
 | Vite/Playwright config TypeScript | PASS | `tsc -p robot trader/tsconfig.node.json --noEmit` |
 | Production frontend build | PASS | `npm run build` |
-| Frontend/domain unit tests | PASS | 50 tests |
+| Frontend/domain unit tests | PASS | 54 tests |
 | Analysis API/unit/integration/security tests | PASS | 151 tests including auth, model, ledger, P2 and Phase 3 suites |
 | Gateway/real WebSocket integration tests | PASS | 7 tests covering normalized external data, fallback provenance, order book, Prometheus output and WS |
 | Python unit/integration tests | PASS | 73 tests with 0 deprecation warnings |
@@ -108,7 +108,7 @@ learning, paper-trading, and ledger boundaries.
 | Terminal navigation contract | PASS | `robot trader/tests/audit/navigation.spec.ts` — all 22 nav ids land on a visible, non-empty labelled region |
 | Orphan-module guard | PASS | `robot trader/src/orphanGuard.test.ts` — every production module under `src/` is reachable from the entry points; the guard fails `npm test`, not `npm run build` |
 | ONNX artifact contract | PASS | `ml_service/test_model_contract.py` and `robot trader/server/modelArtifactContract.test.js` pin both artifacts' names, shapes and digests |
-| Documented test totals | PASS | `npm run verify` — the documented totals equal the executed counts (281) |
+| Documented test totals | PASS | `npm run verify` — the documented totals equal the executed counts (285) |
 | Docker image build/runtime | NOT AVAILABLE LOCALLY | Docker CLI/daemon unavailable in this sandbox |
 | Terraform validate/plan | NOT AVAILABLE LOCALLY | Terraform CLI and cloud credentials unavailable |
 | GitHub workflow publication | REQUIRES USER ACTION | GitHub App token lacks workflow-write permission |

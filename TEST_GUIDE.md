@@ -10,8 +10,8 @@
 npm ci
 npm run typecheck                  # بررسی تایپ‌اسکریپت (0 خطا)
 npm run build                      # بیلد پروداکشن کلاینت با Vite
-npm test --workspaces --if-present  # اجرای 208 تست Node (50 فرانت‌اند + 151 بک‌اند هسته + 7 پروکسی)
-npm test --workspace app           # اجرای 50 تست کلاینت فرانت‌اند
+npm test --workspaces --if-present  # اجرای 212 تست Node (54 فرانت‌اند + 151 بک‌اند هسته + 7 پروکسی)
+npm test --workspace app           # اجرای 54 تست کلاینت فرانت‌اند
 npm run verify                     # بررسی تطابق شمارش تست‌های مستندشده با شمارش اجراشده
 npm audit --audit-level=moderate   # بررسی امنیتی پکیج‌ها (0 آسیب‌پذیری)
 ```

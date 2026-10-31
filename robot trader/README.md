@@ -104,7 +104,7 @@ Heavy analysis is kept off the UI thread, but the implementation is narrower tha
 
 ```bash
 npm run typecheck            # strict TypeScript
-npm test                     # node --test suite (50 cases, including the orphan-module guard)
+npm test                     # node --test suite (54 cases, including the orphan-module guard)
 npm run build                # production bundle
 npm run test:e2e             # Playwright browser journeys (desktop + mobile)
 ```

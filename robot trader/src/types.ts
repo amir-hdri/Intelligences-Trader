@@ -40,6 +40,21 @@ export interface OrderBook {
   simulated?: boolean;
 }
 
+export interface FeedProvenance {
+  source: string;
+  simulated: boolean;
+}
+
+export interface MarketFeed {
+  candles: MarketCandle[];
+  provenance: FeedProvenance;
+}
+
+export interface MultiTimeframeFeed {
+  data: Record<TimeFrame, MarketCandle[]>;
+  provenance: Record<TimeFrame, FeedProvenance>;
+}
+
 export interface CorrelationMetrics {
   simulated?: boolean;
   usdFree: number;

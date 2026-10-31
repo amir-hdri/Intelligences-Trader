@@ -12,6 +12,7 @@ import {
   BackendAnalysisResponse,
   MarketRegime,
   TradeAction,
+  FeedProvenance,
 } from '../types';
 import { TseApiClient } from '../dataUtils';
 import { WorkerPool } from '../workers/workerPool';
@@ -52,6 +53,7 @@ export const useMarketData = (
   const [errorState, setErrorState] = useState<string | null>(null);
   const [isTraining, setIsTraining] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(0);
+  const [feedProvenance, setFeedProvenance] = useState<Record<TimeFrame, FeedProvenance> | null>(null);
 
   const orderBookRef = useRef<OrderBookType | null>(null);
   const requestSequenceRef = useRef(0);
@@ -71,11 +73,12 @@ export const useMarketData = (
     setErrorState(null);
 
     try {
-      const [data, corr, sent] = await Promise.all([
-        apiClient.fetchMultiTimeframeData(selectedSymbol.id),
+      const [feed, corr, sent] = await Promise.all([
+        apiClient.fetchMultiTimeframeDataWithProvenance(selectedSymbol.id),
         apiClient.fetchMarketCorrelation(),
         apiClient.fetchSentiment(),
       ]);
+      const data = feed.data;
 
       if (data['1d'].length === 0 || data['1h'].length === 0) {
         throw new Error('The market data service returned no usable candles');
@@ -120,6 +123,7 @@ export const useMarketData = (
       }
 
       setMtfData(data);
+      setFeedProvenance(feed.provenance);
       setCorrelation(corr);
       setSentiment(sent);
       setForecast(analysis);
@@ -164,6 +168,7 @@ export const useMarketData = (
 
   return {
     mtfData,
+    feedProvenance,
     orderBook,
     setOrderBook,
     correlation,

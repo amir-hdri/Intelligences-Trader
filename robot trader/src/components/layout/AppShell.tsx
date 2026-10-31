@@ -112,7 +112,8 @@ interface HeaderProps {
   currentPrice?: number;
   priceChange?: number;
   quote?: { price: number; change: number; asOf: number } | null;
-  feedMode: 'api' | 'twin';
+  feedMode: 'api' | 'twin' | 'unknown';
+  feedSource?: string;
   onRefresh?: () => void;
   isLoading?: boolean;
 }
@@ -134,11 +135,18 @@ export const Header: React.FC<HeaderProps> = ({
   priceChange = 0,
   quote = null,
   feedMode,
+  feedSource,
   onRefresh,
   isLoading
 }) => {
   const selectedInstrument = symbols.find(symbol => symbol.id === selectedId);
   const isTwinFeed = feedMode === 'twin';
+  const isUnknownFeed = feedMode === 'unknown';
+  const feedBadge = isUnknownFeed
+    ? { text: 'IME FEED UNKNOWN', tone: 'text-[#94A3B8]', radio: 'text-[#94A3B8]' }
+    : isTwinFeed
+      ? { text: 'IME SIMULATION TAPE', tone: 'text-[#F59E0B]', radio: 'text-[#F59E0B]' }
+      : { text: 'IME LIVE TAPE', tone: 'text-[#00F0FF]', radio: 'text-[#00F0FF] animate-pulse' };
   const quotePrice = quote?.price ?? 0;
   const quoteLabel = quote && Number.isFinite(quotePrice)
     ? quotePrice >= 1000
@@ -154,12 +162,15 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="sticky top-0 z-30 border-b bg-[#060E20]/95 backdrop-blur-xl border-white/[0.08]">
       {/* 1. TOP MARKET QUOTE STRIP */}
       <div className="hidden sm:flex h-6 bg-[#0B1326] border-b border-white/[0.06] overflow-hidden items-center text-[10px] font-mono select-none">
-        <div className={cn(
-          "flex items-center gap-1.5 px-3 bg-[#131B2E] font-bold shrink-0 z-10 border-r border-white/[0.08] h-full",
-          isTwinFeed ? "text-[#F59E0B]" : "text-[#00F0FF]"
-        )}>
-          <Radio className={cn('w-3 h-3', isTwinFeed ? 'text-[#F59E0B]' : 'text-[#00F0FF] animate-pulse')} />
-          <span>{isTwinFeed ? 'IME SIMULATION TAPE' : 'IME LIVE TAPE'}</span>
+        <div
+          className={cn(
+            "flex items-center gap-1.5 px-3 bg-[#131B2E] font-bold shrink-0 z-10 border-r border-white/[0.08] h-full",
+            feedBadge.tone
+          )}
+          title={feedSource ? `Feed source: ${feedSource}` : 'Feed source unknown'}
+        >
+          <Radio className={cn('w-3 h-3', feedBadge.radio)} />
+          <span>{feedBadge.text}</span>
         </div>
 
         <div className="flex items-center gap-3 px-4 whitespace-nowrap overflow-hidden">

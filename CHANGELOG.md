@@ -21,6 +21,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it is deleted rather than pinned to a version with an open advisory.
 - **Remaining Dependabot bumps applied to the proxy server**: `dotenv` 18.0.9 and `nock` 15.0.5 replace the
   versions the bot had queued in pull requests #225 and #224.
+- **Dependabot now watches every workspace**: the npm ecosystem covers the repository root (the production
+  `server` workspace) in addition to `robot trader`, and the `uv` ecosystem covers `ml_service`. The two
+  unmonitored manifests were the reason the advisory queue kept stale rows alive after the lockfiles were fixed.
+
+### Fixed
+- **The tape badge no longer claims a live feed**: the frontend dropped the `source`/`simulated` labels that
+  `GET /api/tse/:id` returns and decided the badge from the connection mode alone, so a synthetic series was
+  presented as an exchange feed. The market fetch now returns its provenance alongside the candles, the hook
+  keeps the label per timeframe, and the badge reports `IME SIMULATION TAPE` for every simulated or unlabelled
+  series, `IME LIVE TAPE` only when the backend states the data is not simulated, and `IME FEED UNKNOWN` while
+  the provenance is still unknown. The intraday frames (1h/15m/1m) are generated in the browser and are
+  therefore always labelled as simulation.
 
 ### Changed
 - **`GET /api/tse/:id` states what it serves**: the endpoint reads the instrument history from the TSETMC CDN
@@ -30,10 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is unreachable the response is the labelled digital twin (`source: DIGITAL_TWIN`) rather than a 500.
 - **Documentation truth**: `API_DOCS.md` describes the endpoint as it now behaves, and the test totals in
   `README.md`, `TEST_GUIDE.md`, `FULL_STACK_AUDIT_REPORT.md`, `robot trader/server/README.md` and the delivery
-  acceptance report match the executed counts (281 in total, 151 in the core backend).
+  acceptance report match the executed counts (285 in total, 151 in the core backend).
 
 ### Verified
-- **Full-Stack Test Verification**: 281 of 281 automated tests passing with 100% green status (73 Python tests, 208 Node tests, 0 TypeScript compiler diagnostics).
+- **Full-Stack Test Verification**: 285 of 285 automated tests passing with 100% green status (73 Python tests, 212 Node tests, 0 TypeScript compiler diagnostics).
 - **Dependency audit**: `npm audit` → 0 vulnerabilities (was 4 moderate after the lockfile upgrade); `uv lock --check` → the lockfile matches the manifest.
 - **Browser end-to-end**: 7 passed, 1 skipped (`npm run test:e2e --workspace app`).
 

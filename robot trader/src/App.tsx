@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { IME_SYMBOLS, DEFAULT_API_CONFIG, INITIAL_METRICS, DEFAULT_RISK_LIMITS } from './constants';
 import type { SystemMetrics, TradeLogEntry, RiskLimits, RiskStatus, TimeFrame } from './types';
-import { DEFAULT_WEIGHTS } from './dataUtils';
+import { DEFAULT_WEIGHTS, resolveFeedMode } from './dataUtils';
 import { RiskEngine } from './riskEngine';
 import { useMarketData } from './hooks/useMarketData';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -102,6 +102,7 @@ export default function App() {
 
   const {
     mtfData,
+    feedProvenance,
     orderBook,
     setOrderBook,
     correlation,
@@ -374,6 +375,13 @@ export default function App() {
     return { price: last.close, change: priceChange, asOf: last.timestamp };
   }, [mtfData, timeframe, priceChange]);
 
+  // The tape badge reports the provenance of the series that feeds the quote,
+  // not the connection mode: an unlabelled or synthetic response never reads
+  // as a live exchange feed.
+  const activeProvenance = feedProvenance?.[timeframe];
+  const feedMode = resolveFeedMode(activeProvenance);
+  const feedSource = activeProvenance?.source;
+
   const predictionHistory = useMemo(() => predictionService.getHistory(), [tradeLogs, forecast]);
   const adaptiveWeights = useMemo(() => learningEngine.calculateAdaptiveWeights(predictionHistory), [predictionHistory]);
 
@@ -453,7 +461,8 @@ export default function App() {
         currentPrice={currentPrice}
         priceChange={priceChange}
         quote={liveQuote}
-        feedMode={apiConfig.useDigitalTwin ? 'twin' : 'api'}
+        feedMode={feedMode}
+        feedSource={feedSource}
         onRefresh={() => void loadData()}
         isLoading={isLoading}
       />
