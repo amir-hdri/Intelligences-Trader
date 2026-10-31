@@ -43,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   by directory, and the guard self-checks its parser on every run.
 
 ### Changed
+- **The frontend toolchain moves to Vite 8**: `vite` 8.3.5 and `@vitejs/plugin-react` 6.1.2 replace the Vite 7
+  line. Vite 8 bundles with Rolldown, which rejects the object form of `manualChunks`, so the chunk map in
+  `vite.config.ts` uses the callback form — accepted by both bundlers — and the emitted chunk names (`charts`,
+  `icons`, `analytics`) are unchanged. The build, the 54 frontend tests and the 7 browser end-to-end tests pass.
 - **`GET /api/tse/:id` states what it serves**: the endpoint reads the instrument history from the TSETMC CDN
   with a 5-second timeout, anchors the snapshot to the real last daily bar and labels the surrounding synthetic
   history as such (`source: TSETMC_SNAPSHOT_WITH_SYNTHETIC_HISTORY`, `simulated: true`). Symbols outside the
