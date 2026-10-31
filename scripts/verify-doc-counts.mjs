@@ -13,6 +13,9 @@
 // as scheduled but not passing, so a green run that skipped work cannot be
 // advertised as "N of N passing".
 //
+// The Node counters are read out of the test runner's own output, in the spec
+// format a terminal prints and in the TAP format a CI log prints.
+//
 // Usage:
 //   node scripts/verify-doc-counts.mjs
 //
@@ -36,9 +39,76 @@ const run = (command, args, cwd) => {
 };
 
 const workspacePaths = JSON.parse(read('package.json')).workspaces;
-const workspaceNames = new Map(
-  workspacePaths.map(workspacePath => [workspacePath, JSON.parse(read(join(workspacePath, 'package.json'))).name]),
-);
+// The npm header carries the workspace name, but npm prints the package name
+// while some versions print the directory. Both are accepted, and a directory
+// basename is only used when it identifies one workspace unambiguously.
+const workspaceNames = new Map();
+const basenameUsage = new Map();
+for (const workspacePath of workspacePaths) {
+  const basename = workspacePath.split('/').pop();
+  basenameUsage.set(basename, (basenameUsage.get(basename) ?? 0) + 1);
+}
+for (const workspacePath of workspacePaths) {
+  const packageName = JSON.parse(read(join(workspacePath, 'package.json'))).name;
+  workspaceNames.set(packageName, workspacePath);
+  const basename = workspacePath.split('/').pop();
+  if (basenameUsage.get(basename) === 1) workspaceNames.set(basename, workspacePath);
+}
+
+// The test runner prints the spec format on a terminal and the TAP format
+// everywhere else (CI included), so both prefixes are accepted.
+const COUNTER = /^(?:ℹ|#)\s+/;
+
+const parseWorkspaceCounters = (output, names) => {
+  const counters = new Map();
+  let currentWorkspace = null;
+  for (const line of output.split('\n')) {
+    const trimmed = line.trim();
+    const header = /^>\s+(.+?)@(\S+) test$/.exec(trimmed);
+    if (header) {
+      currentWorkspace = names.get(header[1]) ?? null;
+      if (currentWorkspace && !counters.has(currentWorkspace)) {
+        counters.set(currentWorkspace, { total: null, passed: null, skipped: null });
+      }
+      continue;
+    }
+    if (!currentWorkspace) continue;
+    const workspace = counters.get(currentWorkspace);
+    const total = new RegExp(`^${COUNTER.source}tests (\\d+)$`).exec(trimmed);
+    if (total) {
+      workspace.total = Number(total[1]);
+      continue;
+    }
+    const passed = new RegExp(`^${COUNTER.source}pass(?:ed)? (\\d+)$`).exec(trimmed);
+    if (passed) {
+      workspace.passed = Number(passed[1]);
+      continue;
+    }
+    const skipped = new RegExp(`^${COUNTER.source}skipped (\\d+)$`).exec(trimmed);
+    if (skipped) workspace.skipped = Number(skipped[1]);
+  }
+  return counters;
+};
+
+// Self-check: the CI job runs on a runtime whose non-interactive reporter is
+// the TAP one, so a parser that only understands the terminal format would
+// fail the guard on every push while passing locally. Both formats are
+// verified here on every run.
+const selfCheckNames = new Map([
+  ['app', 'robot trader'],
+  ['server', 'robot trader/server'],
+]);
+const selfCheckSamples = [
+  ['spec', '> app@1.0.0 test\nℹ tests 3\nℹ pass 3\nℹ skipped 0\n'],
+  ['TAP', '> app@1.0.0 test\n# tests 3\n# pass 3\n# skipped 0\n'],
+];
+for (const [format, sample] of selfCheckSamples) {
+  const parsed = parseWorkspaceCounters(sample, selfCheckNames).get('robot trader');
+  if (!parsed || parsed.total !== 3 || parsed.passed !== 3 || parsed.skipped !== 0) {
+    console.error(`verify-doc-counts: the ${format} test output could not be parsed.`);
+    process.exit(1);
+  }
+}
 
 const nodeRun = run('npm', ['test', '--workspaces', '--if-present'], repoRoot);
 if (nodeRun.status !== 0) {
@@ -47,37 +117,11 @@ if (nodeRun.status !== 0) {
   process.exit(1);
 }
 
-const workspaceCounters = new Map();
-let currentWorkspace = null;
-for (const line of nodeRun.output.split('\n')) {
-  const trimmed = line.trim();
-  const header = /^> (\S+)@(\S+) test$/.exec(trimmed);
-  if (header) {
-    currentWorkspace = header[1];
-    if (!workspaceCounters.has(currentWorkspace)) {
-      workspaceCounters.set(currentWorkspace, { total: null, passed: null, skipped: null });
-    }
-    continue;
-  }
-  if (!currentWorkspace) continue;
-  const counters = workspaceCounters.get(currentWorkspace);
-  const total = /^ℹ tests (\d+)$/.exec(trimmed);
-  if (total) {
-    counters.total = Number(total[1]);
-    continue;
-  }
-  const passed = /^ℹ pass(?:ed)? (\d+)$/.exec(trimmed);
-  if (passed) {
-    counters.passed = Number(passed[1]);
-    continue;
-  }
-  const skipped = /^ℹ skipped (\d+)$/.exec(trimmed);
-  if (skipped) counters.skipped = Number(skipped[1]);
-}
+const workspaceCounters = parseWorkspaceCounters(nodeRun.output, workspaceNames);
 
 const nodeSuites = workspacePaths.map(workspacePath => ({
   key: workspacePath,
-  counters: workspaceCounters.get(workspaceNames.get(workspacePath)) ?? null,
+  counters: workspaceCounters.get(workspacePath) ?? null,
 }));
 const unreadableNodeSuites = nodeSuites.filter(
   suite =>

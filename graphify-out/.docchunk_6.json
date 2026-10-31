@@ -1,0 +1,808 @@
+{
+  "nodes": [
+    {
+      "id": "npm_dep_update_root",
+      "label": "npm Weekly Dependency Updates (root workspace)",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/dependabot.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "npm_dep_update_robot_trader",
+      "label": "npm Weekly Dependency Updates (robot trader workspace)",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/dependabot.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "npm_dep_update_server",
+      "label": "npm Weekly Dependency Updates (server workspace)",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/dependabot.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "uv_dep_update_ml_service",
+      "label": "uv Weekly Dependency Updates (ml_service)",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/dependabot.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "_github_dependabot_weekly_update_policy",
+      "label": "Weekly Automated Dependency Update Policy",
+      "file_type": "rationale",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/dependabot.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Dependabot monitors every package ecosystem in the monorepo (npm at root, /robot trader and /server workspaces, uv for ml_service) on a weekly cadence to keep transitive trading-backend dependencies patched without manual triage."
+    },
+    {
+      "id": "_github_workflows_cd_pipeline",
+      "label": "Continuous Deployment Pipeline",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/cd.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Triggers on push to main; builds, signs, and publishes one container image per service to ghcr.io so the Kubernetes deployments can pull pinned commit-sha images."
+    },
+    {
+      "id": "_github_workflows_cd_docker_build_job",
+      "label": "Docker Image Build Matrix Job",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/cd.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "fail-fast: false so every service's build result shows instead of cancelling siblings on the first failure; context is the repository root so Dockerfiles can COPY the committed npm workspace manifests and run npm ci against the root package-lock.json for reproducible images."
+    },
+    {
+      "id": "_github_workflows_cd_sbom_generation",
+      "label": "SBOM Generation (Syft)",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/cd.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "_github_workflows_cd_vulnerability_scan",
+      "label": "Container Vulnerability Scan (Trivy)",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/cd.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Scans CRITICAL and HIGH severities with exit-code 1 so any CRITICAL finding fails the deploy pipeline."
+    },
+    {
+      "id": "_github_workflows_cd_image_signing",
+      "label": "Cosign Keyless Image Signing",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/cd.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "id-token: write permission enables Sigstore keyless signing of the published image for supply-chain provenance."
+    },
+    {
+      "id": "_github_workflows_cd_supply_chain_security",
+      "label": "Supply-Chain Image Security Posture",
+      "file_type": "rationale",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/cd.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Each published image is paired with an SPDX SBOM, a Trivy vulnerability gate, and a Cosign keyless signature so deployed artifacts are enumerable, vetted, and verifiable."
+    },
+    {
+      "id": "_github_workflows_ci_pipeline",
+      "label": "Continuous Integration Pipeline",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/ci.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Runs on every push to any branch and on pull requests targeting main, gating merges with the same checks the deploy path depends on."
+    },
+    {
+      "id": "_github_workflows_ci_node_checks",
+      "label": "Node & TypeScript Checks Job",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/ci.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "_github_workflows_ci_python_ml_checks",
+      "label": "Python ML Pipeline Checks Job",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/ci.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "_github_workflows_ci_documentation_truth",
+      "label": "Documentation Truth Guard Job",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/ci.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Runs npm run verify to fail the build when documented test counts drift from the actual suite, keeping docs honest about coverage."
+    },
+    {
+      "id": "docker_compose_frontend",
+      "label": "Compose frontend Service",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/docker-compose.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Serves the Vite app on 5173:8080; depends_on backend-ml and backend-proxy with service_healthy so it only starts once both backends pass healthchecks."
+    },
+    {
+      "id": "docker_compose_backend_ml",
+      "label": "Compose backend-ml Service",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/docker-compose.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "ML/trading backend on port 3000; depends_on redis and postgres with service_healthy and mounts the models dir read-only with a named trader-data volume."
+    },
+    {
+      "id": "docker_compose_backend_proxy",
+      "label": "Compose backend-proxy Service",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/docker-compose.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_redis",
+      "label": "Compose Redis Service",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/docker-compose.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "redis:7-alpine with a redis-cli ping healthcheck acting as the shared cache/session store for backend-ml."
+    },
+    {
+      "id": "docker_compose_postgres",
+      "label": "Compose Postgres Service",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/docker-compose.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "postgres:16-alpine with a pg_isready healthcheck and a named paper-trading-db volume backing the paper_trading database."
+    },
+    {
+      "id": "k8s_deployment_backend_ml",
+      "label": "backend-ml Deployment",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/deployment.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "2 replicas, RollingUpdate maxUnavailable 0 for zero-downtime; image ghcr.io/amir-hdri/intelligences-trader/backend-ml:SET_BY_CD is published by cd.yml; envFrom kalaybot-secrets; liveness/readiness probes on /api/status."
+    },
+    {
+      "id": "k8s_deployment_backend_proxy",
+      "label": "backend-proxy Deployment",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/deployment.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "2 replicas, RollingUpdate maxUnavailable 0; image published by cd.yml; serves on 3001 with probes on /api/status."
+    },
+    {
+      "id": "k8s_deployment_frontend",
+      "label": "frontend Deployment",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/deployment.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "2 replicas; env points ML_BACKEND_HOST/PROXY_BACKEND_HOST at the backend-ml-svc / backend-proxy-svc Kubernetes Services; probes on /."
+    },
+    {
+      "id": "k8s_deployment_security_hardening",
+      "label": "Pod Security Hardening Posture",
+      "file_type": "rationale",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/deployment.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "All deployments run as non-root with seccomp RuntimeDefault and drop ALL Linux capabilities; backend-ml and backend-proxy also set readOnlyRootFilesystem with a bounded emptyDir /tmp, reflecting a defense-in-depth container posture."
+    },
+    {
+      "id": "k8s_hpa_backend_ml",
+      "label": "backend-ml HorizontalPodAutoscaler",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/hpa.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Scales backend-ml from 2 to 10 replicas at 70% CPU utilization."
+    },
+    {
+      "id": "k8s_hpa_backend_proxy",
+      "label": "backend-proxy HorizontalPodAutoscaler",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/hpa.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Scales backend-proxy from 2 to 10 replicas at 70% CPU utilization."
+    },
+    {
+      "id": "k8s_pdb_backend_ml",
+      "label": "backend-ml PodDisruptionBudget",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/pdb.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "minAvailable 1 keeps at least one backend-ml pod running during voluntary disruptions."
+    },
+    {
+      "id": "k8s_pdb_backend_proxy",
+      "label": "backend-proxy PodDisruptionBudget",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/pdb.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "minAvailable 1 keeps at least one backend-proxy pod running during voluntary disruptions."
+    },
+    {
+      "id": "k8s_pdb_frontend",
+      "label": "frontend PodDisruptionBudget",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/pdb.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "minAvailable 1 keeps at least one frontend pod running during voluntary disruptions."
+    },
+    {
+      "id": "k8s_service_backend_ml",
+      "label": "backend-ml Service",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/service.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "ClusterIP service selecting app: backend-ml on port 3000."
+    },
+    {
+      "id": "k8s_service_backend_proxy",
+      "label": "backend-proxy Service",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/service.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "ClusterIP service selecting app: backend-proxy on port 3001."
+    },
+    {
+      "id": "k8s_service_frontend",
+      "label": "frontend Service",
+      "file_type": "concept",
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/service.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "LoadBalancer service exposing the frontend externally on port 80 -> targetPort 8080."
+    }
+  ],
+  "edges": [
+    {
+      "source": "_github_workflows_cd_pipeline",
+      "target": "_github_workflows_cd_docker_build_job",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/cd.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "_github_workflows_cd_docker_build_job",
+      "target": "_github_workflows_cd_sbom_generation",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/cd.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "_github_workflows_cd_docker_build_job",
+      "target": "_github_workflows_cd_vulnerability_scan",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/cd.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "_github_workflows_cd_docker_build_job",
+      "target": "_github_workflows_cd_image_signing",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/cd.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "_github_workflows_cd_supply_chain_security",
+      "target": "_github_workflows_cd_sbom_generation",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/cd.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "_github_workflows_cd_supply_chain_security",
+      "target": "_github_workflows_cd_vulnerability_scan",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/cd.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "_github_workflows_cd_supply_chain_security",
+      "target": "_github_workflows_cd_image_signing",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/cd.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "_github_workflows_ci_pipeline",
+      "target": "_github_workflows_ci_node_checks",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "_github_workflows_ci_pipeline",
+      "target": "_github_workflows_ci_python_ml_checks",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "_github_workflows_ci_pipeline",
+      "target": "_github_workflows_ci_documentation_truth",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "_github_workflows_ci_pipeline",
+      "target": "_github_workflows_cd_pipeline",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_frontend",
+      "target": "docker_compose_backend_ml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/docker-compose.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_frontend",
+      "target": "docker_compose_backend_proxy",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/docker-compose.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_backend_ml",
+      "target": "docker_compose_redis",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/docker-compose.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_backend_ml",
+      "target": "docker_compose_postgres",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/docker-compose.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_deployment_frontend",
+      "target": "k8s_service_backend_ml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/deployment.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_deployment_frontend",
+      "target": "k8s_service_backend_proxy",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/deployment.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_deployment_backend_ml",
+      "target": "_github_workflows_cd_pipeline",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/deployment.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_deployment_backend_proxy",
+      "target": "_github_workflows_cd_pipeline",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/deployment.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_deployment_frontend",
+      "target": "_github_workflows_cd_pipeline",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/deployment.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_deployment_security_hardening",
+      "target": "k8s_deployment_backend_ml",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/deployment.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_deployment_security_hardening",
+      "target": "k8s_deployment_backend_proxy",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/deployment.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_deployment_security_hardening",
+      "target": "k8s_deployment_frontend",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/deployment.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_service_backend_ml",
+      "target": "k8s_deployment_backend_ml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/service.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_service_backend_proxy",
+      "target": "k8s_deployment_backend_proxy",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/service.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_service_frontend",
+      "target": "k8s_deployment_frontend",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/service.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_hpa_backend_ml",
+      "target": "k8s_deployment_backend_ml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/hpa.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_hpa_backend_proxy",
+      "target": "k8s_deployment_backend_proxy",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/hpa.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_pdb_backend_ml",
+      "target": "k8s_deployment_backend_ml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/pdb.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_pdb_backend_proxy",
+      "target": "k8s_deployment_backend_proxy",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/pdb.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "k8s_pdb_frontend",
+      "target": "k8s_deployment_frontend",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/pdb.yaml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_backend_ml",
+      "target": "k8s_deployment_backend_ml",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/docker-compose.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_backend_proxy",
+      "target": "k8s_deployment_backend_proxy",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/docker-compose.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_frontend",
+      "target": "k8s_deployment_frontend",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/docker-compose.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "_github_dependabot_weekly_update_policy",
+      "target": "npm_dep_update_root",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/dependabot.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "_github_dependabot_weekly_update_policy",
+      "target": "npm_dep_update_robot_trader",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/dependabot.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "_github_dependabot_weekly_update_policy",
+      "target": "npm_dep_update_server",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/dependabot.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "_github_dependabot_weekly_update_policy",
+      "target": "uv_dep_update_ml_service",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/dependabot.yml",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "cd_image_build_deploy_flow",
+      "label": "CD Image Build-and-Deploy Flow",
+      "nodes": [
+        "_github_workflows_cd_pipeline",
+        "k8s_deployment_backend_ml",
+        "k8s_deployment_backend_proxy",
+        "k8s_deployment_frontend"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 0.9,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/.github/workflows/cd.yml"
+    },
+    {
+      "id": "backend_ml_production_workload",
+      "label": "backend-ml Production Workload",
+      "nodes": [
+        "k8s_deployment_backend_ml",
+        "k8s_hpa_backend_ml",
+        "k8s_pdb_backend_ml",
+        "k8s_service_backend_ml"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 0.9,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/deployment.yaml"
+    },
+    {
+      "id": "backend_proxy_production_workload",
+      "label": "backend-proxy Production Workload",
+      "nodes": [
+        "k8s_deployment_backend_proxy",
+        "k8s_hpa_backend_proxy",
+        "k8s_pdb_backend_proxy",
+        "k8s_service_backend_proxy"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 0.9,
+      "source_file": "/Users/amirheidari/GitHub/Intelligences-Trader/k8s/deployment.yaml"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}
