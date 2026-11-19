@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@tensorflow/tfjs": "^4.22.0",
+    "axios": "^1.21.1",
     "ccxt": "^4.5.71",
     "cors": "^2.8.5",
     "dotenv": "^18.0.9",
